@@ -1,3 +1,9 @@
+export type {
+  Account,
+  AccountType,
+  CreateAccountInput
+} from "./accounts";
+export { accountTypeSchema, createAccountSchema } from "./accounts";
 export type { ApiErrorCode, ApiErrorResponse } from "./errors";
 export { apiErrorCodes } from "./errors";
 export type {

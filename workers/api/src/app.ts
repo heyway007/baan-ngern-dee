@@ -8,6 +8,7 @@ import {
   type AuthVerifier
 } from "./middleware/auth";
 import { requestId } from "./middleware/request-id";
+import { accountRoutes } from "./routes/accounts";
 import { catalogRoutes } from "./routes/catalog";
 import { workspaceRoutes } from "./routes/workspaces";
 import {
@@ -40,6 +41,7 @@ export function createApp(
     return context.json(body);
   });
   app.use("/v1/*", requireAuth(authVerifier));
+  app.route("/v1/accounts", accountRoutes(financeRepository));
   app.route("/v1/workspaces", workspaceRoutes(financeRepository));
   app.route("/v1/categories", catalogRoutes(financeRepository));
 

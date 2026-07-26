@@ -1,6 +1,8 @@
 import type {
+  Account,
   Category,
   CategoryKind,
+  CreateAccountInput,
   CreateCategoryInput,
   CreatePrivateWorkspaceInput,
   Workspace,
@@ -18,6 +20,10 @@ export interface FinanceRepository {
     userId: string,
     input: CreateCategoryInput
   ): Promise<Category>;
+  createAccount(
+    userId: string,
+    input: CreateAccountInput
+  ): Promise<Account>;
 }
 
 type StoredWorkspace = Omit<Workspace, "role"> & {
@@ -59,6 +65,7 @@ export function createMemoryFinanceRepository(): FinanceRepository {
   const workspaces = new Map<string, StoredWorkspace>();
   const memberships = new Map<string, Map<string, WorkspaceRole>>();
   const categories = new Map<string, Category>();
+  const accounts = new Map<string, Account>();
 
   return {
     async createPrivateWorkspace(userId, input) {
@@ -169,6 +176,30 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       };
       categories.set(id, category);
       return category;
+    },
+
+    async createAccount(userId, input) {
+      const role = memberships.get(input.workspaceId)?.get(userId);
+      if (role !== "owner" && role !== "editor") {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงพื้นที่นี้"
+        );
+      }
+
+      const id = crypto.randomUUID();
+      const account: Account = {
+        id,
+        workspaceId: input.workspaceId,
+        name: input.name,
+        type: input.type,
+        currency: input.currency,
+        institution: input.institution,
+        version: 1
+      };
+      accounts.set(id, account);
+      return account;
     }
   };
 }
