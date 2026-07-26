@@ -15,3 +15,8 @@ export type {
   TransactionType
 } from "./transactions";
 export { postingEffect, validateSplits } from "./transactions";
+export type {
+  TransferEffectInput,
+  TransferReportEffect
+} from "./transfers";
+export { transferReportEffect } from "./transfers";

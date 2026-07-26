@@ -11,6 +11,7 @@ import { requestId } from "./middleware/request-id";
 import { accountRoutes } from "./routes/accounts";
 import { catalogRoutes } from "./routes/catalog";
 import { transactionRoutes } from "./routes/transactions";
+import { transferRoutes } from "./routes/transfers";
 import { workspaceRoutes } from "./routes/workspaces";
 import {
   createMemoryFinanceRepository,
@@ -49,6 +50,7 @@ export function createApp(
     "/v1/transactions",
     transactionRoutes(financeRepository)
   );
+  app.route("/v1/transfers", transferRoutes(financeRepository));
 
   return app;
 }

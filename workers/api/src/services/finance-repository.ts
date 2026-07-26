@@ -5,8 +5,10 @@ import type {
   CreateAccountWithOpeningBalanceInput,
   CreateCategoryInput,
   CreatePrivateWorkspaceInput,
+  CreateTransferInput,
   CreateTransactionInput,
   PostedTransactionResponse,
+  PostedTransferResponse,
   TransactionState,
   TransactionType,
   VoidTransactionInput,
@@ -16,6 +18,7 @@ import type {
 import {
   parseMoney,
   roundMoney,
+  transferReportEffect,
   validateSplits
 } from "@systems-credit/domain";
 
@@ -43,6 +46,10 @@ export interface FinanceRepository {
     transactionId: string,
     input: VoidTransactionInput
   ): Promise<PostedTransactionResponse>;
+  postTransfer(
+    userId: string,
+    input: CreateTransferInput
+  ): Promise<TransferPostResult>;
 }
 
 export type AccountCreationResult = Readonly<{
@@ -57,6 +64,11 @@ export type AccountCreationResult = Readonly<{
     amount: string;
     currency: string;
   }>;
+}>;
+
+export type TransferPostResult = Readonly<{
+  response: PostedTransferResponse;
+  replayed: boolean;
 }>;
 
 type StoredWorkspace = Omit<Workspace, "role"> & {
@@ -118,6 +130,10 @@ export function createMemoryFinanceRepository(): FinanceRepository {
   const accounts = new Map<string, StoredAccount>();
   const transactions = new Map<string, StoredTransaction>();
   const mutationResults = new Map<string, PostedTransactionResponse>();
+  const transferMutationResults = new Map<
+    string,
+    PostedTransferResponse
+  >();
 
   return {
     async createPrivateWorkspace(userId, input) {
@@ -472,6 +488,192 @@ export function createMemoryFinanceRepository(): FinanceRepository {
           }
         ]
       };
+    },
+
+    async postTransfer(userId, input) {
+      const mutationKey = `${userId}:${input.clientMutationId}`;
+      const existing = transferMutationResults.get(mutationKey);
+      if (existing) {
+        return { response: existing, replayed: true };
+      }
+
+      const role = memberships.get(input.workspaceId)?.get(userId);
+      const source = accounts.get(input.sourceAccountId);
+      const destination = accounts.get(input.destinationAccountId);
+      if (
+        (role !== "owner" && role !== "editor") ||
+        !source ||
+        !destination ||
+        source.workspaceId !== input.workspaceId ||
+        destination.workspaceId !== input.workspaceId
+      ) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงบัญชีสำหรับการโอน"
+        );
+      }
+      if (
+        source.id === destination.id ||
+        source.currency !== input.sourceCurrency ||
+        destination.currency !== input.destinationCurrency
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "ข้อมูลบัญชีหรือสกุลเงินไม่ถูกต้อง"
+        );
+      }
+
+      const sourceAmount = parseMoney({
+        amount: input.sourceAmount,
+        currency: input.sourceCurrency
+      });
+      const destinationAmount = parseMoney({
+        amount: input.destinationAmount,
+        currency: input.destinationCurrency
+      });
+      if (
+        input.sourceCurrency === input.destinationCurrency &&
+        !sourceAmount.equals(destinationAmount)
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "ยอดโอนสกุลเดียวกันต้องเท่ากัน"
+        );
+      }
+      if (
+        input.sourceCurrency !== input.destinationCurrency &&
+        (!input.exchangeRate ||
+          !parseMoney({
+            amount: input.exchangeRate,
+            currency: input.destinationCurrency
+          }).greaterThan(0))
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "ต้องระบุอัตราแลกเปลี่ยนที่มากกว่าศูนย์"
+        );
+      }
+
+      const feeAmount = parseMoney({
+        amount: input.feeAmount,
+        currency: input.sourceCurrency
+      });
+      if (feeAmount.isNegative()) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "ค่าธรรมเนียมต้องไม่ติดลบ"
+        );
+      }
+      if (!feeAmount.isZero()) {
+        const feeCategory = input.feeCategoryId
+          ? categories.get(input.feeCategoryId)
+          : undefined;
+        if (
+          !feeCategory ||
+          feeCategory.workspaceId !== input.workspaceId ||
+          feeCategory.kind !== "expense"
+        ) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            400,
+            "หมวดหมู่ค่าธรรมเนียมไม่ถูกต้อง"
+          );
+        }
+      }
+
+      const sourceLiability =
+        source.type === "credit_card" || source.type === "loan";
+      const destinationLiability =
+        destination.type === "credit_card" ||
+        destination.type === "loan";
+      const sourceDelta = sourceLiability
+        ? sourceAmount.plus(feeAmount)
+        : sourceAmount.plus(feeAmount).negated();
+      const destinationDelta = destinationLiability
+        ? destinationAmount.negated()
+        : destinationAmount;
+      const sourceBalance = roundMoney(
+        parseMoney({
+          amount: source.balance,
+          currency: source.currency
+        }).plus(sourceDelta),
+        source.currency
+      );
+      const destinationBalance = roundMoney(
+        parseMoney({
+          amount: destination.balance,
+          currency: destination.currency
+        }).plus(destinationDelta),
+        destination.currency
+      );
+
+      accounts.set(source.id, {
+        ...source,
+        balance: sourceBalance
+      });
+      accounts.set(destination.id, {
+        ...destination,
+        balance: destinationBalance
+      });
+
+      if (!feeAmount.isZero()) {
+        const feeTransactionId = crypto.randomUUID();
+        transactions.set(feeTransactionId, {
+          id: feeTransactionId,
+          workspaceId: input.workspaceId,
+          accountId: source.id,
+          createdBy: userId,
+          type: "expense",
+          amount: roundMoney(feeAmount, source.currency),
+          currency: source.currency,
+          state: "posted",
+          version: 1,
+          balanceDelta: roundMoney(
+            sourceLiability ? feeAmount : feeAmount.negated(),
+            source.currency
+          )
+        });
+      }
+
+      const transferId = crypto.randomUUID();
+      const reportEffect = transferReportEffect({
+        source: {
+          amount: input.sourceAmount,
+          currency: input.sourceCurrency
+        },
+        destination: {
+          amount: input.destinationAmount,
+          currency: input.destinationCurrency
+        },
+        fee: {
+          amount: input.feeAmount,
+          currency: input.sourceCurrency
+        }
+      });
+      const response: PostedTransferResponse = {
+        transferId,
+        state: "posted",
+        reportEffect,
+        accountBalances: [
+          {
+            accountId: source.id,
+            amount: sourceBalance,
+            currency: source.currency
+          },
+          {
+            accountId: destination.id,
+            amount: destinationBalance,
+            currency: destination.currency
+          }
+        ]
+      };
+      transferMutationResults.set(mutationKey, response);
+      return { response, replayed: false };
     }
   };
 }

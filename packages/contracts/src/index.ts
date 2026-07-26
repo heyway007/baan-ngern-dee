@@ -38,6 +38,11 @@ export {
   transactionTypeSchema,
   voidTransactionSchema
 } from "./transactions";
+export type {
+  CreateTransferInput,
+  PostedTransferResponse
+} from "./transfers";
+export { createTransferSchema } from "./transfers";
 
 export type HealthResponse = {
   ok: true;
