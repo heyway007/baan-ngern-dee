@@ -1,0 +1,160 @@
+import {
+  CircleDollarSign,
+  CreditCard,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  ReceiptText,
+  Settings,
+  ShieldCheck,
+  WalletCards,
+  X
+} from "lucide-react";
+import { useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
+
+import type { LocalSession } from "../lib/local-session";
+
+type AppLayoutProps = Readonly<{
+  session: LocalSession;
+  onSignOut(): void;
+}>;
+
+const navigation = [
+  { to: "/overview", label: "ภาพรวม", icon: LayoutDashboard },
+  { to: "/accounts", label: "บัญชี", icon: WalletCards },
+  { to: "/transactions", label: "รายการ", icon: ReceiptText },
+  { to: "/installments", label: "ผ่อนและหนี้", icon: CreditCard }
+] as const;
+
+export function AppLayout({ session, onSignOut }: AppLayoutProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div className="app-shell">
+      <aside className={menuOpen ? "sidebar open" : "sidebar"}>
+        <div className="sidebar-head">
+          <NavLink className="brand-lockup" to="/overview">
+            <span className="brand-mark" aria-hidden="true">฿</span>
+            <span>บ้านเงินดี</span>
+          </NavLink>
+          <button
+            type="button"
+            className="icon-button close-menu"
+            aria-label="ปิดเมนู"
+            onClick={() => setMenuOpen(false)}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="local-status">
+          <ShieldCheck size={17} aria-hidden="true" />
+          <span>
+            <strong>Local mode</strong>
+            ข้อมูลอยู่บนเครื่องนี้
+          </span>
+        </div>
+
+        <nav className="primary-nav" aria-label="เมนูหลัก">
+          {navigation.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) => isActive ? "active" : ""}
+            >
+              <Icon size={20} aria-hidden="true" />
+              <span>{label}</span>
+              {to === "/installments" ? (
+                <small className="coming-badge">เร็ว ๆ นี้</small>
+              ) : null}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="profile-row">
+            <span className="avatar" aria-hidden="true">
+              {session.displayName.slice(0, 1)}
+            </span>
+            <span>
+              <strong>{session.displayName}</strong>
+              <small>เจ้าของพื้นที่</small>
+            </span>
+          </div>
+          <button type="button" className="ghost-button" onClick={onSignOut}>
+            <LogOut size={18} aria-hidden="true" />
+            ออกจากโหมด Local
+          </button>
+        </div>
+      </aside>
+
+      {menuOpen ? (
+        <button
+          type="button"
+          className="menu-backdrop"
+          aria-label="ปิดเมนู"
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+
+      <div className="app-main">
+        <header className="mobile-header">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="เปิดเมนู"
+            onClick={() => setMenuOpen(true)}
+          >
+            <Menu aria-hidden="true" />
+          </button>
+          <div className="brand-lockup">
+            <span className="brand-mark" aria-hidden="true">฿</span>
+            <span>บ้านเงินดี</span>
+          </div>
+          <button type="button" className="icon-button" aria-label="ตั้งค่า">
+            <Settings aria-hidden="true" />
+          </button>
+        </header>
+
+        <Outlet />
+
+        <nav className="bottom-nav" aria-label="เมนูมือถือ">
+          {navigation.slice(0, 4).map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) => isActive ? "active" : ""}
+            >
+              <Icon size={20} aria-hidden="true" />
+              <span>{label === "ผ่อนและหนี้" ? "ผ่อน" : label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+export function ComingSoonPage({
+  title,
+  description
+}: Readonly<{ title: string; description: string }>) {
+  return (
+    <main className="page-content">
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">กำลังพัฒนา</span>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+      </div>
+      <section className="empty-state large">
+        <CircleDollarSign size={42} aria-hidden="true" />
+        <h2>เตรียมพื้นที่ไว้ให้แล้ว</h2>
+        <p>โมดูลนี้จะต่อยอดจากบัญชีที่คุณเพิ่มไว้ โดยข้อมูลยังอยู่ในเครื่องเช่นเดิม</p>
+      </section>
+    </main>
+  );
+}
