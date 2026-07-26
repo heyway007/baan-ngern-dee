@@ -1,4 +1,6 @@
-import { createAccountSchema } from "@systems-credit/contracts";
+import {
+  createAccountWithOpeningBalanceSchema
+} from "@systems-credit/contracts";
 import { Hono } from "hono";
 
 import { ApiError } from "../api-error";
@@ -9,7 +11,7 @@ export function accountRoutes(financeRepository: FinanceRepository) {
   const routes = new Hono<AppEnv>();
 
   routes.post("/", async (context) => {
-    const parsed = createAccountSchema.safeParse(
+    const parsed = createAccountWithOpeningBalanceSchema.safeParse(
       await context.req.json().catch(() => null)
     );
     if (!parsed.success) {
@@ -20,11 +22,11 @@ export function accountRoutes(financeRepository: FinanceRepository) {
       );
     }
 
-    const account = await financeRepository.createAccount(
+    const result = await financeRepository.createAccount(
       context.get("auth").userId,
       parsed.data
     );
-    return context.json({ account }, 201);
+    return context.json(result, 201);
   });
 
   return routes;

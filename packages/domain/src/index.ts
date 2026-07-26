@@ -9,3 +9,9 @@ export {
   sumMoney,
   type Money
 } from "./money";
+export type {
+  PostingEffect,
+  TransactionState,
+  TransactionType
+} from "./transactions";
+export { postingEffect, validateSplits } from "./transactions";

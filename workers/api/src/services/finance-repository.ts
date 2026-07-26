@@ -2,12 +2,22 @@ import type {
   Account,
   Category,
   CategoryKind,
-  CreateAccountInput,
+  CreateAccountWithOpeningBalanceInput,
   CreateCategoryInput,
   CreatePrivateWorkspaceInput,
+  CreateTransactionInput,
+  PostedTransactionResponse,
+  TransactionState,
+  TransactionType,
+  VoidTransactionInput,
   Workspace,
   WorkspaceRole
 } from "@systems-credit/contracts";
+import {
+  parseMoney,
+  roundMoney,
+  validateSplits
+} from "@systems-credit/domain";
 
 import { ApiError } from "../api-error";
 
@@ -22,12 +32,52 @@ export interface FinanceRepository {
   ): Promise<Category>;
   createAccount(
     userId: string,
-    input: CreateAccountInput
-  ): Promise<Account>;
+    input: CreateAccountWithOpeningBalanceInput
+  ): Promise<AccountCreationResult>;
+  postTransaction(
+    userId: string,
+    input: CreateTransactionInput
+  ): Promise<PostedTransactionResponse>;
+  voidTransaction(
+    userId: string,
+    transactionId: string,
+    input: VoidTransactionInput
+  ): Promise<PostedTransactionResponse>;
 }
+
+export type AccountCreationResult = Readonly<{
+  account: Account;
+  openingTransaction?: Readonly<{
+    transactionId: string;
+    state: "posted";
+    version: 1;
+  }>;
+  accountBalance: Readonly<{
+    accountId: string;
+    amount: string;
+    currency: string;
+  }>;
+}>;
 
 type StoredWorkspace = Omit<Workspace, "role"> & {
   ownerUserId: string;
+};
+
+type StoredAccount = Account & {
+  balance: string;
+};
+
+type StoredTransaction = {
+  id: string;
+  workspaceId: string;
+  accountId: string;
+  createdBy: string;
+  type: TransactionType;
+  amount: string;
+  currency: string;
+  state: TransactionState;
+  version: number;
+  balanceDelta: string;
 };
 
 type DefaultCategory = Readonly<{
@@ -65,7 +115,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
   const workspaces = new Map<string, StoredWorkspace>();
   const memberships = new Map<string, Map<string, WorkspaceRole>>();
   const categories = new Map<string, Category>();
-  const accounts = new Map<string, Account>();
+  const accounts = new Map<string, StoredAccount>();
+  const transactions = new Map<string, StoredTransaction>();
+  const mutationResults = new Map<string, PostedTransactionResponse>();
 
   return {
     async createPrivateWorkspace(userId, input) {
@@ -189,6 +241,10 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       }
 
       const id = crypto.randomUUID();
+      const openingBalance = roundMoney(
+        input.openingBalance,
+        input.currency
+      );
       const account: Account = {
         id,
         workspaceId: input.workspaceId,
@@ -198,8 +254,224 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         institution: input.institution,
         version: 1
       };
-      accounts.set(id, account);
-      return account;
+      accounts.set(id, { ...account, balance: openingBalance });
+
+      const result: AccountCreationResult = {
+        account,
+        accountBalance: {
+          accountId: id,
+          amount: openingBalance,
+          currency: input.currency
+        }
+      };
+
+      if (!parseMoney({
+        amount: openingBalance,
+        currency: input.currency
+      }).isZero()) {
+        const transactionId = crypto.randomUUID();
+        transactions.set(transactionId, {
+          id: transactionId,
+          workspaceId: input.workspaceId,
+          accountId: id,
+          createdBy: userId,
+          type: "balance_adjustment",
+          amount: openingBalance,
+          currency: input.currency,
+          state: "posted",
+          version: 1,
+          balanceDelta: openingBalance
+        });
+        return {
+          ...result,
+          openingTransaction: {
+            transactionId,
+            state: "posted",
+            version: 1
+          }
+        };
+      }
+
+      return result;
+    },
+
+    async postTransaction(userId, input) {
+      const mutationKey = `${userId}:${input.clientMutationId}`;
+      const existing = mutationResults.get(mutationKey);
+      if (existing) {
+        return existing;
+      }
+
+      const role = memberships.get(input.workspaceId)?.get(userId);
+      const account = accounts.get(input.accountId);
+      if (
+        (role !== "owner" && role !== "editor") ||
+        !account ||
+        account.workspaceId !== input.workspaceId
+      ) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงพื้นที่นี้"
+        );
+      }
+      if (account.currency !== input.currency) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "สกุลเงินของรายการไม่ตรงกับบัญชี"
+        );
+      }
+
+      try {
+        validateSplits(
+          { amount: input.amount, currency: input.currency },
+          input.splits ?? []
+        );
+      } catch {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "ยอดรวมรายการย่อยไม่ตรงกับยอดรายการ"
+        );
+      }
+
+      const categoryIds = input.splits
+        ? input.splits.map((split) => split.categoryId)
+        : [input.categoryId!];
+      const categoriesAreValid = categoryIds.every((categoryId) => {
+        const category = categories.get(categoryId);
+        return (
+          category?.workspaceId === input.workspaceId &&
+          category.kind === input.type
+        );
+      });
+      if (!categoriesAreValid) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "หมวดหมู่ไม่ตรงกับประเภทรายการ"
+        );
+      }
+
+      const amount = roundMoney(input.amount, input.currency);
+      const value = parseMoney({
+        amount,
+        currency: input.currency
+      });
+      const liability =
+        account.type === "credit_card" || account.type === "loan";
+      const balanceDelta =
+        input.type === "expense"
+          ? liability
+            ? value
+            : value.negated()
+          : liability
+            ? value.negated()
+            : value;
+      const nextBalance = roundMoney(
+        parseMoney({
+          amount: account.balance,
+          currency: account.currency
+        }).plus(balanceDelta),
+        account.currency
+      );
+
+      const transactionId = crypto.randomUUID();
+      accounts.set(account.id, { ...account, balance: nextBalance });
+      transactions.set(transactionId, {
+        id: transactionId,
+        workspaceId: input.workspaceId,
+        accountId: input.accountId,
+        createdBy: userId,
+        type: input.type,
+        amount,
+        currency: input.currency,
+        state: "posted",
+        version: 1,
+        balanceDelta: roundMoney(balanceDelta, input.currency)
+      });
+
+      const response: PostedTransactionResponse = {
+        transactionId,
+        version: 1,
+        state: "posted",
+        accountBalances: [
+          {
+            accountId: account.id,
+            amount: nextBalance,
+            currency: account.currency
+          }
+        ]
+      };
+      mutationResults.set(mutationKey, response);
+      return response;
+    },
+
+    async voidTransaction(userId, transactionId, input) {
+      const transaction = transactions.get(transactionId);
+      if (!transaction) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงรายการนี้"
+        );
+      }
+      const role = memberships
+        .get(transaction.workspaceId)
+        ?.get(userId);
+      if (role !== "owner" && role !== "editor") {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงรายการนี้"
+        );
+      }
+      if (
+        transaction.version !== input.version ||
+        transaction.state !== "posted"
+      ) {
+        throw new ApiError(
+          "STALE_VERSION",
+          409,
+          "รายการถูกแก้ไขแล้ว กรุณาโหลดข้อมูลใหม่"
+        );
+      }
+
+      const account = accounts.get(transaction.accountId);
+      if (!account) {
+        throw new ApiError(
+          "INTERNAL_ERROR",
+          500,
+          "ไม่พบบัญชีของรายการ"
+        );
+      }
+      const nextBalance = roundMoney(
+        parseMoney({
+          amount: account.balance,
+          currency: account.currency
+        }).minus(transaction.balanceDelta),
+        account.currency
+      );
+      accounts.set(account.id, { ...account, balance: nextBalance });
+      transactions.set(transaction.id, {
+        ...transaction,
+        state: "void",
+        version: transaction.version + 1
+      });
+
+      return {
+        transactionId,
+        version: transaction.version + 1,
+        state: "void",
+        accountBalances: [
+          {
+            accountId: account.id,
+            amount: nextBalance,
+            currency: account.currency
+          }
+        ]
+      };
     }
   };
 }

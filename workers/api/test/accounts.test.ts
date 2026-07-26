@@ -82,7 +82,7 @@ describe("POST /v1/accounts", () => {
     });
   });
 
-  it("does not accept an opening balance during metadata creation", async () => {
+  it("creates an explicit opening-balance transaction atomically", async () => {
     const { app, workspaceId } = await setup();
     const response = await app.request("/v1/accounts", {
       method: "POST",
@@ -99,9 +99,22 @@ describe("POST /v1/accounts", () => {
       })
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
     await expect(response.json()).resolves.toMatchObject({
-      error: { code: "VALIDATION_FAILED" }
+      account: {
+        workspaceId,
+        name: "เงินสด",
+        type: "cash",
+        currency: "THB"
+      },
+      openingTransaction: {
+        state: "posted",
+        version: 1
+      },
+      accountBalance: {
+        amount: "5000.00",
+        currency: "THB"
+      }
     });
   });
 });

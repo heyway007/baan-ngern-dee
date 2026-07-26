@@ -1,9 +1,14 @@
 export type {
   Account,
   AccountType,
-  CreateAccountInput
+  CreateAccountInput,
+  CreateAccountWithOpeningBalanceInput
 } from "./accounts";
-export { accountTypeSchema, createAccountSchema } from "./accounts";
+export {
+  accountTypeSchema,
+  createAccountSchema,
+  createAccountWithOpeningBalanceSchema
+} from "./accounts";
 export type { ApiErrorCode, ApiErrorResponse } from "./errors";
 export { apiErrorCodes } from "./errors";
 export type {
@@ -18,6 +23,21 @@ export type {
   WorkspaceRole
 } from "./workspaces";
 export { createPrivateWorkspaceSchema } from "./workspaces";
+export type {
+  CreateTransactionInput,
+  PostedTransactionResponse,
+  TransactionSplitInput,
+  TransactionState,
+  TransactionType,
+  VoidTransactionInput
+} from "./transactions";
+export {
+  createTransactionSchema,
+  transactionSplitSchema,
+  transactionStateSchema,
+  transactionTypeSchema,
+  voidTransactionSchema
+} from "./transactions";
 
 export type HealthResponse = {
   ok: true;

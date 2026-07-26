@@ -19,8 +19,19 @@ export const createAccountSchema = z
   })
   .strict();
 
+export const createAccountWithOpeningBalanceSchema =
+  createAccountSchema.extend({
+    openingBalance: z
+      .string()
+      .regex(/^-?(?:0|[1-9]\d*)(?:\.\d{1,4})?$/)
+      .default("0")
+  });
+
 export type AccountType = z.infer<typeof accountTypeSchema>;
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
+export type CreateAccountWithOpeningBalanceInput = z.infer<
+  typeof createAccountWithOpeningBalanceSchema
+>;
 
 export type Account = Readonly<{
   id: string;
