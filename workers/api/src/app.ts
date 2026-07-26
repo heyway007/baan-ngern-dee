@@ -2,10 +2,32 @@ import type { HealthResponse } from "@systems-credit/contracts";
 import { Hono } from "hono";
 
 import { errorHandler } from "./middleware/error-handler";
+import {
+  createStaticAuthVerifier,
+  requireAuth,
+  type AuthVerifier
+} from "./middleware/auth";
 import { requestId } from "./middleware/request-id";
+import { catalogRoutes } from "./routes/catalog";
+import { workspaceRoutes } from "./routes/workspaces";
+import {
+  createMemoryFinanceRepository,
+  type FinanceRepository
+} from "./services/finance-repository";
 import type { AppEnv } from "./types";
 
-export function createApp() {
+export type AppDependencies = Readonly<{
+  authVerifier: AuthVerifier;
+  financeRepository: FinanceRepository;
+}>;
+
+export function createApp(
+  dependencies: Partial<AppDependencies> = {}
+) {
+  const authVerifier =
+    dependencies.authVerifier ?? createStaticAuthVerifier({});
+  const financeRepository =
+    dependencies.financeRepository ?? createMemoryFinanceRepository();
   const app = new Hono<AppEnv>();
 
   app.use("*", requestId());
@@ -17,6 +39,9 @@ export function createApp() {
     };
     return context.json(body);
   });
+  app.use("/v1/*", requireAuth(authVerifier));
+  app.route("/v1/workspaces", workspaceRoutes(financeRepository));
+  app.route("/v1/categories", catalogRoutes(financeRepository));
 
   return app;
 }

@@ -285,6 +285,13 @@ git commit -m "feat: add exact financial domain primitives"
 
 ### Task 3: Supabase identity, private workspace, audit, and RLS foundation
 
+**Local-first execution note (approved 2026-07-27):** Development must not
+depend on Docker or a hosted Supabase project. PostgreSQL migrations are tested
+with PGlite through `npm run test:db`; HTTP behavior uses an injected in-memory
+repository. Keep `npm run test:db:supabase` as the final compatibility gate when
+the project is linked to Supabase. Generate hosted database types at that later
+integration gate rather than blocking local feature work.
+
 **Files:**
 - Create: `supabase/config.toml`
 - Create: `supabase/migrations/202607260001_identity_workspaces.sql`

@@ -12,12 +12,15 @@
     "dev:api": "npm run dev -w @systems-credit/api",
     "dev:web": "npm run dev -w @systems-credit/web",
     "test": "vitest",
-    "test:db": "supabase test db",
+    "test:db": "vitest --run workers/api/test/identity-database.test.ts",
+    "test:db:supabase": "supabase test db",
     "test:e2e": "playwright test",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@playwright/test": "^1.54.1",
+    "@types/node": "^26.1.1",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }
