@@ -1,11 +1,20 @@
 import {
   createAccountWithOpeningBalanceSchema,
+  createCategorySchema,
   createPrivateWorkspaceSchema,
+  createTransactionSchema,
   type Account,
   type Category,
+  type CreateTransactionInput,
+  type PostedTransactionResponse,
   type Workspace
 } from "@systems-credit/contracts";
-import { roundMoney, type CurrencyCode } from "@systems-credit/domain";
+import {
+  parseMoney,
+  roundMoney,
+  validateSplits,
+  type CurrencyCode
+} from "@systems-credit/domain";
 
 import type {
   AccountCreationResult,
@@ -25,6 +34,23 @@ type LocalOpeningTransaction = Readonly<{
   version: 1;
 }>;
 
+export type LocalTransaction = Readonly<{
+  id: string;
+  workspaceId: string;
+  accountId: string;
+  type: CreateTransactionInput["type"];
+  amount: string;
+  currency: string;
+  financialDate: string;
+  categoryId?: string;
+  splits?: CreateTransactionInput["splits"];
+  note?: string;
+  tagIds: string[];
+  state: "posted";
+  version: 1;
+  createdAt: string;
+}>;
+
 export type LocalFinanceSnapshot = Readonly<{
   version: 1;
   workspace: Workspace | null;
@@ -39,6 +65,7 @@ export type LocalFinanceSnapshot = Readonly<{
     }>
   >;
   openingTransactions: LocalOpeningTransaction[];
+  transactions: LocalTransaction[];
 }>;
 
 export type LocalFinanceApi = FinanceApi &
@@ -74,7 +101,8 @@ function emptySnapshot(): LocalFinanceSnapshot {
     categories: [],
     accounts: [],
     accountBalances: {},
-    openingTransactions: []
+    openingTransactions: [],
+    transactions: []
   };
 }
 
@@ -102,7 +130,16 @@ function readSnapshot(storage: Storage): LocalFinanceSnapshot {
 
   try {
     const parsed: unknown = JSON.parse(stored);
-    return isSnapshot(parsed) ? parsed : emptySnapshot();
+    return isSnapshot(parsed)
+      ? {
+          ...parsed,
+          transactions: Array.isArray(
+            (parsed as Partial<LocalFinanceSnapshot>).transactions
+          )
+            ? (parsed as LocalFinanceSnapshot).transactions
+            : []
+        }
+      : emptySnapshot();
   } catch {
     return emptySnapshot();
   }
@@ -157,6 +194,49 @@ export function createLocalFinanceApi(
       });
 
       return { workspace, categories };
+    },
+
+    async createCategory(input): Promise<Category> {
+      const parsed = createCategorySchema.parse(input);
+      if (!snapshot.workspace || parsed.workspaceId !== snapshot.workspace.id) {
+        throw new Error("WORKSPACE_NOT_FOUND");
+      }
+      if (parsed.parentId) {
+        const parent = snapshot.categories.find(
+          (category) => category.id === parsed.parentId
+        );
+        if (!parent || parent.kind !== parsed.kind) {
+          throw new Error("CATEGORY_PARENT_INVALID");
+        }
+      }
+
+      const normalizedName = parsed.name.trim().toLocaleLowerCase("th-TH");
+      const duplicate = snapshot.categories.some(
+        (category) =>
+          category.kind === parsed.kind &&
+          category.parentId === parsed.parentId &&
+          category.name.trim().toLocaleLowerCase("th-TH") === normalizedName
+      );
+      if (duplicate) {
+        throw new Error("CATEGORY_NAME_EXISTS");
+      }
+
+      const id = crypto.randomUUID();
+      const category: Category = {
+        id,
+        workspaceId: parsed.workspaceId,
+        ...(parsed.parentId ? { parentId: parsed.parentId } : {}),
+        slug: `custom-${id}`,
+        name: parsed.name,
+        kind: parsed.kind,
+        isDefault: false,
+        version: 1
+      };
+      persist({
+        ...snapshot,
+        categories: [...snapshot.categories, category]
+      });
+      return category;
     },
 
     async createAccount(input): Promise<AccountCreationResult> {
@@ -226,6 +306,109 @@ export function createLocalFinanceApi(
             }
           : {}),
         accountBalance
+      };
+    },
+
+    async postTransaction(
+      input
+    ): Promise<PostedTransactionResponse> {
+      const parsed = createTransactionSchema.parse(input);
+      if (!snapshot.workspace || parsed.workspaceId !== snapshot.workspace.id) {
+        throw new Error("WORKSPACE_NOT_FOUND");
+      }
+
+      const account = snapshot.accounts.find(
+        (candidate) => candidate.id === parsed.accountId
+      );
+      if (!account || account.currency !== parsed.currency) {
+        throw new Error("ACCOUNT_NOT_FOUND");
+      }
+
+      const categoryIds = parsed.splits
+        ? parsed.splits.map((split) => split.categoryId)
+        : [parsed.categoryId!];
+      const categoriesAreValid = categoryIds.every((categoryId) =>
+        snapshot.categories.some(
+          (category) =>
+            category.id === categoryId &&
+            category.kind === parsed.type
+        )
+      );
+      if (!categoriesAreValid) {
+        throw new Error("CATEGORY_TYPE_MISMATCH");
+      }
+      validateSplits(
+        {
+          amount: parsed.amount,
+          currency: parsed.currency
+        },
+        parsed.splits ?? []
+      );
+
+      const amount = roundMoney(
+        parsed.amount,
+        parsed.currency as CurrencyCode
+      );
+      const currentBalance =
+        snapshot.accountBalances[account.id]?.amount ??
+        roundMoney("0", account.currency);
+      const value = parseMoney({
+        amount,
+        currency: parsed.currency
+      });
+      const liability =
+        account.type === "credit_card" || account.type === "loan";
+      const delta =
+        parsed.type === "expense"
+          ? liability
+            ? value
+            : value.negated()
+          : liability
+            ? value.negated()
+            : value;
+      const nextBalance = roundMoney(
+        parseMoney({
+          amount: currentBalance,
+          currency: account.currency
+        }).plus(delta),
+        account.currency
+      );
+      const transaction: LocalTransaction = {
+        id: crypto.randomUUID(),
+        workspaceId: parsed.workspaceId,
+        accountId: parsed.accountId,
+        type: parsed.type,
+        amount,
+        currency: parsed.currency,
+        financialDate: parsed.financialDate,
+        ...(parsed.categoryId ? { categoryId: parsed.categoryId } : {}),
+        ...(parsed.splits ? { splits: parsed.splits } : {}),
+        ...(parsed.note ? { note: parsed.note } : {}),
+        tagIds: parsed.tagIds,
+        state: "posted",
+        version: 1,
+        createdAt: new Date().toISOString()
+      };
+      const accountBalance = {
+        accountId: account.id,
+        amount: nextBalance,
+        currency: account.currency
+      };
+
+      persist({
+        ...snapshot,
+        transactions: [...snapshot.transactions, transaction],
+        accountBalances: {
+          ...snapshot.accountBalances,
+          [account.id]: accountBalance
+        }
+      });
+
+      return {
+        transactionId: transaction.id,
+        version: 1,
+        state: "posted",
+        accountBalances: [accountBalance]
       };
     }
   };

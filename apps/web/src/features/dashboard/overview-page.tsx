@@ -7,40 +7,17 @@ import {
   WalletCards
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toFinancialDate } from "@systems-credit/domain";
 
 import type { LocalFinanceSnapshot } from "../../lib/local-finance-api";
 import type { LocalSession } from "../../lib/local-session";
+import { addExactMoney, formatMoney } from "../../lib/money-display";
+import { SummaryCards } from "./summary-cards";
 
 type OverviewPageProps = Readonly<{
   session: LocalSession;
   snapshot: LocalFinanceSnapshot;
 }>;
-
-function addExactMoney(values: string[]): string {
-  let satang = 0n;
-  for (const value of values) {
-    const negative = value.startsWith("-");
-    const unsigned = negative ? value.slice(1) : value;
-    const [whole = "0", fraction = ""] = unsigned.split(".");
-    const normalized = `${whole}${fraction.padEnd(2, "0").slice(0, 2)}`;
-    const amount = BigInt(normalized || "0");
-    satang += negative ? -amount : amount;
-  }
-  const negative = satang < 0n;
-  const absolute = negative ? -satang : satang;
-  const whole = (absolute / 100n).toString();
-  const fraction = (absolute % 100n).toString().padStart(2, "0");
-  return `${negative ? "-" : ""}${whole}.${fraction}`;
-}
-
-export function formatMoney(amount: string, currency = "THB") {
-  const negative = amount.startsWith("-");
-  const unsigned = negative ? amount.slice(1) : amount;
-  const [whole = "0", fraction = "00"] = unsigned.split(".");
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const symbol = currency === "THB" ? "฿" : `${currency} `;
-  return `${negative ? "−" : ""}${symbol}${grouped}.${fraction.padEnd(2, "0").slice(0, 2)}`;
-}
 
 export function OverviewPage({ session, snapshot }: OverviewPageProps) {
   const liquidBalances = snapshot.accounts
@@ -52,6 +29,10 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
     .map((account) => snapshot.accountBalances[account.id]?.amount ?? "0.00");
   const available = addExactMoney(liquidBalances);
   const accountCount = snapshot.accounts.length;
+  const currentMonth = toFinancialDate(
+    new Date().toISOString(),
+    snapshot.workspace?.timeZone ?? "Asia/Bangkok"
+  ).slice(0, 7);
 
   return (
     <main className="page-content overview-page">
@@ -96,6 +77,11 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
         </div>
       </section>
 
+      <SummaryCards
+        month={currentMonth}
+        transactions={snapshot.transactions}
+      />
+
       <div className="dashboard-grid">
         <section className="content-card quick-actions">
           <div className="section-title">
@@ -105,20 +91,20 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
             </div>
           </div>
           <div className="quick-action-grid">
-            <button type="button" disabled>
+            <Link to="/transactions/new?type=income">
               <span className="action-icon income">
                 <ArrowDownLeft aria-hidden="true" />
               </span>
               <strong>บันทึกรายรับ</strong>
-              <small>เปิดในขั้นถัดไป</small>
-            </button>
-            <button type="button" disabled>
+              <small>เพิ่มเงินเข้าบัญชี</small>
+            </Link>
+            <Link to="/transactions/new?type=expense">
               <span className="action-icon expense">
                 <ArrowUpRight aria-hidden="true" />
               </span>
               <strong>บันทึกรายจ่าย</strong>
-              <small>เปิดในขั้นถัดไป</small>
-            </button>
+              <small>บันทึกเงินที่ใช้ไป</small>
+            </Link>
             <Link to="/accounts">
               <span className="action-icon account">
                 <Landmark aria-hidden="true" />

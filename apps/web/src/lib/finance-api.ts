@@ -2,7 +2,10 @@ import type {
   Account,
   Category,
   CreateAccountWithOpeningBalanceInput,
+  CreateCategoryInput,
   CreatePrivateWorkspaceInput,
+  CreateTransactionInput,
+  PostedTransactionResponse,
   Workspace
 } from "@systems-credit/contracts";
 
@@ -32,4 +35,8 @@ export interface FinanceApi {
   createAccount(
     input: CreateAccountWithOpeningBalanceInput
   ): Promise<AccountCreationResult>;
+  createCategory(input: CreateCategoryInput): Promise<Category>;
+  postTransaction(
+    input: CreateTransactionInput
+  ): Promise<PostedTransactionResponse>;
 }

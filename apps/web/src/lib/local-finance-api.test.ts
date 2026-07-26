@@ -81,4 +81,93 @@ describe("local finance API", () => {
     ).rejects.toThrow("PRIVATE_WORKSPACE_EXISTS");
     expect(api.getSnapshot().workspace?.name).toBe("พื้นที่แรก");
   });
+
+  it("posts exact income and expense amounts and persists the new balance", async () => {
+    const storage = new MemoryStorage();
+    const api = createLocalFinanceApi(storage);
+    const created = await api.createPrivateWorkspace({
+      name: "รายการทดสอบ",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "เงินสด",
+      type: "cash",
+      currency: "THB",
+      openingBalance: "1000.00"
+    });
+    const food = created.categories.find(
+      (category) => category.slug === "food"
+    )!;
+    const salary = created.categories.find(
+      (category) => category.slug === "salary"
+    )!;
+
+    await api.postTransaction({
+      workspaceId: created.workspace.id,
+      accountId: account.account.id,
+      type: "expense",
+      amount: "125.55",
+      currency: "THB",
+      financialDate: "2026-07-27",
+      categoryId: food.id,
+      tagIds: [],
+      clientMutationId: crypto.randomUUID()
+    });
+    await api.postTransaction({
+      workspaceId: created.workspace.id,
+      accountId: account.account.id,
+      type: "income",
+      amount: "0.55",
+      currency: "THB",
+      financialDate: "2026-07-27",
+      categoryId: salary.id,
+      tagIds: [],
+      clientMutationId: crypto.randomUUID()
+    });
+
+    const reloaded = createLocalFinanceApi(storage).getSnapshot();
+    expect(reloaded.accountBalances[account.account.id]?.amount).toBe(
+      "875.00"
+    );
+    expect(reloaded.transactions).toEqual([
+      expect.objectContaining({
+        amount: "125.55",
+        type: "expense"
+      }),
+      expect.objectContaining({
+        amount: "0.55",
+        type: "income"
+      })
+    ]);
+  });
+
+  it("creates a custom category and rejects a duplicate sibling name", async () => {
+    const api = createLocalFinanceApi(new MemoryStorage());
+    const created = await api.createPrivateWorkspace({
+      name: "หมวดหมู่",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+
+    const category = await api.createCategory({
+      workspaceId: created.workspace.id,
+      name: "สัตว์เลี้ยง",
+      kind: "expense"
+    });
+
+    expect(category).toMatchObject({
+      name: "สัตว์เลี้ยง",
+      kind: "expense",
+      isDefault: false
+    });
+    await expect(
+      api.createCategory({
+        workspaceId: created.workspace.id,
+        name: " สัตว์เลี้ยง ",
+        kind: "expense"
+      })
+    ).rejects.toThrow("CATEGORY_NAME_EXISTS");
+  });
 });

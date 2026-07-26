@@ -4,7 +4,8 @@ import {
   Navigate,
   Route,
   Routes,
-  useNavigate
+  useNavigate,
+  useSearchParams
 } from "react-router-dom";
 
 import { AccountsPage } from "../features/accounts/accounts-page";
@@ -12,6 +13,7 @@ import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
 import { OverviewPage } from "../features/dashboard/overview-page";
 import { OnboardingPage } from "../features/onboarding/onboarding-page";
+import { TransactionsPage } from "../features/transactions/transactions-page";
 import {
   createLocalFinanceApi,
   type LocalFinanceSnapshot
@@ -32,6 +34,7 @@ export function FinanceRoutes({
   storage = window.localStorage
 }: FinanceRoutesProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const api = useMemo(() => createLocalFinanceApi(storage), [storage]);
   const [snapshot, setSnapshot] = useState<LocalFinanceSnapshot>(
     () => api.getSnapshot()
@@ -128,9 +131,26 @@ export function FinanceRoutes({
           <Route
             path="/transactions"
             element={
-              <ComingSoonPage
-                title="รายการเงิน"
-                description="รายรับ รายจ่าย และรายการโอนจะมาในขั้นถัดไป"
+              <TransactionsPage
+                api={api}
+                snapshot={snapshot}
+                onChanged={refreshSnapshot}
+              />
+            }
+          />
+          <Route
+            path="/transactions/new"
+            element={
+              <TransactionsPage
+                api={api}
+                snapshot={snapshot}
+                onChanged={refreshSnapshot}
+                initiallyOpen
+                initialType={
+                  searchParams.get("type") === "income"
+                    ? "income"
+                    : "expense"
+                }
               />
             }
           />

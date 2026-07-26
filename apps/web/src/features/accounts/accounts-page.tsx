@@ -14,7 +14,7 @@ import { useState, type ComponentType } from "react";
 import type { Account } from "@systems-credit/contracts";
 
 import type { LocalFinanceApi, LocalFinanceSnapshot } from "../../lib/local-finance-api";
-import { formatMoney } from "../dashboard/overview-page";
+import { formatMoney } from "../../lib/money-display";
 import { AccountForm } from "./account-form";
 
 type AccountsPageProps = Readonly<{
