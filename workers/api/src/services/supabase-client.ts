@@ -41,6 +41,13 @@ function apiError(
     );
   }
   if (body.code === "23505") {
+    if (body.message?.includes("duplicate mutation")) {
+      return new ApiError(
+        "DUPLICATE_MUTATION",
+        409,
+        "รหัสคำขอนี้ถูกใช้กับรายการอื่นแล้ว"
+      );
+    }
     if (body.message?.includes("private workspace")) {
       return new ApiError(
         "PRIVATE_WORKSPACE_EXISTS",

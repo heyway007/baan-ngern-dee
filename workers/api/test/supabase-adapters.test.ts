@@ -260,6 +260,38 @@ describe("Supabase Worker adapters", () => {
     });
   });
 
+  it("maps a reused recurring mutation to DUPLICATE_MUTATION", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          code: "23505",
+          message: "duplicate mutation for another occurrence"
+        },
+        { status: 409 }
+      )
+    );
+    const repository = createSupabaseFinanceRepository({
+      url: "https://project.supabase.co",
+      anonKey: "anon-key",
+      fetch: requestFetch
+    });
+
+    await expect(
+      repository.postRecurringOccurrence(
+        actor,
+        "33333333-3333-4333-8333-333333333333",
+        {
+          version: 1,
+          clientMutationId:
+            "44444444-4444-4444-8444-444444444444"
+        }
+      )
+    ).rejects.toMatchObject({
+      code: "DUPLICATE_MUTATION",
+      status: 409
+    });
+  });
+
   it("verifies the caller JWT with Supabase Auth", async () => {
     const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({ id: actor.userId })
