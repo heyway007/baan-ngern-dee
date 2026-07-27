@@ -18,6 +18,7 @@ import {
 } from "react-router-dom";
 
 import { AccountsPage } from "../features/accounts/accounts-page";
+import { ResetPasswordPage } from "../features/auth/reset-password-page";
 import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
 import { OverviewPage } from "../features/dashboard/overview-page";
@@ -220,6 +221,15 @@ export function FinanceRoutes({
     return Promise.resolve();
   }
 
+  function acceptAuthenticatedSession(session: CloudSession) {
+    for (const key of LEGACY_STORAGE_KEYS) {
+      dependencies.storage.removeItem(key);
+    }
+    if (apiRef.current) {
+      void loadSnapshot(session, apiRef.current);
+    }
+  }
+
   if (state.status === "loading-config") {
     return (
       <CloudStatusCard
@@ -262,9 +272,30 @@ export function FinanceRoutes({
   }
 
   if (state.status === "signed-out") {
+    const auth = authRef.current;
+    if (!auth) return null;
     return (
       <Routes>
-        <Route path="/sign-in" element={<SignInPage onSignIn={() => {}} />} />
+        <Route
+          path="/sign-in"
+          element={
+            <SignInPage
+              auth={auth}
+              onAuthenticated={acceptAuthenticatedSession}
+            />
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <ResetPasswordPage
+              auth={auth}
+              onComplete={() =>
+                navigate("/sign-in", { replace: true })
+              }
+            />
+          }
+        />
         <Route path="*" element={<Navigate to="/sign-in" replace />} />
       </Routes>
     );
@@ -284,6 +315,17 @@ export function FinanceRoutes({
           <Navigate
             to={snapshot.workspace ? "/overview" : "/onboarding"}
             replace
+          />
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <ResetPasswordPage
+            auth={authRef.current!}
+            onComplete={() =>
+              navigate("/overview", { replace: true })
+            }
           />
         }
       />

@@ -226,7 +226,7 @@ select:focus {
   font-size: 0.88rem;
 }
 
-/* Local sign-in */
+/* Cloud account */
 .sign-in-shell {
   display: grid;
   min-height: 100vh;
@@ -364,6 +364,60 @@ select:focus {
   margin-bottom: 1.3rem;
 }
 
+.sign-in-panel label + input {
+  margin-bottom: 0.9rem;
+}
+
+.auth-mode-switch {
+  display: grid;
+  margin-bottom: 1.4rem;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+  background: #edf0eb;
+  grid-template-columns: 1fr 1fr;
+}
+
+.auth-mode-switch button {
+  min-height: 2.55rem;
+  border: 0;
+  border-radius: 0.62rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auth-mode-switch button.active {
+  background: white;
+  color: var(--forest);
+  box-shadow: 0 4px 14px rgba(32, 52, 43, 0.08);
+}
+
+.text-button {
+  display: block;
+  margin: 1rem auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--forest);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.text-button:hover {
+  text-decoration: underline;
+}
+
+.form-success {
+  margin: 0.75rem 0 0;
+  padding: 0.72rem 0.85rem;
+  border-radius: 0.65rem;
+  background: var(--mint);
+  color: var(--forest-deep);
+  font-size: 0.88rem;
+}
+
 .local-warning {
   margin-bottom: 1.2rem;
   padding: 0.8rem 0.9rem;
@@ -386,6 +440,37 @@ select:focus {
   font-size: 0.74rem;
   line-height: 1.5;
   text-align: center;
+}
+
+.auth-center-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at 80% 0%, rgba(138, 174, 120, 0.2), transparent 28rem),
+    var(--cream);
+}
+
+.auth-reset-card {
+  width: min(29rem, 100%);
+}
+
+.auth-reset-card h1 {
+  margin-bottom: 0.35rem;
+}
+
+.auth-reset-card label + input {
+  margin-bottom: 0.9rem;
+}
+
+.auth-reset-card .primary-button {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.auth-success-panel p {
+  color: var(--muted);
 }
 
 /* Onboarding */

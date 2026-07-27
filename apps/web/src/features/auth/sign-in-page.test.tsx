@@ -1,23 +1,161 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type {
+  CloudAuth,
+  CloudSession
+} from "../../lib/cloud-auth";
 import { SignInPage } from "./sign-in-page";
 
-describe("SignInPage", () => {
-  it("starts an explicitly local session with a display name", async () => {
-    const user = userEvent.setup();
-    const onSignIn = vi.fn();
-    render(<SignInPage onSignIn={onSignIn} />);
+const session: CloudSession = {
+  userId: "9c585235-f409-4764-b4ad-f1da4d500290",
+  email: "min@example.test",
+  displayName: "มิน",
+  accessToken: "access-token"
+};
 
-    expect(
-      screen.getByText(/ไม่ใช่การล็อกอินสำหรับระบบออนไลน์/)
-    ).toBeInTheDocument();
-    await user.type(screen.getByLabelText("ชื่อที่แสดง"), "มิน");
-    await user.click(
-      screen.getByRole("button", { name: "เริ่มใช้งานบนเครื่องนี้" })
+function authActions() {
+  return {
+    signIn: vi.fn(),
+    signUp: vi.fn(),
+    requestPasswordReset: vi.fn()
+  } satisfies Pick<
+    CloudAuth,
+    "signIn" | "signUp" | "requestPasswordReset"
+  >;
+}
+
+describe("SignInPage", () => {
+  it("signs in with email/password and disables the pending action", async () => {
+    const user = userEvent.setup();
+    let resolveSignIn:
+      | ((value: CloudSession) => void)
+      | undefined;
+    const auth = authActions();
+    auth.signIn.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSignIn = resolve;
+        })
+    );
+    const onAuthenticated = vi.fn();
+    render(
+      <SignInPage
+        auth={auth}
+        onAuthenticated={onAuthenticated}
+      />
     );
 
-    expect(onSignIn).toHaveBeenCalledWith("มิน");
+    const email = screen.getByLabelText("อีเมล");
+    const password = screen.getByLabelText("รหัสผ่าน");
+    expect(email).toHaveAttribute("autocomplete", "email");
+    expect(password).toHaveAttribute("type", "password");
+    expect(password).toHaveAttribute(
+      "autocomplete",
+      "current-password"
+    );
+
+    await user.type(email, "min@example.test");
+    await user.type(password, "correct-horse-battery");
+    await user.click(
+      screen.getByRole("button", { name: "เข้าสู่ระบบ" })
+    );
+
+    expect(
+      screen.getByRole("button", { name: "กำลังเข้าสู่ระบบ…" })
+    ).toBeDisabled();
+    resolveSignIn?.(session);
+    await waitFor(() =>
+      expect(onAuthenticated).toHaveBeenCalledWith(session)
+    );
+    expect(auth.signIn).toHaveBeenCalledWith({
+      email: "min@example.test",
+      password: "correct-horse-battery"
+    });
+  });
+
+  it("signs up with a display name and shows confirmation feedback", async () => {
+    const user = userEvent.setup();
+    const auth = authActions();
+    auth.signUp.mockResolvedValue("confirmation_required");
+    render(
+      <SignInPage auth={auth} onAuthenticated={vi.fn()} />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "สมัครสมาชิก" })
+    );
+    await user.type(screen.getByLabelText("ชื่อที่แสดง"), "มิน");
+    await user.type(
+      screen.getByLabelText("อีเมล"),
+      "min@example.test"
+    );
+    const password = screen.getByLabelText("รหัสผ่าน");
+    expect(password).toHaveAttribute("autocomplete", "new-password");
+    await user.type(password, "correct-horse-battery");
+    await user.click(
+      screen.getByRole("button", { name: "สร้างบัญชี" })
+    );
+
+    expect(auth.signUp).toHaveBeenCalledWith({
+      displayName: "มิน",
+      email: "min@example.test",
+      password: "correct-horse-battery",
+      redirectTo: `${window.location.origin}/`
+    });
+    expect(
+      await screen.findByRole("status")
+    ).toHaveTextContent("ตรวจสอบอีเมล");
+  });
+
+  it("requests a password-reset email", async () => {
+    const user = userEvent.setup();
+    const auth = authActions();
+    auth.requestPasswordReset.mockResolvedValue(undefined);
+    render(
+      <SignInPage auth={auth} onAuthenticated={vi.fn()} />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "ลืมรหัสผ่าน" })
+    );
+    await user.type(
+      screen.getByLabelText("อีเมล"),
+      "min@example.test"
+    );
+    await user.click(
+      screen.getByRole("button", { name: "ส่งลิงก์ตั้งรหัสผ่านใหม่" })
+    );
+
+    expect(auth.requestPasswordReset).toHaveBeenCalledWith(
+      "min@example.test",
+      `${window.location.origin}/reset-password`
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "ส่งลิงก์แล้ว"
+    );
+  });
+
+  it("shows a Thai error when Supabase rejects sign in", async () => {
+    const user = userEvent.setup();
+    const auth = authActions();
+    auth.signIn.mockRejectedValue(new Error("Invalid credentials"));
+    render(
+      <SignInPage auth={auth} onAuthenticated={vi.fn()} />
+    );
+
+    await user.type(
+      screen.getByLabelText("อีเมล"),
+      "min@example.test"
+    );
+    await user.type(screen.getByLabelText("รหัสผ่าน"), "wrong-pass");
+    await user.click(
+      screen.getByRole("button", { name: "เข้าสู่ระบบ" })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "เข้าสู่ระบบไม่สำเร็จ"
+    );
   });
 });

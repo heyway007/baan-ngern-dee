@@ -129,7 +129,7 @@ describe("cloud application flow", () => {
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", {
-        name: "เริ่มพื้นที่การเงินของคุณ"
+        name: "เข้าสู่บ้านเงินดี"
       })
     ).toBeInTheDocument();
   });
@@ -192,7 +192,7 @@ describe("cloud application flow", () => {
     await waitFor(() => expect(auth.signOut).toHaveBeenCalledOnce());
     expect(
       await screen.findByRole("heading", {
-        name: "เริ่มพื้นที่การเงินของคุณ"
+        name: "เข้าสู่บ้านเงินดี"
       })
     ).toBeInTheDocument();
   });
