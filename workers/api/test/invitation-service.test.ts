@@ -168,6 +168,28 @@ describe("invitation service", () => {
     expect(calls).toEqual(["claim", "release"]);
   });
 
+  it("preserves a password policy error and releases the claim", async () => {
+    const { authAdmin, calls, service } = createDependencies();
+    vi.mocked(authAdmin.createUser).mockRejectedValueOnce(
+      new ApiError(
+        "PASSWORD_POLICY_FAILED",
+        400,
+        "รหัสผ่านไม่ผ่านเงื่อนไข"
+      )
+    );
+
+    await expect(
+      service.redeem({
+        token: "a".repeat(43),
+        password: "strong-password"
+      })
+    ).rejects.toMatchObject({
+      code: "PASSWORD_POLICY_FAILED",
+      status: 400
+    });
+    expect(calls).toEqual(["claim", "release"]);
+  });
+
   it("does not release after Auth succeeds but completion fails", async () => {
     const { calls, repository, service } = createDependencies();
     vi.mocked(repository.complete).mockImplementationOnce(

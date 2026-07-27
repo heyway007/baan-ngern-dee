@@ -12,7 +12,10 @@ import type {
   CloudAuth,
   CloudSession
 } from "../lib/cloud-auth";
-import type { AdminInvitationApi } from "../lib/invitation-api";
+import type {
+  AdminInvitationApi,
+  PublicInvitationApi
+} from "../lib/invitation-api";
 import type {
   RemoteFinanceApi
 } from "../lib/remote-finance-api";
@@ -137,17 +140,29 @@ function createDependencies(options: {
     replace: vi.fn(),
     revoke: vi.fn()
   } satisfies AdminInvitationApi;
+  const publicInvitationApi = {
+    inspect: vi.fn().mockResolvedValue({
+      displayName: "Friend",
+      maskedEmail: "fr***@example.test",
+      status: "ready" as const
+    }),
+    redeem: vi.fn()
+  } satisfies PublicInvitationApi;
   const dependencies: CloudRouterDependencies = {
     storage: options.storage ?? new MemoryStorage(),
     loadConfig: vi.fn().mockResolvedValue(config),
     createAuth: vi.fn(() => auth),
     createApi: vi.fn(() => api),
-    createAdminApi: vi.fn(() => adminApi)
+    createAdminApi: vi.fn(() => adminApi),
+    createPublicInvitationApi: vi.fn(
+      () => publicInvitationApi
+    )
   };
   return {
     auth,
     api,
     adminApi,
+    publicInvitationApi,
     dependencies,
     getSnapshot,
     materializeRecurringPeriod
@@ -341,6 +356,72 @@ describe("cloud application flow", () => {
     expect(
       screen.getByRole("link", { name: "ประจำ" })
     ).toHaveAttribute("href", "/recurring");
+  });
+
+  it("keeps the public invitation route available while signed out", async () => {
+    const { dependencies, publicInvitationApi } =
+      createDependencies({ session: null });
+    const token = "a".repeat(43);
+    window.history.replaceState(
+      null,
+      "",
+      `/accept-invite#token=${token}`
+    );
+    render(
+      <MemoryRouter
+        initialEntries={[`/accept-invite#token=${token}`]}
+      >
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "ตั้งรหัสผ่านเพื่อเริ่มใช้งาน"
+      })
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(publicInvitationApi.inspect).toHaveBeenCalledWith(token);
+    });
+  });
+
+  it("asks an authenticated user to sign out before accepting an invitation", async () => {
+    const user = userEvent.setup();
+    const {
+      auth,
+      dependencies,
+      publicInvitationApi
+    } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot
+    });
+    const token = "b".repeat(43);
+    window.history.replaceState(
+      null,
+      "",
+      `/accept-invite#token=${token}`
+    );
+    render(
+      <MemoryRouter
+        initialEntries={[`/accept-invite#token=${token}`]}
+      >
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "ออกจากระบบเพื่อรับคำเชิญ"
+      })
+    );
+
+    expect(auth.signOut).toHaveBeenCalledOnce();
+    expect(
+      await screen.findByRole("heading", {
+        name: "ตั้งรหัสผ่านเพื่อเริ่มใช้งาน"
+      })
+    ).toBeInTheDocument();
+    expect(publicInvitationApi.inspect).toHaveBeenCalledWith(token);
   });
 
   it("opens invitation management only after the server grants the capability", async () => {

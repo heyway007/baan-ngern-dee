@@ -14,12 +14,14 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useSearchParams
 } from "react-router-dom";
 
 import { AccountsPage } from "../features/accounts/accounts-page";
 import { InvitationsPage } from "../features/admin/invitations-page";
+import { AcceptInvitePage } from "../features/auth/accept-invite-page";
 import { ResetPasswordPage } from "../features/auth/reset-password-page";
 import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
@@ -36,7 +38,9 @@ import {
 import { loadPublicAppConfig } from "../lib/cloud-config";
 import {
   createAdminInvitationApi,
-  type AdminInvitationApi
+  createPublicInvitationApi,
+  type AdminInvitationApi,
+  type PublicInvitationApi
 } from "../lib/invitation-api";
 import {
   createRemoteFinanceApi,
@@ -65,6 +69,7 @@ export type CloudRouterDependencies = Readonly<{
     auth: CloudAuth,
     onUnauthenticated: () => void
   ): AdminInvitationApi;
+  createPublicInvitationApi(): PublicInvitationApi;
 }>;
 
 const defaultDependencies: CloudRouterDependencies = {
@@ -74,7 +79,9 @@ const defaultDependencies: CloudRouterDependencies = {
   createApi: (auth, onUnauthenticated) =>
     createRemoteFinanceApi({ auth, onUnauthenticated }),
   createAdminApi: (auth, onUnauthenticated) =>
-    createAdminInvitationApi({ auth, onUnauthenticated })
+    createAdminInvitationApi({ auth, onUnauthenticated }),
+  createPublicInvitationApi: () =>
+    createPublicInvitationApi()
 };
 
 type FinanceRoutesProps = Readonly<{
@@ -121,10 +128,33 @@ function CloudErrorCard({
   );
 }
 
+function AuthenticatedInvitationCard({
+  onSignOut
+}: Readonly<{ onSignOut(): void }>) {
+  return (
+    <main className="auth-center-shell">
+      <section className="setup-card invitation-session-card">
+        <h1>มีบัญชีเข้าสู่ระบบอยู่แล้ว</h1>
+        <p className="muted">
+          เพื่อป้องกันการสร้างบัญชีผิดคน กรุณาออกจากระบบก่อนใช้คำเชิญนี้
+        </p>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={onSignOut}
+        >
+          ออกจากระบบเพื่อรับคำเชิญ
+        </button>
+      </section>
+    </main>
+  );
+}
+
 export function FinanceRoutes({
   dependencies = defaultDependencies
 }: FinanceRoutesProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [state, dispatch] = useReducer(
     cloudReducer,
@@ -136,6 +166,8 @@ export function FinanceRoutes({
   const authRef = useRef<CloudAuth | null>(null);
   const apiRef = useRef<RemoteFinanceApi | null>(null);
   const adminApiRef = useRef<AdminInvitationApi | null>(null);
+  const publicInvitationApiRef =
+    useRef<PublicInvitationApi | null>(null);
   const activeRef = useRef(true);
 
   const loadSnapshot = useCallback(
@@ -190,6 +222,8 @@ export function FinanceRoutes({
         dispatch({ type: "CONFIG_LOADED" });
 
         const auth = dependencies.createAuth(config);
+        const publicInvitationApi =
+          dependencies.createPublicInvitationApi();
         const onUnauthenticated = () => {
           if (activeRef.current) {
             setCanManageInvitations(null);
@@ -207,6 +241,7 @@ export function FinanceRoutes({
         authRef.current = auth;
         apiRef.current = api;
         adminApiRef.current = adminApi;
+        publicInvitationApiRef.current = publicInvitationApi;
 
         const handleSession = (session: CloudSession | null) => {
           if (!activeRef.current) return;
@@ -263,6 +298,18 @@ export function FinanceRoutes({
       setCanManageInvitations(null);
       dispatch({ type: "SIGNED_OUT" });
       navigate("/sign-in", { replace: true });
+    }
+  }
+
+  async function signOutForInvitation() {
+    const invitationLocation =
+      `${location.pathname}${location.search}${location.hash}`;
+    try {
+      await authRef.current?.signOut();
+    } finally {
+      setCanManageInvitations(null);
+      dispatch({ type: "SIGNED_OUT" });
+      navigate(invitationLocation, { replace: true });
     }
   }
 
@@ -331,9 +378,20 @@ export function FinanceRoutes({
 
   if (state.status === "signed-out") {
     const auth = authRef.current;
-    if (!auth) return null;
+    const publicInvitationApi = publicInvitationApiRef.current;
+    if (!auth || !publicInvitationApi) return null;
     return (
       <Routes>
+        <Route
+          path="/accept-invite"
+          element={
+            <AcceptInvitePage
+              api={publicInvitationApi}
+              auth={auth}
+              onAuthenticated={acceptAuthenticatedSession}
+            />
+          }
+        />
         <Route
           path="/sign-in"
           element={
@@ -368,6 +426,14 @@ export function FinanceRoutes({
 
   return (
     <Routes>
+      <Route
+        path="/accept-invite"
+        element={
+          <AuthenticatedInvitationCard
+            onSignOut={() => void signOutForInvitation()}
+          />
+        }
+      />
       <Route
         path="/sign-in"
         element={

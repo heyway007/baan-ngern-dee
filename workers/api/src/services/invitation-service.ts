@@ -124,7 +124,8 @@ export function maskInvitationEmail(email: string): string {
 function invitationCreationError(error: unknown): ApiError {
   if (
     error instanceof ApiError &&
-    error.code === "EMAIL_ALREADY_REGISTERED"
+    (error.code === "EMAIL_ALREADY_REGISTERED" ||
+      error.code === "PASSWORD_POLICY_FAILED")
   ) {
     return error;
   }
