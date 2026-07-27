@@ -14,6 +14,10 @@ import {
 import { requestId } from "./middleware/request-id";
 import { accountRoutes } from "./routes/accounts";
 import { catalogRoutes } from "./routes/catalog";
+import {
+  adminInvitationRoutes,
+  publicInvitationRoutes
+} from "./routes/invitations";
 import { installmentRoutes } from "./routes/installments";
 import {
   recurringOccurrenceRoutes,
@@ -28,11 +32,15 @@ import {
   createMemoryFinanceRepository,
   type FinanceRepository
 } from "./services/finance-repository";
+import type {
+  InvitationService
+} from "./services/invitation-service";
 import type { AppEnv } from "./types";
 
 export type AppDependencies = Readonly<{
   authVerifier: AuthVerifier;
   financeRepository: FinanceRepository;
+  invitationService: InvitationService;
   publicConfig: PublicAppConfig;
 }>;
 
@@ -59,7 +67,19 @@ export function createApp(
       publicAppConfigSchema.parse(dependencies.publicConfig)
     )
   );
+  if (dependencies.invitationService) {
+    app.route(
+      "/v1/public/invitations",
+      publicInvitationRoutes(dependencies.invitationService)
+    );
+  }
   app.use("/v1/*", requireAuth(authVerifier));
+  if (dependencies.invitationService) {
+    app.route(
+      "/v1/admin",
+      adminInvitationRoutes(dependencies.invitationService)
+    );
+  }
   app.route("/v1/snapshot", snapshotRoutes(financeRepository));
   app.route("/v1/accounts", accountRoutes(financeRepository));
   app.route("/v1/workspaces", workspaceRoutes(financeRepository));

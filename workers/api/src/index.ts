@@ -1,6 +1,10 @@
 import { createApp } from "./app";
+import { z } from "zod";
+import { createSupabaseAuthAdmin } from "./services/supabase-auth-admin";
 import { createSupabaseAuthVerifier } from "./services/supabase-client";
 import { createSupabaseFinanceRepository } from "./services/supabase-finance-repository";
+import { createInvitationService } from "./services/invitation-service";
+import { createSupabaseInvitationRepository } from "./services/supabase-invitation-repository";
 import type { AppEnv } from "./types";
 
 type WorkerBindings = AppEnv["Bindings"];
@@ -38,9 +42,27 @@ export default {
       url: env.SUPABASE_URL,
       anonKey: env.SUPABASE_ANON_KEY
     };
+    const adminConfig = {
+      url: env.SUPABASE_URL,
+      serviceRoleKey: z
+        .string()
+        .min(20)
+        .parse(env.SUPABASE_SERVICE_ROLE_KEY)
+    };
+    const invitationService = createInvitationService({
+      superAdminUserId: z
+        .string()
+        .uuid()
+        .parse(env.SUPER_ADMIN_USER_ID),
+      appOrigin: new URL(request.url).origin,
+      repository:
+        createSupabaseInvitationRepository(adminConfig),
+      authAdmin: createSupabaseAuthAdmin(adminConfig)
+    });
     const app = createApp({
       authVerifier: createSupabaseAuthVerifier(config),
       financeRepository: createSupabaseFinanceRepository(config),
+      invitationService,
       publicConfig: {
         supabaseUrl: env.SUPABASE_URL,
         supabasePublishableKey: env.SUPABASE_ANON_KEY

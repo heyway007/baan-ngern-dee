@@ -19,7 +19,9 @@
   "secrets": {
     "required": [
       "SUPABASE_URL",
-      "SUPABASE_ANON_KEY"
+      "SUPABASE_ANON_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPER_ADMIN_USER_ID"
     ]
   }
 }
