@@ -15,17 +15,23 @@ export type {
   CreateInstallmentContractInput,
   InstallmentContractKind,
   InstallmentContractStatus,
+  InstallmentExtraPaymentStrategy,
   InstallmentInterestMethod,
+  InstallmentPayoffAction,
   InstallmentScheduleRow,
   ManualInstallmentRowInput,
+  PostInstallmentPayoffInput,
   PostInstallmentPaymentInput
 } from "./installments";
 export {
   createInstallmentContractSchema,
   installmentContractKindSchema,
   installmentContractStatusSchema,
+  installmentExtraPaymentStrategySchema,
   installmentInterestMethodSchema,
+  installmentPayoffActionSchema,
   manualInstallmentRowSchema,
+  postInstallmentPayoffSchema,
   postInstallmentPaymentSchema
 } from "./installments";
 export type {

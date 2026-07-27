@@ -6,9 +6,15 @@ export {
   allocateInstallmentPayment,
   generateInstallmentSchedule,
   generateManualInstallmentSchedule,
+  simulateInstallmentPayoff,
   validateManualSchedule,
+  type InstallmentExtraPaymentStrategy,
   type InstallmentPaymentAllocation,
   type InstallmentPaymentAllocationInput,
+  type InstallmentPayoffAction,
+  type InstallmentPayoffRowInput,
+  type InstallmentPayoffSimulation,
+  type InstallmentPayoffSimulationInput,
   type InstallmentScheduleInput,
   type ManualScheduleInput
 } from "./installments";

@@ -55,7 +55,8 @@ describe("InstallmentsPage", () => {
       transactions: [],
       installmentContracts: [],
       installmentSchedules: {},
-      installmentPayments: []
+      installmentPayments: [],
+      installmentPayoffs: []
     };
 
     render(
@@ -167,7 +168,8 @@ describe("InstallmentsPage", () => {
           }
         ]
       },
-      installmentPayments: []
+      installmentPayments: [],
+      installmentPayoffs: []
     };
     const api = {
       postInstallmentPayment: vi.fn()
@@ -188,6 +190,21 @@ describe("InstallmentsPage", () => {
     );
     expect(
       screen.getByRole("heading", { name: "บันทึกการชำระ" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("บัญชีที่ใช้ชำระ")).toHaveValue(
+      accountId
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "ชำระงวดที่ 1" })
+    );
+    await user.click(
+      screen.getByRole("button", { name: "โปะหรือปิดยอด" })
+    );
+    expect(
+      screen.getByRole("heading", {
+        name: "โปะเงินต้นหรือปิดยอด"
+      })
     ).toBeInTheDocument();
     expect(screen.getByLabelText("บัญชีที่ใช้ชำระ")).toHaveValue(
       accountId

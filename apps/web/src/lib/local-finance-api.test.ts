@@ -503,4 +503,210 @@ describe("local finance API", () => {
         ?.paidPrincipal
     ).toBe("0.00");
   });
+
+  it("posts extra reducing-balance principal and replaces future rows atomically", async () => {
+    const storage = new MemoryStorage();
+    const api = createLocalFinanceApi(storage);
+    const created = await api.createPrivateWorkspace({
+      name: "โปะหนี้",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "บัญชีโปะหนี้",
+      type: "bank",
+      currency: "THB",
+      openingBalance: "200000.00"
+    });
+    const contract = await api.createInstallmentContract({
+      workspaceId: created.workspace.id,
+      name: "สินเชื่อลดต้นลดดอก",
+      kind: "debt",
+      originalPrincipal: "100000.00",
+      downPayment: "0.00",
+      financedFees: "0.00",
+      currency: "THB",
+      interestMethod: "reducing",
+      annualRate: "8",
+      periods: 12,
+      firstDueDate: "2026-08-15"
+    });
+
+    const result = await api.postInstallmentPayoff({
+      workspaceId: created.workspace.id,
+      contractId: contract.contract.id,
+      accountId: account.account.id,
+      action: "extra_principal",
+      strategy: "reduce_payment",
+      extraPrincipal: "10000.00",
+      expectedRemainingPrincipal: "100000.00",
+      quotedInterest: "0.00",
+      quotedFees: "0.00",
+      currency: "THB",
+      financialDate: "2026-07-27",
+      clientMutationId: crypto.randomUUID()
+    });
+
+    expect(result).toMatchObject({
+      action: "extra_principal",
+      principalPayment: "10000.00",
+      remainingPrincipal: "90000.00",
+      contractStatus: "active"
+    });
+    const reloaded = createLocalFinanceApi(storage).getSnapshot();
+    expect(reloaded.accountBalances[account.account.id]?.amount).toBe(
+      "190000.00"
+    );
+    expect(reloaded.installmentPayoffs).toHaveLength(1);
+    expect(reloaded.transactions).toHaveLength(0);
+    expect(
+      sumMoney(
+        reloaded.installmentSchedules[contract.contract.id]!.map(
+          (row) => ({
+            amount: row.principal,
+            currency: "THB"
+          })
+        )
+      ).amount
+    ).toBe("90000.00");
+    expect(
+      reloaded.installmentSchedules[contract.contract.id]?.at(-1)
+        ?.closingPrincipal
+    ).toBe("0.00");
+  });
+
+  it("posts an accepted flat-rate payoff quote without counting principal as expense", async () => {
+    const storage = new MemoryStorage();
+    const api = createLocalFinanceApi(storage);
+    const created = await api.createPrivateWorkspace({
+      name: "ปิดยอดหนี้",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "บัญชีปิดยอด",
+      type: "bank",
+      currency: "THB",
+      openingBalance: "20000.00"
+    });
+    const contract = await api.createInstallmentContract({
+      workspaceId: created.workspace.id,
+      name: "หนี้ดอกเบี้ยคงที่",
+      kind: "debt",
+      originalPrincipal: "12000.00",
+      downPayment: "0.00",
+      financedFees: "0.00",
+      currency: "THB",
+      interestMethod: "flat",
+      annualRate: "12",
+      periods: 12,
+      firstDueDate: "2026-08-01"
+    });
+    const clientMutationId = crypto.randomUUID();
+    const payoffInput = {
+      workspaceId: created.workspace.id,
+      contractId: contract.contract.id,
+      accountId: account.account.id,
+      action: "payoff" as const,
+      expectedRemainingPrincipal: "12000.00",
+      quotedInterest: "500.00",
+      quotedFees: "100.00",
+      currency: "THB",
+      financialDate: "2026-07-27",
+      clientMutationId
+    };
+
+    const result = await api.postInstallmentPayoff(payoffInput);
+    expect(result).toMatchObject({
+      principalPayment: "12000.00",
+      interestDue: "500.00",
+      feesDue: "100.00",
+      totalCashRequired: "12600.00",
+      interestSaved: "940.00",
+      contractStatus: "paid_off"
+    });
+    await expect(api.postInstallmentPayoff(payoffInput)).rejects.toThrow(
+      "INSTALLMENT_PAYOFF_REPLAYED"
+    );
+
+    const reloaded = createLocalFinanceApi(storage).getSnapshot();
+    expect(reloaded.accountBalances[account.account.id]?.amount).toBe(
+      "7400.00"
+    );
+    expect(reloaded.installmentContracts[0]?.status).toBe("paid_off");
+    expect(reloaded.installmentPayoffs[0]).toMatchObject({
+      quotedInterest: "500.00",
+      quotedFees: "100.00",
+      expectedRemainingPrincipal: "12000.00"
+    });
+    expect(reloaded.transactions).toEqual([
+      expect.objectContaining({
+        type: "expense",
+        amount: "600.00",
+        source: "installment_payoff"
+      })
+    ]);
+    expect(
+      reloaded.installmentSchedules[contract.contract.id]?.every(
+        (row) => row.status === "cancelled"
+      )
+    ).toBe(true);
+  });
+
+  it("keeps the payoff quote and balances unchanged when cash is insufficient", async () => {
+    const api = createLocalFinanceApi(new MemoryStorage());
+    const created = await api.createPrivateWorkspace({
+      name: "ปิดยอดเงินไม่พอ",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "เงินสดไม่พอ",
+      type: "cash",
+      currency: "THB",
+      openingBalance: "50.00"
+    });
+    const contract = await api.createInstallmentContract({
+      workspaceId: created.workspace.id,
+      name: "หนี้ปิดไม่ได้",
+      kind: "debt",
+      originalPrincipal: "100.00",
+      downPayment: "0.00",
+      financedFees: "0.00",
+      currency: "THB",
+      interestMethod: "zero",
+      annualRate: "0",
+      periods: 1,
+      firstDueDate: "2026-08-01"
+    });
+
+    await expect(
+      api.postInstallmentPayoff({
+        workspaceId: created.workspace.id,
+        contractId: contract.contract.id,
+        accountId: account.account.id,
+        action: "payoff",
+        expectedRemainingPrincipal: "100.00",
+        quotedInterest: "0.00",
+        quotedFees: "0.00",
+        currency: "THB",
+        financialDate: "2026-07-27",
+        clientMutationId: crypto.randomUUID()
+      })
+    ).rejects.toThrow("INSTALLMENT_PAYOFF_INSUFFICIENT_BALANCE");
+
+    const snapshot = api.getSnapshot();
+    expect(snapshot.accountBalances[account.account.id]?.amount).toBe(
+      "50.00"
+    );
+    expect(snapshot.installmentPayoffs).toHaveLength(0);
+    expect(snapshot.installmentContracts[0]?.status).toBe("active");
+    expect(
+      snapshot.installmentSchedules[contract.contract.id]?.[0]
+        ?.status
+    ).toBe("upcoming");
+  });
 });

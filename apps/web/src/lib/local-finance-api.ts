@@ -4,6 +4,7 @@ import {
   createInstallmentContractSchema,
   createPrivateWorkspaceSchema,
   createTransactionSchema,
+  postInstallmentPayoffSchema,
   postInstallmentPaymentSchema,
   type Account,
   type Category,
@@ -19,6 +20,7 @@ import {
   parseMoney,
   generateInstallmentSchedule,
   roundMoney,
+  simulateInstallmentPayoff,
   validateSplits,
   type CurrencyCode
 } from "@systems-credit/domain";
@@ -27,6 +29,7 @@ import type {
   AccountCreationResult,
   FinanceApi,
   InstallmentContractCreationResult,
+  InstallmentPayoffResult,
   InstallmentPaymentResult,
   WorkspaceCreationResult
 } from "./finance-api";
@@ -58,7 +61,7 @@ export type LocalTransaction = Readonly<{
   state: "posted";
   version: 1;
   createdAt: string;
-  source?: "installment_payment";
+  source?: "installment_payment" | "installment_payoff";
   sourceId?: string;
 }>;
 
@@ -111,6 +114,33 @@ export type LocalInstallmentPayment = Readonly<{
   createdAt: string;
 }>;
 
+export type LocalInstallmentPayoff = Readonly<{
+  id: string;
+  workspaceId: string;
+  contractId: string;
+  accountId: string;
+  action: "extra_principal" | "payoff";
+  strategy?: "reduce_payment" | "shorten_term";
+  expectedRemainingPrincipal: string;
+  extraPrincipal?: string;
+  quotedInterest: string;
+  quotedFees: string;
+  principalPayment: string;
+  interestDue: string;
+  feesDue: string;
+  totalCashRequired: string;
+  remainingPrincipal: string;
+  interestSaved: string;
+  currency: string;
+  financialDate: string;
+  priorRows: LocalInstallmentScheduleRow[];
+  regeneratedRows: LocalInstallmentScheduleRow[];
+  expenseTransactionId?: string;
+  note?: string;
+  clientMutationId: string;
+  createdAt: string;
+}>;
+
 export type LocalFinanceSnapshot = Readonly<{
   version: 1;
   workspace: Workspace | null;
@@ -132,6 +162,7 @@ export type LocalFinanceSnapshot = Readonly<{
     LocalInstallmentScheduleRow[]
   >;
   installmentPayments: LocalInstallmentPayment[];
+  installmentPayoffs: LocalInstallmentPayoff[];
 }>;
 
 export type LocalFinanceApi = FinanceApi &
@@ -171,7 +202,8 @@ function emptySnapshot(): LocalFinanceSnapshot {
     transactions: [],
     installmentContracts: [],
     installmentSchedules: {},
-    installmentPayments: []
+    installmentPayments: [],
+    installmentPayoffs: []
   };
 }
 
@@ -237,6 +269,12 @@ function readSnapshot(storage: Storage): LocalFinanceSnapshot {
               .installmentPayments
           )
             ? (parsed as LocalFinanceSnapshot).installmentPayments
+            : [],
+          installmentPayoffs: Array.isArray(
+            (parsed as Partial<LocalFinanceSnapshot>)
+              .installmentPayoffs
+          )
+            ? (parsed as LocalFinanceSnapshot).installmentPayoffs
             : []
         }
       : emptySnapshot();
@@ -771,6 +809,373 @@ export function createLocalFinanceApi(
         allocation: allocation.allocation,
         reportableExpense: allocation.reportableExpense,
         scheduleStatus: allocation.status,
+        contractStatus,
+        accountBalance,
+        ...(expenseTransaction
+          ? { expenseTransactionId: expenseTransaction.id }
+          : {})
+      };
+    },
+
+    async postInstallmentPayoff(
+      input
+    ): Promise<InstallmentPayoffResult> {
+      const parsed = postInstallmentPayoffSchema.parse(input);
+      if (!snapshot.workspace || parsed.workspaceId !== snapshot.workspace.id) {
+        throw new Error("WORKSPACE_NOT_FOUND");
+      }
+      if (
+        snapshot.installmentPayoffs.some(
+          (payoff) =>
+            payoff.clientMutationId === parsed.clientMutationId
+        )
+      ) {
+        throw new Error("INSTALLMENT_PAYOFF_REPLAYED");
+      }
+
+      const contract = snapshot.installmentContracts.find(
+        (candidate) =>
+          candidate.id === parsed.contractId &&
+          candidate.workspaceId === parsed.workspaceId
+      );
+      if (
+        !contract ||
+        contract.status !== "active" ||
+        contract.currency !== parsed.currency
+      ) {
+        throw new Error("INSTALLMENT_CONTRACT_NOT_PAYABLE");
+      }
+      const schedule = snapshot.installmentSchedules[contract.id];
+      if (!schedule) {
+        throw new Error("INSTALLMENT_SCHEDULE_NOT_FOUND");
+      }
+      const payableRows = schedule.filter(
+        (row) =>
+          row.status !== "paid" &&
+          row.status !== "waived" &&
+          row.status !== "cancelled"
+      );
+      if (payableRows.length === 0) {
+        throw new Error("INSTALLMENT_PAYOFF_ROWS_REQUIRED");
+      }
+      if (
+        parsed.action === "extra_principal" &&
+        payableRows.some((row) => row.status === "partially_paid")
+      ) {
+        throw new Error("INSTALLMENT_EXTRA_PAYMENT_PARTIAL_ROW");
+      }
+
+      const subtractComponent = (scheduled: string, paid: string) =>
+        roundMoney(
+          parseMoney({
+            amount: scheduled,
+            currency: parsed.currency
+          }).minus(
+            parseMoney({
+              amount: paid,
+              currency: parsed.currency
+            })
+          ),
+          parsed.currency
+        );
+      const unpaidRows = payableRows.map((row) => ({
+        sequence: row.sequence,
+        dueDate: row.dueDate,
+        principal: subtractComponent(
+          row.principal,
+          row.paidPrincipal
+        ),
+        interest: subtractComponent(
+          row.interest,
+          row.paidInterest
+        ),
+        fees: subtractComponent(row.fees, row.paidFees),
+        penalty: subtractComponent(
+          row.scheduledPenalty,
+          row.paidPenalty
+        )
+      }));
+      const remainingPrincipal = unpaidRows.reduce(
+        (total, row) =>
+          total.plus(
+            parseMoney({
+              amount: row.principal,
+              currency: parsed.currency
+            })
+          ),
+        parseMoney({ amount: "0", currency: parsed.currency })
+      );
+      if (
+        roundMoney(remainingPrincipal, parsed.currency) !==
+        roundMoney(
+          parsed.expectedRemainingPrincipal,
+          parsed.currency
+        )
+      ) {
+        throw new Error("INSTALLMENT_PAYOFF_STALE_QUOTE");
+      }
+
+      const simulation = simulateInstallmentPayoff({
+        action: parsed.action,
+        ...(parsed.strategy ? { strategy: parsed.strategy } : {}),
+        ...(parsed.extraPrincipal
+          ? { extraPrincipal: parsed.extraPrincipal }
+          : {}),
+        currency: parsed.currency as CurrencyCode,
+        interestMethod: contract.interestMethod,
+        annualRate: contract.annualRate,
+        paymentDate: parsed.financialDate,
+        remainingPrincipal: roundMoney(
+          remainingPrincipal,
+          parsed.currency
+        ),
+        quotedInterest: parsed.quotedInterest,
+        quotedFees: parsed.quotedFees,
+        unpaidRows
+      });
+
+      const account = snapshot.accounts.find(
+        (candidate) =>
+          candidate.id === parsed.accountId &&
+          candidate.workspaceId === parsed.workspaceId &&
+          candidate.currency === parsed.currency
+      );
+      if (!account || !normalizeAccountKind(account.type).liquid) {
+        throw new Error("INSTALLMENT_PAYOFF_ACCOUNT_INVALID");
+      }
+      const currentBalance =
+        snapshot.accountBalances[account.id]?.amount ??
+        roundMoney("0", account.currency);
+      const cashRequired = parseMoney({
+        amount: simulation.totalCashRequired,
+        currency: parsed.currency
+      });
+      const balance = parseMoney({
+        amount: currentBalance,
+        currency: account.currency
+      });
+      if (balance.lessThan(cashRequired)) {
+        throw new Error("INSTALLMENT_PAYOFF_INSUFFICIENT_BALANCE");
+      }
+      const accountBalance = {
+        accountId: account.id,
+        amount: roundMoney(
+          balance.minus(cashRequired),
+          account.currency
+        ),
+        currency: account.currency
+      };
+
+      const regeneratedRows: LocalInstallmentScheduleRow[] =
+        simulation.regeneratedRows.map((row) => ({
+          ...row,
+          paidPrincipal: roundMoney("0", parsed.currency),
+          paidInterest: roundMoney("0", parsed.currency),
+          paidFees: roundMoney("0", parsed.currency),
+          paidPenalty: roundMoney("0", parsed.currency),
+          scheduledPenalty: roundMoney("0", parsed.currency),
+          status: "upcoming"
+        }));
+      const updatedSchedule =
+        parsed.action === "payoff"
+          ? schedule.map((row) =>
+              payableRows.some(
+                (payable) => payable.sequence === row.sequence
+              )
+                ? { ...row, status: "cancelled" as const }
+                : row
+            )
+          : [
+              ...schedule.filter(
+                (row) =>
+                  !payableRows.some(
+                    (payable) =>
+                      payable.sequence === row.sequence
+                  )
+              ),
+              ...regeneratedRows
+            ].sort((left, right) => left.sequence - right.sequence);
+      const contractStatus =
+        parsed.action === "payoff" ? "paid_off" : "active";
+
+      const payoffId = crypto.randomUUID();
+      const zero = roundMoney("0", parsed.currency);
+      const expenseAmount = roundMoney(
+        parseMoney({
+          amount: simulation.interestDue,
+          currency: parsed.currency
+        }).plus(
+          parseMoney({
+            amount: simulation.feesDue,
+            currency: parsed.currency
+          })
+        ),
+        parsed.currency
+      );
+      const financialFeesCategory = snapshot.categories.find(
+        (category) =>
+          category.workspaceId === parsed.workspaceId &&
+          category.slug === "financial-fees"
+      );
+      const debtInterestCategory = snapshot.categories.find(
+        (category) =>
+          category.workspaceId === parsed.workspaceId &&
+          category.slug === "debt-interest"
+      );
+      const interestCategoryId =
+        contract.interestCategoryId ??
+        debtInterestCategory?.id ??
+        contract.expenseCategoryId;
+      const feesCategoryId =
+        financialFeesCategory?.id ??
+        contract.expenseCategoryId ??
+        interestCategoryId;
+      const expenseParts = new Map<string, string>();
+      const addExpensePart = (
+        categoryId: string | undefined,
+        amount: string
+      ) => {
+        if (amount === zero) {
+          return;
+        }
+        if (!categoryId) {
+          throw new Error("INSTALLMENT_PAYOFF_CATEGORY_INVALID");
+        }
+        const current = expenseParts.get(categoryId) ?? zero;
+        expenseParts.set(
+          categoryId,
+          roundMoney(
+            parseMoney({
+              amount: current,
+              currency: parsed.currency
+            }).plus(
+              parseMoney({
+                amount,
+                currency: parsed.currency
+              })
+            ),
+            parsed.currency
+          )
+        );
+      };
+      addExpensePart(
+        interestCategoryId,
+        simulation.interestDue
+      );
+      addExpensePart(feesCategoryId, simulation.feesDue);
+
+      let expenseTransaction: LocalTransaction | undefined;
+      if (expenseAmount !== zero) {
+        const parts = [...expenseParts.entries()].map(
+          ([categoryId, amount]) => ({ categoryId, amount })
+        );
+        expenseTransaction = {
+          id: crypto.randomUUID(),
+          workspaceId: parsed.workspaceId,
+          accountId: account.id,
+          type: "expense",
+          amount: expenseAmount,
+          currency: parsed.currency,
+          financialDate: parsed.financialDate,
+          ...(parts.length === 1
+            ? { categoryId: parts[0]!.categoryId }
+            : { splits: parts }),
+          note:
+            parsed.note ??
+            `${
+              parsed.action === "payoff"
+                ? "ปิดยอด"
+                : "ค่าใช้จ่ายจากการโปะ"
+            }: ${contract.name}`,
+          tagIds: [],
+          state: "posted",
+          version: 1,
+          createdAt: new Date().toISOString(),
+          source: "installment_payoff",
+          sourceId: payoffId
+        };
+      }
+
+      const payoff: LocalInstallmentPayoff = {
+        id: payoffId,
+        workspaceId: parsed.workspaceId,
+        contractId: contract.id,
+        accountId: account.id,
+        action: parsed.action,
+        ...(parsed.strategy ? { strategy: parsed.strategy } : {}),
+        expectedRemainingPrincipal: roundMoney(
+          parsed.expectedRemainingPrincipal,
+          parsed.currency
+        ),
+        ...(parsed.extraPrincipal
+          ? {
+              extraPrincipal: roundMoney(
+                parsed.extraPrincipal,
+                parsed.currency
+              )
+            }
+          : {}),
+        quotedInterest: roundMoney(
+          parsed.quotedInterest,
+          parsed.currency
+        ),
+        quotedFees: roundMoney(
+          parsed.quotedFees,
+          parsed.currency
+        ),
+        principalPayment: simulation.principalPayment,
+        interestDue: simulation.interestDue,
+        feesDue: simulation.feesDue,
+        totalCashRequired: simulation.totalCashRequired,
+        remainingPrincipal: simulation.remainingPrincipal,
+        interestSaved: simulation.interestSaved,
+        currency: parsed.currency,
+        financialDate: parsed.financialDate,
+        priorRows: payableRows,
+        regeneratedRows,
+        ...(expenseTransaction
+          ? { expenseTransactionId: expenseTransaction.id }
+          : {}),
+        ...(parsed.note ? { note: parsed.note } : {}),
+        clientMutationId: parsed.clientMutationId,
+        createdAt: new Date().toISOString()
+      };
+
+      persist({
+        ...snapshot,
+        accountBalances: {
+          ...snapshot.accountBalances,
+          [account.id]: accountBalance
+        },
+        installmentContracts: snapshot.installmentContracts.map(
+          (candidate) =>
+            candidate.id === contract.id
+              ? { ...candidate, status: contractStatus }
+              : candidate
+        ),
+        installmentSchedules: {
+          ...snapshot.installmentSchedules,
+          [contract.id]: updatedSchedule
+        },
+        installmentPayoffs: [
+          ...snapshot.installmentPayoffs,
+          payoff
+        ],
+        transactions: expenseTransaction
+          ? [...snapshot.transactions, expenseTransaction]
+          : snapshot.transactions
+      });
+
+      return {
+        payoffId,
+        action: parsed.action,
+        ...(parsed.strategy ? { strategy: parsed.strategy } : {}),
+        principalPayment: simulation.principalPayment,
+        interestDue: simulation.interestDue,
+        feesDue: simulation.feesDue,
+        totalCashRequired: simulation.totalCashRequired,
+        remainingPrincipal: simulation.remainingPrincipal,
+        interestSaved: simulation.interestSaved,
         contractStatus,
         accountBalance,
         ...(expenseTransaction

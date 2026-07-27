@@ -1815,6 +1815,18 @@ select:focus {
   margin-top: 0.75rem;
 }
 
+.installment-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.installment-action-row .installment-pay-button,
+.installment-action-row .installment-payoff-button {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
 .installment-payment-count {
   margin: 0.65rem 0 0;
   color: var(--muted);
@@ -1918,6 +1930,130 @@ select:focus {
 
 .installment-payment-form > .primary-button {
   width: 100%;
+}
+
+.payoff-simulator {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d8ddd5;
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(145deg, rgba(226, 239, 226, 0.5), transparent 42%),
+    #faf9f4;
+}
+
+.payoff-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.payoff-heading h3,
+.payoff-heading p {
+  margin: 0;
+}
+
+.payoff-heading p {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.payoff-heading p strong {
+  color: var(--forest);
+  font-family: Manrope, sans-serif;
+}
+
+.payoff-action-switch {
+  display: grid;
+  margin-bottom: 0.9rem;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+  background: #ecece5;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.payoff-action-switch button {
+  display: inline-flex;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  gap: 0.45rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.payoff-action-switch button.active {
+  background: white;
+  color: var(--forest);
+  box-shadow: 0 4px 14px rgba(32, 52, 43, 0.09);
+}
+
+.payoff-summary {
+  display: grid;
+  margin-top: 0.9rem;
+  overflow: hidden;
+  border: 1px solid rgba(33, 76, 60, 0.12);
+  border-radius: 0.8rem;
+  background: white;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.payoff-summary span {
+  display: grid;
+  min-width: 0;
+  padding: 0.75rem;
+  border-right: 1px solid var(--line);
+}
+
+.payoff-summary span:last-child {
+  border-right: 0;
+}
+
+.payoff-summary small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.payoff-summary strong {
+  overflow: hidden;
+  color: var(--forest);
+  font-family: Manrope, sans-serif;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+}
+
+.payoff-summary .payoff-total {
+  background: var(--forest);
+}
+
+.payoff-summary .payoff-total small,
+.payoff-summary .payoff-total strong {
+  color: white;
+}
+
+.payoff-summary .payoff-saving strong {
+  color: #25734d;
+}
+
+.payoff-simulator > .primary-button {
+  width: 100%;
+}
+
+.payoff-simulator > .primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.payoff-new-schedule {
+  margin-top: 0.8rem;
 }
 
 .installment-card details {
@@ -2206,6 +2342,10 @@ select:focus {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .payoff-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .summary-grid {
     grid-template-columns: 1fr;
   }
@@ -2254,8 +2394,14 @@ select:focus {
   .installment-money-grid,
   .installment-contracts,
   .installment-payment-grid,
-  .payment-allocation-preview {
+  .payment-allocation-preview,
+  .payoff-summary {
     grid-template-columns: 1fr;
+  }
+
+  .installment-action-row {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 
   .payment-allocation-preview .payment-remaining {
@@ -2263,6 +2409,15 @@ select:focus {
     padding-left: 0;
     border-top: 1px solid var(--line);
     border-left: 0;
+  }
+
+  .payoff-summary span {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .payoff-summary span:last-child {
+    border-bottom: 0;
   }
 
   .schedule-preview-head {

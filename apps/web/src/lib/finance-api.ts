@@ -6,6 +6,7 @@ import type {
   CreateInstallmentContractInput,
   CreatePrivateWorkspaceInput,
   CreateTransactionInput,
+  PostInstallmentPayoffInput,
   PostInstallmentPaymentInput,
   PostedTransactionResponse,
   Workspace
@@ -86,6 +87,25 @@ export type InstallmentPaymentResult = Readonly<{
   expenseTransactionId?: string;
 }>;
 
+export type InstallmentPayoffResult = Readonly<{
+  payoffId: string;
+  action: PostInstallmentPayoffInput["action"];
+  strategy?: NonNullable<PostInstallmentPayoffInput["strategy"]>;
+  principalPayment: string;
+  interestDue: string;
+  feesDue: string;
+  totalCashRequired: string;
+  remainingPrincipal: string;
+  interestSaved: string;
+  contractStatus: "active" | "paid_off";
+  accountBalance: Readonly<{
+    accountId: string;
+    amount: string;
+    currency: string;
+  }>;
+  expenseTransactionId?: string;
+}>;
+
 export interface FinanceApi {
   createPrivateWorkspace(
     input: CreatePrivateWorkspaceInput
@@ -100,6 +120,9 @@ export interface FinanceApi {
   postInstallmentPayment(
     input: PostInstallmentPaymentInput
   ): Promise<InstallmentPaymentResult>;
+  postInstallmentPayoff(
+    input: PostInstallmentPayoffInput
+  ): Promise<InstallmentPayoffResult>;
   postTransaction(
     input: CreateTransactionInput
   ): Promise<PostedTransactionResponse>;

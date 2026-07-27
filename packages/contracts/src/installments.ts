@@ -88,6 +88,56 @@ export const postInstallmentPaymentSchema = z
   })
   .strict();
 
+export const installmentPayoffActionSchema = z.enum([
+  "extra_principal",
+  "payoff"
+]);
+
+export const installmentExtraPaymentStrategySchema = z.enum([
+  "reduce_payment",
+  "shorten_term"
+]);
+
+export const postInstallmentPayoffSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    contractId: z.string().uuid(),
+    accountId: z.string().uuid(),
+    action: installmentPayoffActionSchema,
+    strategy: installmentExtraPaymentStrategySchema.optional(),
+    extraPrincipal: positiveMoneyAmountSchema.optional(),
+    expectedRemainingPrincipal: positiveMoneyAmountSchema,
+    quotedInterest: moneyAmountSchema,
+    quotedFees: moneyAmountSchema,
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    financialDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    note: z.string().trim().max(500).optional(),
+    clientMutationId: z.string().uuid()
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (
+      input.action === "extra_principal" &&
+      (!input.strategy || !input.extraPrincipal)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Extra principal and recalculation strategy are required"
+      });
+    }
+    if (
+      input.action === "payoff" &&
+      (input.strategy || input.extraPrincipal)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Payoff must not include an extra-payment strategy"
+      });
+    }
+  });
+
 export type InstallmentContractKind = z.infer<
   typeof installmentContractKindSchema
 >;
@@ -105,6 +155,15 @@ export type CreateInstallmentContractInput = z.infer<
 >;
 export type PostInstallmentPaymentInput = z.infer<
   typeof postInstallmentPaymentSchema
+>;
+export type InstallmentPayoffAction = z.infer<
+  typeof installmentPayoffActionSchema
+>;
+export type InstallmentExtraPaymentStrategy = z.infer<
+  typeof installmentExtraPaymentStrategySchema
+>;
+export type PostInstallmentPayoffInput = z.infer<
+  typeof postInstallmentPayoffSchema
 >;
 
 export type InstallmentScheduleRow = Readonly<{

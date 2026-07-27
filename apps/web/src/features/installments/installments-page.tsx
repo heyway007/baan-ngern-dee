@@ -1,4 +1,5 @@
 import {
+  BadgeDollarSign,
   CalendarClock,
   CircleDollarSign,
   CreditCard,
@@ -20,6 +21,7 @@ import type {
 import { formatMoney } from "../../lib/money-display";
 import { InstallmentForm } from "./installment-form";
 import { InstallmentPaymentForm } from "./installment-payment-form";
+import { PayoffSimulator } from "./payoff-simulator";
 import { SchedulePreview } from "./schedule-preview";
 
 type InstallmentsPageProps = Readonly<{
@@ -72,6 +74,9 @@ export function InstallmentsPage({
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(initiallyOpen);
   const [paymentTarget, setPaymentTarget] = useState<string | null>(
+    null
+  );
+  const [payoffTarget, setPayoffTarget] = useState<string | null>(
     null
   );
 
@@ -131,10 +136,14 @@ export function InstallmentsPage({
             const paymentCount = snapshot.installmentPayments.filter(
               (payment) => payment.contractId === contract.id
             ).length;
+            const payoffCount = snapshot.installmentPayoffs.filter(
+              (payoff) => payoff.contractId === contract.id
+            ).length;
             return (
               <article
                 className={
-                  paymentTarget === paymentKey
+                  paymentTarget === paymentKey ||
+                  payoffTarget === contract.id
                     ? "installment-card payment-open"
                     : "installment-card"
                 }
@@ -176,25 +185,52 @@ export function InstallmentsPage({
                   </div>
                 ) : null}
                 {next && contract.status === "active" ? (
-                  <button
-                    type="button"
-                    className="secondary-button installment-pay-button"
-                    aria-label={`ชำระงวดที่ ${next.sequence}`}
-                    onClick={() =>
-                      setPaymentTarget((current) =>
-                        current === paymentKey ? null : paymentKey
-                      )
-                    }
-                  >
-                    <CircleDollarSign size={18} aria-hidden="true" />
-                    {paymentTarget === paymentKey
-                      ? "ปิดฟอร์มชำระ"
-                      : `ชำระงวดที่ ${next.sequence}`}
-                  </button>
+                  <div className="installment-action-row">
+                    <button
+                      type="button"
+                      className="secondary-button installment-pay-button"
+                      aria-label={`ชำระงวดที่ ${next.sequence}`}
+                      onClick={() => {
+                        setPayoffTarget(null);
+                        setPaymentTarget((current) =>
+                          current === paymentKey ? null : paymentKey
+                        );
+                      }}
+                    >
+                      <CircleDollarSign size={18} aria-hidden="true" />
+                      {paymentTarget === paymentKey
+                        ? "ปิดฟอร์มชำระ"
+                        : `ชำระงวดที่ ${next.sequence}`}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button installment-payoff-button"
+                      aria-label="โปะหรือปิดยอด"
+                      onClick={() => {
+                        setPaymentTarget(null);
+                        setPayoffTarget((current) =>
+                          current === contract.id
+                            ? null
+                            : contract.id
+                        );
+                      }}
+                    >
+                      <BadgeDollarSign
+                        size={18}
+                        aria-hidden="true"
+                      />
+                      {payoffTarget === contract.id
+                        ? "ปิดตัวจำลอง"
+                        : "โปะ / ปิดยอด"}
+                    </button>
+                  </div>
                 ) : null}
-                {paymentCount > 0 ? (
+                {paymentCount > 0 || payoffCount > 0 ? (
                   <p className="installment-payment-count">
-                    บันทึกการชำระแล้ว {paymentCount} ครั้ง
+                    ชำระปกติ {paymentCount} ครั้ง
+                    {payoffCount > 0
+                      ? ` · โปะ/ปิดยอด ${payoffCount} ครั้ง`
+                      : ""}
                   </p>
                 ) : null}
                 {next && paymentTarget === paymentKey ? (
@@ -206,6 +242,18 @@ export function InstallmentsPage({
                     onPosted={() => {
                       onChanged();
                       setPaymentTarget(null);
+                    }}
+                  />
+                ) : null}
+                {next && payoffTarget === contract.id ? (
+                  <PayoffSimulator
+                    api={api}
+                    contract={contract}
+                    schedule={schedule}
+                    accounts={snapshot.accounts}
+                    onPosted={() => {
+                      onChanged();
+                      setPayoffTarget(null);
                     }}
                   />
                 ) : null}
