@@ -23,6 +23,7 @@
 
 **Files:**
 - Create: `apps/web/src/styles.test.ts`
+- Modify: `apps/web/vitest.config.ts`
 - Modify: `apps/web/src/styles.css:1-4`
 - Modify: `apps/web/src/styles.css` ทุก declaration ของ `font-family`
 - Test: `apps/web/src/styles.test.ts`
@@ -31,7 +32,20 @@
 - Consumes: ไฟล์ CSS หลักที่ import โดย `apps/web/src/main.tsx`
 - Produces: global font contract ซึ่งกำหนดให้ทุก explicit `font-family` ใน `styles.css` เท่ากับ `"Kanit", sans-serif`
 
-- [ ] **Step 1: Write the failing computed-style typography test**
+- [ ] **Step 1: Enable CSS processing and write the failing computed-style typography test**
+
+เพิ่ม CSS processing ใน `apps/web/vitest.config.ts` เพื่อให้ jsdom ใช้ stylesheet จริง:
+
+```ts
+test: {
+  css: {
+    include: [/.+/]
+  },
+  environment: "jsdom",
+  include: ["src/**/*.test.{ts,tsx}"],
+  setupFiles: ["./src/test/setup.ts"]
+}
+```
 
 สร้าง `apps/web/src/styles.test.ts`:
 
@@ -179,6 +193,6 @@ Expected: ชุดทดสอบทั้งหมดผ่าน, TypeScript 
 - [ ] **Step 8: Commit the tested implementation**
 
 ```powershell
-git add -- apps/web/src/styles.css apps/web/src/styles.test.ts
+git add -- apps/web/vitest.config.ts apps/web/src/styles.css apps/web/src/styles.test.ts
 git commit -m "style: use Kanit across the web app"
 ```

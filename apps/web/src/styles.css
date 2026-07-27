@@ -1,7 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Manrope:wght@600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap");
 
 :root {
-  font-family: "IBM Plex Sans Thai", system-ui, sans-serif;
+  font-family: "Kanit", sans-serif;
   color: #1c2a25;
   background: #f4f2eb;
   font-synthesis: none;
@@ -103,7 +103,7 @@ strong,
   border-radius: 0.75rem 0.75rem 0.75rem 0.2rem;
   background: var(--forest);
   color: white;
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 1.25rem;
 }
 
@@ -294,7 +294,7 @@ select:focus {
 
 .story-copy h1 {
   margin: 1.1rem 0 1.2rem;
-  font-family: Manrope, "IBM Plex Sans Thai", sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: clamp(2.7rem, 5vw, 5.8rem);
   line-height: 1.04;
   letter-spacing: -0.045em;
@@ -493,7 +493,7 @@ select:focus {
 .onboarding-copy h1 {
   margin: 1rem 0 1.2rem;
   color: var(--forest-deep);
-  font-family: Manrope, "IBM Plex Sans Thai", sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: clamp(2.9rem, 6vw, 5.8rem);
   line-height: 1.03;
   letter-spacing: -0.05em;
@@ -841,7 +841,7 @@ select:focus {
 
 .balance-copy > strong {
   margin: 0.55rem 0 0.35rem;
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: clamp(2.5rem, 6vw, 5.4rem);
   letter-spacing: -0.06em;
   line-height: 1;
@@ -877,7 +877,7 @@ select:focus {
   position: relative;
   z-index: 1;
   color: var(--forest-deep);
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: clamp(2rem, 4vw, 3.5rem);
   font-weight: 700;
 }
@@ -970,7 +970,7 @@ select:focus {
 
 .summary-card strong {
   overflow: hidden;
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: clamp(1.1rem, 2.3vw, 1.55rem);
   letter-spacing: -0.04em;
   text-overflow: ellipsis;
@@ -1181,7 +1181,7 @@ select:focus {
 
 .account-balance strong {
   margin-top: 0.15rem;
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 1.45rem;
   letter-spacing: -0.04em;
 }
@@ -1360,7 +1360,7 @@ select:focus {
 
 .amount-input > span {
   color: var(--forest);
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 2rem;
   font-weight: 700;
 }
@@ -1371,7 +1371,7 @@ select:focus {
   border: 0;
   background: transparent;
   box-shadow: none;
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: clamp(2rem, 5vw, 3.2rem);
   font-weight: 700;
   letter-spacing: -0.05em;
@@ -1464,7 +1464,7 @@ select:focus {
 }
 
 .transaction-amount {
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   text-align: right;
 }
 
@@ -1648,7 +1648,7 @@ select:focus {
 
 .financed-principal-callout strong {
   margin-left: 0.25rem;
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 1.1rem;
 }
 
@@ -1691,7 +1691,7 @@ select:focus {
 .manual-schedule-row legend {
   padding: 0 0.35rem;
   color: var(--forest);
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -1747,7 +1747,7 @@ select:focus {
 }
 
 .schedule-totals strong {
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 0.86rem;
 }
 
@@ -1871,7 +1871,7 @@ select:focus {
 }
 
 .contract-principal strong {
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 1.8rem;
   letter-spacing: -0.04em;
 }
@@ -1892,7 +1892,7 @@ select:focus {
 }
 
 .next-installment strong {
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
 }
 
 .installment-pay-button {
@@ -1981,7 +1981,7 @@ select:focus {
 
 .payment-allocation-preview strong {
   color: var(--forest);
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 0.86rem;
 }
 
@@ -2046,7 +2046,7 @@ select:focus {
 
 .payoff-heading p strong {
   color: var(--forest);
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
 }
 
 .payoff-action-switch {
@@ -2110,7 +2110,7 @@ select:focus {
 .payoff-summary strong {
   overflow: hidden;
   color: var(--forest);
-  font-family: Manrope, sans-serif;
+  font-family: "Kanit", sans-serif;
   font-size: 0.9rem;
   text-overflow: ellipsis;
 }
