@@ -27,6 +27,13 @@ function validationIssuesFrom(
   }));
 }
 
+function unexpectedErrorType(error: unknown): string | undefined {
+  if (error instanceof ApiError) {
+    return undefined;
+  }
+  return error instanceof Error ? error.name : typeof error;
+}
+
 export const errorHandler: ErrorHandler<AppEnv> = (error, context) => {
   const requestId = context.get("requestId") ?? crypto.randomUUID();
   const apiError =
@@ -37,10 +44,12 @@ export const errorHandler: ErrorHandler<AppEnv> = (error, context) => {
           500,
           "เกิดข้อผิดพลาดภายในระบบ"
         );
+  const errorType = unexpectedErrorType(error);
   const validationIssues = validationIssuesFrom(error);
 
   console.error({
     code: apiError.code,
+    ...(errorType ? { errorType } : {}),
     method: context.req.method,
     path: new URL(context.req.url).pathname,
     requestId,

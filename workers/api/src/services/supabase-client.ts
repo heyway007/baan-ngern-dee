@@ -89,7 +89,8 @@ export class SupabaseRestClient {
     path: string,
     init: RequestInit = {}
   ): Promise<T> {
-    const response = await this.requestFetch(
+    const response = await this.requestFetch.call(
+      globalThis,
       `${this.baseUrl}/rest/v1/${path}`,
       {
         ...init,

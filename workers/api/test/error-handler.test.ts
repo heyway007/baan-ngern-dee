@@ -25,6 +25,7 @@ describe("API error handling", () => {
     });
     expect(errorLog).toHaveBeenCalledWith({
       code: "INTERNAL_ERROR",
+      errorType: "Error",
       method: "GET",
       path: "/boom",
       requestId: "request-123",
@@ -71,6 +72,7 @@ describe("API error handling", () => {
     expect(responseBody).not.toHaveProperty("error.validationIssues");
     expect(errorLog).toHaveBeenCalledWith({
       code: "INTERNAL_ERROR",
+      errorType: "ZodError",
       method: "GET",
       path: "/invalid-snapshot",
       requestId: "request-zod",
@@ -87,6 +89,36 @@ describe("API error handling", () => {
     expect(serializedLog).not.toContain("not-a-number");
     expect(serializedLog).not.toContain("owner@example.com");
     expect(serializedLog).not.toContain("token-secret");
+    errorLog.mockRestore();
+  });
+
+  it("logs the TypeError class without its message", async () => {
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const app = createApp();
+    app.get("/type-error", () => {
+      throw new TypeError("sensitive receiver detail");
+    });
+
+    const response = await app.request("/type-error", {
+      headers: { "x-request-id": "request-type-error" }
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorLog).toHaveBeenCalledWith({
+      code: "INTERNAL_ERROR",
+      errorType: "TypeError",
+      method: "GET",
+      path: "/type-error",
+      requestId: "request-type-error",
+      status: 500
+    });
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain(
+      "sensitive receiver detail"
+    );
+    const responseBody = await response.json();
+    expect(responseBody).not.toHaveProperty("error.errorMessage");
     errorLog.mockRestore();
   });
 });

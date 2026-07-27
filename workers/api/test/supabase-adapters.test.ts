@@ -14,6 +14,42 @@ const actor = {
 };
 
 describe("Supabase Worker adapters", () => {
+  it("calls the injected fetch with the Worker global receiver", async () => {
+    const snapshot = {
+      version: 1,
+      workspace: null,
+      categories: [],
+      accounts: [],
+      accountBalances: {},
+      openingTransactions: [],
+      transactions: [],
+      installmentContracts: [],
+      installmentSchedules: {},
+      installmentPayments: [],
+      installmentPayoffs: []
+    };
+    let fetchReceiver: unknown;
+    const receiverSensitiveFetch = function (
+      this: unknown
+    ): Promise<Response> {
+      fetchReceiver = this;
+      if (this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      return Promise.resolve(Response.json(snapshot));
+    } as typeof fetch;
+    const repository = createSupabaseFinanceRepository({
+      url: "https://project.supabase.co",
+      anonKey: "anon-key",
+      fetch: receiverSensitiveFetch
+    });
+
+    await expect(repository.getSnapshot(actor)).resolves.toEqual(
+      snapshot
+    );
+    expect(fetchReceiver).toBe(globalThis);
+  });
+
   it("loads and validates the finance snapshot through one RPC", async () => {
     const snapshot = {
       version: 1,
