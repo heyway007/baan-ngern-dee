@@ -132,16 +132,19 @@ functions may access the rows.
 The database is the authority for state transitions:
 
 - `pending -> claimed` when a valid, unexpired token is redeemed;
-- `claimed -> redeemed` after the Auth user is created;
-- `claimed -> pending` when Auth creation fails and the same claim releases
-  it;
+- `claimed -> redeemed` after the Auth user is created, either through the
+  normal completion call or reconciliation after an interrupted response;
+- `claimed -> pending` only when Supabase definitively rejects Auth creation
+  and the same claim releases it;
 - `pending -> revoked` when the Super Admin revokes it; and
 - `pending -> revoked` followed by a new `pending` row when the Super Admin
   explicitly replaces a link.
 
-A claim receives a unique `claim_id`. A complete or release operation must
-match both the invitation ID and claim ID. A claim older than five minutes
-is stale and can be reclaimed, protecting against a Worker interruption.
+A claim receives a unique `claim_id`. The Auth user stores both the
+invitation ID and claim ID in server-controlled app metadata. A complete,
+release, or reconciliation operation must match these identifiers. A claim
+older than five minutes is stale and can be reclaimed only when no matching
+Auth user was provisioned.
 
 Expiry is derived from `expires_at <= now()`. Expired rows remain `pending`
 in storage for audit purposes but are presented as `expired` and cannot be
@@ -252,18 +255,21 @@ Accepts:
 The Worker:
 
 1. hashes the token;
-2. atomically claims a valid invitation;
-3. creates a confirmed Supabase Auth user with the invitation email,
-   display name, and submitted password;
-4. completes the invitation using its claim ID; and
-5. returns the email needed for the browser's normal password sign-in.
+2. reconciles a previously provisioned Auth user when an earlier response
+   was interrupted;
+3. atomically claims a valid invitation when reconciliation finds nothing;
+4. creates a confirmed Supabase Auth user with the invitation email,
+   display name, submitted password, invitation ID, and claim ID;
+5. completes the invitation using its claim ID; and
+6. returns the email needed for the browser's normal password sign-in.
 
 The password is accepted only over HTTPS, sent directly to Supabase Auth
 Admin, never stored, and never logged.
 
-If Auth creation fails, the Worker releases the matching claim. If a Worker
-interruption leaves a claim incomplete, it becomes reclaimable after five
-minutes.
+If Supabase definitively rejects Auth creation, the Worker releases the
+matching claim. For ambiguous transport failures, the Worker keeps the claim
+and reconciles by exact invitation and claim metadata on retry. This avoids
+creating an Auth account while leaving the invitation reusable.
 
 ## Link Format and Token Handling
 
@@ -274,9 +280,10 @@ https://app-origin.example/accept-invite#token=<base64url-token>
 ```
 
 Use a URL fragment so the token is not sent in the initial HTTP request or
-included in ordinary referrer headers. The acceptance page reads the token
-once, stores it only in component memory, and immediately removes the
-fragment with `history.replaceState`.
+included in ordinary referrer headers. The application router reads the
+token synchronously on its first render, stores it only in component memory,
+and immediately removes the fragment with `history.replaceState` before
+asynchronous configuration or session loading.
 
 The token must not be written to local storage, session storage, analytics,
 console output, error messages, or logs.

@@ -20,22 +20,9 @@ import {
 type AcceptInvitePageProps = Readonly<{
   api: PublicInvitationApi;
   auth: Pick<CloudAuth, "signIn">;
+  token: string;
   onAuthenticated(session: CloudSession): void;
 }>;
-
-function readInvitationToken() {
-  return new URLSearchParams(
-    window.location.hash.replace(/^#/, "")
-  ).get("token") ?? "";
-}
-
-function clearInvitationToken() {
-  window.history.replaceState(
-    null,
-    "",
-    `${window.location.pathname}${window.location.search}`
-  );
-}
 
 function inspectErrorMessage(error: unknown) {
   if (error instanceof RemoteInvitationError) {
@@ -68,9 +55,9 @@ function redeemErrorMessage(error: unknown) {
 export function AcceptInvitePage({
   api,
   auth,
+  token,
   onAuthenticated
 }: AcceptInvitePageProps) {
-  const [token] = useState(readInvitationToken);
   const [invitation, setInvitation] =
     useState<InspectInvitationResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,7 +67,6 @@ export function AcceptInvitePage({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    clearInvitationToken();
     if (!token) {
       setError("ลิงก์คำเชิญไม่ถูกต้องหรือไม่สามารถใช้งานได้");
       setLoading(false);

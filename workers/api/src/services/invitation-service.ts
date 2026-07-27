@@ -43,6 +43,9 @@ export interface InvitationRepository {
     actorUserId: string
   ): Promise<void>;
   inspect(tokenHash: string): Promise<InvitationIdentity>;
+  reconcile(
+    tokenHash: string
+  ): Promise<InvitationIdentity | null>;
   claim(tokenHash: string): Promise<ClaimedInvitation>;
   complete(
     invitationId: string,
@@ -60,6 +63,8 @@ export interface InvitationAuthAdmin {
     email: string;
     displayName: string;
     password: string;
+    invitationId: string;
+    claimId: string;
   }): Promise<{ userId: string }>;
 }
 
@@ -228,16 +233,38 @@ export function createInvitationService(options: {
 
     async redeem(input) {
       const tokenHash = await hashInvitationToken(input.token);
-      const claim = await options.repository.claim(tokenHash);
-      let authUserCreated = false;
+      const previouslyProvisioned =
+        await options.repository.reconcile(tokenHash);
+      if (previouslyProvisioned) {
+        return { email: previouslyProvisioned.email };
+      }
 
+      const claim = await options.repository.claim(tokenHash);
+      let created: { userId: string };
       try {
-        const created = await options.authAdmin.createUser({
+        created = await options.authAdmin.createUser({
           email: claim.email,
           displayName: claim.displayName,
-          password: input.password
+          password: input.password,
+          invitationId: claim.id,
+          claimId: claim.claimId
         });
-        authUserCreated = true;
+      } catch (error) {
+        const recovered = await options.repository
+          .reconcile(tokenHash)
+          .catch(() => null);
+        if (recovered) {
+          return { email: recovered.email };
+        }
+        if (error instanceof ApiError) {
+          await options.repository
+            .release(claim.id, claim.claimId)
+            .catch(() => undefined);
+        }
+        throw invitationCreationError(error);
+      }
+
+      try {
         await options.repository.complete(
           claim.id,
           claim.claimId,
@@ -245,10 +272,11 @@ export function createInvitationService(options: {
         );
         return { email: claim.email };
       } catch (error) {
-        if (!authUserCreated) {
-          await options.repository
-            .release(claim.id, claim.claimId)
-            .catch(() => undefined);
+        const recovered = await options.repository
+          .reconcile(tokenHash)
+          .catch(() => null);
+        if (recovered) {
+          return { email: recovered.email };
         }
         throw invitationCreationError(error);
       }

@@ -18,11 +18,13 @@ create table public.user_invitations (
   ),
   claim_id uuid,
   claimed_at timestamptz,
+  redeemed_claim_id uuid,
   redeemed_at timestamptz,
   redeemed_user_id uuid references auth.users (id),
   revoked_at timestamptz,
   check (expires_at > created_at),
   check ((status = 'claimed') = (claim_id is not null)),
+  check ((status = 'redeemed') = (redeemed_claim_id is not null)),
   check ((status = 'redeemed') = (redeemed_at is not null)),
   check ((status = 'revoked') = (revoked_at is not null))
 );
@@ -93,6 +95,10 @@ declare
   v_display_name text := btrim(p_display_name);
   v_invitation public.user_invitations;
 begin
+  perform pg_advisory_xact_lock(
+    hashtextextended(p_created_by::text, 0)
+  );
+
   if public.invitation_auth_user_exists(v_email) then
     raise exception using
       errcode = 'P0001',
@@ -168,7 +174,7 @@ as $$
           'displayName', invitation.display_name,
           'status',
             case
-              when invitation.status = 'pending'
+              when invitation.status in ('pending', 'claimed')
                 and invitation.expires_at <= now() then 'expired'
               when invitation.status = 'claimed'
                 and invitation.claimed_at <
@@ -236,6 +242,93 @@ begin
     'displayName', v_invitation.display_name,
     'email', v_invitation.email
   );
+end;
+$$;
+
+create function public.reconcile_user_invitation(p_token_hash text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $$
+declare
+  v_invitation public.user_invitations;
+  v_user auth.users;
+  v_expected_claim_id uuid;
+begin
+  select *
+  into v_invitation
+  from public.user_invitations
+  where token_hash = p_token_hash
+  for update;
+
+  if not found or v_invitation.status = 'revoked' then
+    raise exception using
+      errcode = 'P0001',
+      message = 'INVITATION_INVALID';
+  end if;
+
+  v_expected_claim_id := case
+    when v_invitation.status = 'redeemed'
+      then v_invitation.redeemed_claim_id
+    else v_invitation.claim_id
+  end;
+
+  if v_expected_claim_id is not null then
+    select auth_user.*
+    into v_user
+    from auth.users auth_user
+    where lower(auth_user.email) = v_invitation.email
+      and auth_user.raw_app_meta_data
+        ->> 'baan_ngern_dee_invitation_id'
+          = v_invitation.id::text
+      and auth_user.raw_app_meta_data
+        ->> 'baan_ngern_dee_invitation_claim_id'
+          = v_expected_claim_id::text
+    limit 1;
+  end if;
+
+  if v_user.id is not null then
+    if v_invitation.status = 'claimed' then
+      update public.user_invitations
+      set
+        status = 'redeemed',
+        redeemed_claim_id = claim_id,
+        claim_id = null,
+        redeemed_at = now(),
+        redeemed_user_id = v_user.id
+      where id = v_invitation.id;
+
+      insert into public.user_invitation_audit (
+        invitation_id,
+        event_name,
+        metadata
+      )
+      values (
+        v_invitation.id,
+        'redeemed',
+        jsonb_build_object('reconciled', true)
+      );
+    end if;
+
+    return jsonb_build_object(
+      'email', v_invitation.email,
+      'displayName', v_invitation.display_name
+    );
+  end if;
+
+  if v_invitation.status = 'redeemed' then
+    raise exception using
+      errcode = 'P0001',
+      message = 'INVITATION_REDEEMED';
+  end if;
+  if v_invitation.expires_at <= now() then
+    raise exception using
+      errcode = 'P0001',
+      message = 'INVITATION_EXPIRED';
+  end if;
+
+  return null;
 end;
 $$;
 
@@ -319,12 +412,25 @@ begin
   update public.user_invitations
   set
     status = 'redeemed',
+    redeemed_claim_id = claim_id,
     claim_id = null,
     redeemed_at = now(),
     redeemed_user_id = p_user_id
   where id = p_id
     and status = 'claimed'
-    and claim_id = p_claim_id;
+    and claim_id = p_claim_id
+    and exists (
+      select 1
+      from auth.users auth_user
+      where auth_user.id = p_user_id
+        and lower(auth_user.email) =
+          public.user_invitations.email
+        and auth_user.raw_app_meta_data
+          ->> 'baan_ngern_dee_invitation_id' = p_id::text
+        and auth_user.raw_app_meta_data
+          ->> 'baan_ngern_dee_invitation_claim_id'
+            = p_claim_id::text
+    );
 
   if not found then
     raise exception using
@@ -404,6 +510,23 @@ begin
       errcode = 'P0001',
       message = 'INVITATION_BUSY';
   end if;
+  if v_invitation.claim_id is not null
+    and exists (
+      select 1
+      from auth.users auth_user
+      where lower(auth_user.email) = v_invitation.email
+        and auth_user.raw_app_meta_data
+          ->> 'baan_ngern_dee_invitation_id'
+            = v_invitation.id::text
+        and auth_user.raw_app_meta_data
+          ->> 'baan_ngern_dee_invitation_claim_id'
+            = v_invitation.claim_id::text
+    )
+  then
+    raise exception using
+      errcode = 'P0001',
+      message = 'INVITATION_BUSY';
+  end if;
 
   update public.user_invitations
   set
@@ -436,6 +559,10 @@ declare
   v_original public.user_invitations;
   v_replacement public.user_invitations;
 begin
+  perform pg_advisory_xact_lock(
+    hashtextextended(p_actor::text, 0)
+  );
+
   select *
   into v_original
   from public.user_invitations
@@ -533,6 +660,8 @@ revoke all on function public.list_user_invitations()
   from public, anon, authenticated;
 revoke all on function public.inspect_user_invitation(text)
   from public, anon, authenticated;
+revoke all on function public.reconcile_user_invitation(text)
+  from public, anon, authenticated;
 revoke all on function public.claim_user_invitation(text)
   from public, anon, authenticated;
 revoke all on function public.complete_user_invitation(
@@ -554,6 +683,8 @@ grant execute on function public.create_user_invitation(
 grant execute on function public.list_user_invitations()
   to service_role;
 grant execute on function public.inspect_user_invitation(text)
+  to service_role;
+grant execute on function public.reconcile_user_invitation(text)
   to service_role;
 grant execute on function public.claim_user_invitation(text)
   to service_role;

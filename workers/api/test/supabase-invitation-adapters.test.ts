@@ -69,6 +69,12 @@ describe("Supabase invitation repository", () => {
           displayName: row.displayName
         })
       )
+      .mockResolvedValueOnce(
+        Response.json({
+          email: row.email,
+          displayName: row.displayName
+        })
+      )
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const repository = createSupabaseInvitationRepository({
@@ -93,6 +99,7 @@ describe("Supabase invitation repository", () => {
       "11111111-1111-4111-8111-111111111111"
     );
     await repository.inspect("c".repeat(64));
+    await repository.reconcile("d".repeat(64));
     await repository.complete(
       row.id,
       "44444444-4444-4444-8444-444444444444",
@@ -111,6 +118,7 @@ describe("Supabase invitation repository", () => {
       "https://project.supabase.co/rest/v1/rpc/replace_user_invitation",
       "https://project.supabase.co/rest/v1/rpc/revoke_user_invitation",
       "https://project.supabase.co/rest/v1/rpc/inspect_user_invitation",
+      "https://project.supabase.co/rest/v1/rpc/reconcile_user_invitation",
       "https://project.supabase.co/rest/v1/rpc/complete_user_invitation",
       "https://project.supabase.co/rest/v1/rpc/release_user_invitation"
     ]);
@@ -168,7 +176,10 @@ describe("Supabase Auth Admin adapter", () => {
       authAdmin.createUser({
         email: "person@example.test",
         displayName: "Person",
-        password: "strong-password"
+        password: "strong-password",
+        invitationId:
+          "33333333-3333-4333-8333-333333333333",
+        claimId: "44444444-4444-4444-8444-444444444444"
       })
     ).resolves.toEqual({
       userId: "55555555-5555-4555-8555-555555555555"
@@ -182,7 +193,13 @@ describe("Supabase Auth Admin adapter", () => {
       email: "person@example.test",
       password: "strong-password",
       email_confirm: true,
-      user_metadata: { display_name: "Person" }
+      user_metadata: { display_name: "Person" },
+      app_metadata: {
+        baan_ngern_dee_invitation_id:
+          "33333333-3333-4333-8333-333333333333",
+        baan_ngern_dee_invitation_claim_id:
+          "44444444-4444-4444-8444-444444444444"
+      }
     });
     expect(
       new Headers(init?.headers).get("authorization")

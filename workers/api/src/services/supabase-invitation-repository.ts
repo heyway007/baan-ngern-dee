@@ -231,6 +231,14 @@ export function createSupabaseInvitationRepository(
       );
     },
 
+    reconcile(tokenHash): Promise<InvitationIdentity | null> {
+      return rpc(
+        "reconcile_user_invitation",
+        { p_token_hash: tokenHash },
+        invitationIdentitySchema.nullable()
+      );
+    },
+
     claim(tokenHash): Promise<ClaimedInvitation> {
       return rpc(
         "claim_user_invitation",

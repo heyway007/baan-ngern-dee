@@ -40,6 +40,7 @@ function createDependencies() {
       email: invitation.email,
       displayName: invitation.displayName
     }),
+    reconcile: vi.fn().mockResolvedValue(null),
     claim: vi.fn().mockImplementation(async () => {
       calls.push("claim");
       return {
@@ -140,7 +141,7 @@ describe("invitation service", () => {
   });
 
   it("claims, creates, and completes before returning the login email", async () => {
-    const { calls, service } = createDependencies();
+    const { authAdmin, calls, service } = createDependencies();
 
     await expect(
       service.redeem({
@@ -149,12 +150,23 @@ describe("invitation service", () => {
       })
     ).resolves.toEqual({ email: invitation.email });
     expect(calls).toEqual(["claim", "create-user", "complete"]);
+    expect(authAdmin.createUser).toHaveBeenCalledWith({
+      email: invitation.email,
+      displayName: invitation.displayName,
+      password: "strong-password",
+      invitationId,
+      claimId
+    });
   });
 
   it("releases the matching claim when Auth user creation fails", async () => {
     const { authAdmin, calls, service } = createDependencies();
     vi.mocked(authAdmin.createUser).mockRejectedValueOnce(
-      new Error("upstream failed")
+      new ApiError(
+        "INVITATION_CREATE_FAILED",
+        500,
+        "upstream rejected the request"
+      )
     );
 
     await expect(
@@ -166,6 +178,80 @@ describe("invitation service", () => {
       code: "INVITATION_CREATE_FAILED"
     });
     expect(calls).toEqual(["claim", "release"]);
+  });
+
+  it("keeps an ambiguous claim available for reconciliation", async () => {
+    const {
+      authAdmin,
+      calls,
+      repository,
+      service
+    } = createDependencies();
+    vi.mocked(authAdmin.createUser).mockRejectedValueOnce(
+      new Error("network response lost")
+    );
+    vi.mocked(repository.reconcile)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service.redeem({
+        token: "a".repeat(43),
+        password: "strong-password"
+      })
+    ).rejects.toMatchObject({
+      code: "INVITATION_CREATE_FAILED"
+    });
+    expect(calls).toEqual(["claim"]);
+    expect(repository.release).not.toHaveBeenCalled();
+  });
+
+  it("reconciles a user when the Auth create response is lost", async () => {
+    const {
+      authAdmin,
+      calls,
+      repository,
+      service
+    } = createDependencies();
+    vi.mocked(authAdmin.createUser).mockRejectedValueOnce(
+      new Error("network response lost")
+    );
+    vi.mocked(repository.reconcile)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        email: invitation.email,
+        displayName: invitation.displayName
+      });
+
+    await expect(
+      service.redeem({
+        token: "a".repeat(43),
+        password: "strong-password"
+      })
+    ).resolves.toEqual({ email: invitation.email });
+    expect(calls).toEqual(["claim"]);
+    expect(repository.release).not.toHaveBeenCalled();
+  });
+
+  it("finishes a previously provisioned invitation before claiming again", async () => {
+    const {
+      authAdmin,
+      repository,
+      service
+    } = createDependencies();
+    vi.mocked(repository.reconcile).mockResolvedValueOnce({
+      email: invitation.email,
+      displayName: invitation.displayName
+    });
+
+    await expect(
+      service.redeem({
+        token: "a".repeat(43),
+        password: "strong-password"
+      })
+    ).resolves.toEqual({ email: invitation.email });
+    expect(repository.claim).not.toHaveBeenCalled();
+    expect(authAdmin.createUser).not.toHaveBeenCalled();
   });
 
   it("preserves a password policy error and releases the claim", async () => {
@@ -190,7 +276,7 @@ describe("invitation service", () => {
     expect(calls).toEqual(["claim", "release"]);
   });
 
-  it("does not release after Auth succeeds but completion fails", async () => {
+  it("reconciles after Auth succeeds but the completion response fails", async () => {
     const { calls, repository, service } = createDependencies();
     vi.mocked(repository.complete).mockImplementationOnce(
       async () => {
@@ -202,15 +288,20 @@ describe("invitation service", () => {
         );
       }
     );
+    vi.mocked(repository.reconcile)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        email: invitation.email,
+        displayName: invitation.displayName
+      });
 
     await expect(
       service.redeem({
         token: "a".repeat(43),
         password: "strong-password"
       })
-    ).rejects.toMatchObject({
-      code: "INVITATION_CREATE_FAILED"
-    });
+    ).resolves.toEqual({ email: invitation.email });
     expect(calls).toEqual(["claim", "create-user", "complete"]);
+    expect(repository.release).not.toHaveBeenCalled();
   });
 });

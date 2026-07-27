@@ -72,6 +72,12 @@ export function createSupabaseAuthAdmin(
             email_confirm: true,
             user_metadata: {
               display_name: input.displayName
+            },
+            app_metadata: {
+              baan_ngern_dee_invitation_id:
+                input.invitationId,
+              baan_ngern_dee_invitation_claim_id:
+                input.claimId
             }
           })
         }

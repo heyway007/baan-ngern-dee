@@ -156,6 +156,21 @@ export function FinanceRoutes({
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const [invitationToken] = useState(() => {
+    if (location.pathname !== "/accept-invite") return "";
+    const token =
+      new URLSearchParams(
+        location.hash.replace(/^#/, "")
+      ).get("token") ?? "";
+    if (token) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`
+      );
+    }
+    return token;
+  });
   const [state, dispatch] = useReducer(
     cloudReducer,
     initialCloudState
@@ -303,7 +318,7 @@ export function FinanceRoutes({
 
   async function signOutForInvitation() {
     const invitationLocation =
-      `${location.pathname}${location.search}${location.hash}`;
+      `${location.pathname}${location.search}`;
     try {
       await authRef.current?.signOut();
     } finally {
@@ -388,6 +403,7 @@ export function FinanceRoutes({
             <AcceptInvitePage
               api={publicInvitationApi}
               auth={auth}
+              token={invitationToken}
               onAuthenticated={(session) => {
                 acceptAuthenticatedSession(session);
                 navigate("/onboarding", { replace: true });

@@ -375,6 +375,7 @@ describe("cloud application flow", () => {
       </MemoryRouter>
     );
 
+    expect(window.location.hash).toBe("");
     expect(
       await screen.findByRole("heading", {
         name: "ตั้งรหัสผ่านเพื่อเริ่มใช้งาน"

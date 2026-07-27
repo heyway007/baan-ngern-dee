@@ -41,12 +41,13 @@ describe("AcceptInvitePage", () => {
     );
   });
 
-  it("consumes the fragment token and shows safe invitation details", async () => {
+  it("shows safe invitation details for the supplied token", async () => {
     const api = createApi();
     render(
       <AcceptInvitePage
         api={api}
         auth={{ signIn: vi.fn() }}
+        token={token}
         onAuthenticated={vi.fn()}
       />
     );
@@ -54,7 +55,6 @@ describe("AcceptInvitePage", () => {
     expect(await screen.findByText("Friend")).toBeInTheDocument();
     expect(screen.getByText("fr***@example.test")).toBeInTheDocument();
     expect(api.inspect).toHaveBeenCalledWith(token);
-    expect(window.location.hash).toBe("");
   });
 
   it("requires a matching password of at least eight characters", async () => {
@@ -64,6 +64,7 @@ describe("AcceptInvitePage", () => {
       <AcceptInvitePage
         api={api}
         auth={{ signIn: vi.fn() }}
+        token={token}
         onAuthenticated={vi.fn()}
       />
     );
@@ -96,6 +97,7 @@ describe("AcceptInvitePage", () => {
       <AcceptInvitePage
         api={api}
         auth={{ signIn: vi.fn() }}
+        token={token}
         onAuthenticated={vi.fn()}
       />
     );
@@ -130,6 +132,7 @@ describe("AcceptInvitePage", () => {
       <AcceptInvitePage
         api={api}
         auth={{ signIn }}
+        token={token}
         onAuthenticated={onAuthenticated}
       />
     );
@@ -175,6 +178,7 @@ describe("AcceptInvitePage", () => {
       <AcceptInvitePage
         api={api}
         auth={{ signIn: vi.fn() }}
+        token={token}
         onAuthenticated={vi.fn()}
       />
     );
@@ -197,6 +201,7 @@ describe("AcceptInvitePage", () => {
       <AcceptInvitePage
         api={api}
         auth={{ signIn: vi.fn() }}
+        token={token}
         onAuthenticated={vi.fn()}
       />
     );
@@ -213,6 +218,7 @@ describe("AcceptInvitePage", () => {
       <AcceptInvitePage
         api={api}
         auth={{ signIn: vi.fn() }}
+        token=""
         onAuthenticated={vi.fn()}
       />
     );
