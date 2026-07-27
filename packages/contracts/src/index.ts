@@ -12,6 +12,21 @@ export {
 export type { ApiErrorCode, ApiErrorResponse } from "./errors";
 export { apiErrorCodes } from "./errors";
 export type {
+  CreateInstallmentContractInput,
+  InstallmentContractKind,
+  InstallmentContractStatus,
+  InstallmentInterestMethod,
+  InstallmentScheduleRow,
+  ManualInstallmentRowInput
+} from "./installments";
+export {
+  createInstallmentContractSchema,
+  installmentContractKindSchema,
+  installmentContractStatusSchema,
+  installmentInterestMethodSchema,
+  manualInstallmentRowSchema
+} from "./installments";
+export type {
   Category,
   CategoryKind,
   CreateCategoryInput

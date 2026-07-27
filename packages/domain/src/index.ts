@@ -3,6 +3,13 @@ export { normalizeAccountKind } from "./accounts";
 export { minorDigits, type CurrencyCode } from "./currency";
 export { toFinancialDate } from "./financial-date";
 export {
+  generateInstallmentSchedule,
+  validateManualSchedule,
+  type InstallmentScheduleInput,
+  type ManualScheduleInput
+} from "./installments";
+export type { InstallmentScheduleRow } from "@systems-credit/contracts";
+export {
   allocateMoney,
   parseMoney,
   roundMoney,
