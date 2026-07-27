@@ -3,6 +3,7 @@ import type {
   Category,
   CreateAccountWithOpeningBalanceInput,
   CreateCategoryInput,
+  CreateInstallmentContractInput,
   CreatePrivateWorkspaceInput,
   CreateTransactionInput,
   PostedTransactionResponse,
@@ -28,6 +29,42 @@ export type AccountCreationResult = Readonly<{
   }>;
 }>;
 
+export type InstallmentContractCreationResult = Readonly<{
+  contract: Readonly<{
+    id: string;
+    workspaceId: string;
+    name: string;
+    kind: CreateInstallmentContractInput["kind"];
+    creditor?: string;
+    originalPrincipal: string;
+    downPayment: string;
+    financedPrincipal: string;
+    financedFees: string;
+    currency: string;
+    interestMethod: CreateInstallmentContractInput["interestMethod"];
+    annualRate: string;
+    periods: number;
+    firstDueDate: string;
+    fundingAccountId?: string;
+    expenseCategoryId?: string;
+    interestCategoryId?: string;
+    status: "active";
+    version: 1;
+  }>;
+  schedule: Array<
+    Readonly<{
+      sequence: number;
+      dueDate: string;
+      openingPrincipal: string;
+      principal: string;
+      interest: string;
+      fees: string;
+      total: string;
+      closingPrincipal: string;
+    }>
+  >;
+}>;
+
 export interface FinanceApi {
   createPrivateWorkspace(
     input: CreatePrivateWorkspaceInput
@@ -36,6 +73,9 @@ export interface FinanceApi {
     input: CreateAccountWithOpeningBalanceInput
   ): Promise<AccountCreationResult>;
   createCategory(input: CreateCategoryInput): Promise<Category>;
+  createInstallmentContract(
+    input: CreateInstallmentContractInput
+  ): Promise<InstallmentContractCreationResult>;
   postTransaction(
     input: CreateTransactionInput
   ): Promise<PostedTransactionResponse>;

@@ -1,17 +1,21 @@
 import {
   createAccountWithOpeningBalanceSchema,
   createCategorySchema,
+  createInstallmentContractSchema,
   createPrivateWorkspaceSchema,
   createTransactionSchema,
   type Account,
   type Category,
   type CreateTransactionInput,
+  type InstallmentScheduleRow,
   type PostedTransactionResponse,
   type Workspace
 } from "@systems-credit/contracts";
 import {
   parseMoney,
+  generateInstallmentSchedule,
   roundMoney,
+  validateManualSchedule,
   validateSplits,
   type CurrencyCode
 } from "@systems-credit/domain";
@@ -19,6 +23,7 @@ import {
 import type {
   AccountCreationResult,
   FinanceApi,
+  InstallmentContractCreationResult,
   WorkspaceCreationResult
 } from "./finance-api";
 
@@ -51,6 +56,19 @@ export type LocalTransaction = Readonly<{
   createdAt: string;
 }>;
 
+export type LocalInstallmentContract =
+  InstallmentContractCreationResult["contract"];
+
+export type LocalInstallmentScheduleRow =
+  InstallmentScheduleRow &
+    Readonly<{
+      paidPrincipal: string;
+      paidInterest: string;
+      paidFees: string;
+      paidPenalty: string;
+      status: "upcoming";
+    }>;
+
 export type LocalFinanceSnapshot = Readonly<{
   version: 1;
   workspace: Workspace | null;
@@ -66,6 +84,11 @@ export type LocalFinanceSnapshot = Readonly<{
   >;
   openingTransactions: LocalOpeningTransaction[];
   transactions: LocalTransaction[];
+  installmentContracts: LocalInstallmentContract[];
+  installmentSchedules: Record<
+    string,
+    LocalInstallmentScheduleRow[]
+  >;
 }>;
 
 export type LocalFinanceApi = FinanceApi &
@@ -102,7 +125,9 @@ function emptySnapshot(): LocalFinanceSnapshot {
     accounts: [],
     accountBalances: {},
     openingTransactions: [],
-    transactions: []
+    transactions: [],
+    installmentContracts: [],
+    installmentSchedules: {}
   };
 }
 
@@ -137,7 +162,21 @@ function readSnapshot(storage: Storage): LocalFinanceSnapshot {
             (parsed as Partial<LocalFinanceSnapshot>).transactions
           )
             ? (parsed as LocalFinanceSnapshot).transactions
-            : []
+            : [],
+          installmentContracts: Array.isArray(
+            (parsed as Partial<LocalFinanceSnapshot>)
+              .installmentContracts
+          )
+            ? (parsed as LocalFinanceSnapshot).installmentContracts
+            : [],
+          installmentSchedules:
+            (parsed as Partial<LocalFinanceSnapshot>)
+              .installmentSchedules &&
+            typeof (parsed as Partial<LocalFinanceSnapshot>)
+              .installmentSchedules === "object"
+              ? (parsed as LocalFinanceSnapshot)
+                  .installmentSchedules
+              : {}
         }
       : emptySnapshot();
   } catch {
@@ -237,6 +276,201 @@ export function createLocalFinanceApi(
         categories: [...snapshot.categories, category]
       });
       return category;
+    },
+
+    async createInstallmentContract(
+      input
+    ): Promise<InstallmentContractCreationResult> {
+      const parsed = createInstallmentContractSchema.parse(input);
+      if (!snapshot.workspace || parsed.workspaceId !== snapshot.workspace.id) {
+        throw new Error("WORKSPACE_NOT_FOUND");
+      }
+
+      const originalPrincipal = parseMoney({
+        amount: parsed.originalPrincipal,
+        currency: parsed.currency
+      });
+      const downPayment = parseMoney({
+        amount: parsed.downPayment,
+        currency: parsed.currency
+      });
+      if (
+        downPayment.isNegative() ||
+        downPayment.greaterThanOrEqualTo(originalPrincipal)
+      ) {
+        throw new Error("INSTALLMENT_DOWN_PAYMENT_INVALID");
+      }
+
+      if (
+        parsed.fundingAccountId &&
+        !snapshot.accounts.some(
+          (account) =>
+            account.id === parsed.fundingAccountId &&
+            account.workspaceId === parsed.workspaceId &&
+            account.currency === parsed.currency
+        )
+      ) {
+        throw new Error("INSTALLMENT_ACCOUNT_INVALID");
+      }
+
+      for (const categoryId of [
+        parsed.expenseCategoryId,
+        parsed.interestCategoryId
+      ]) {
+        if (
+          categoryId &&
+          !snapshot.categories.some(
+            (category) =>
+              category.id === categoryId &&
+              category.workspaceId === parsed.workspaceId &&
+              category.kind === "expense"
+          )
+        ) {
+          throw new Error("INSTALLMENT_CATEGORY_INVALID");
+        }
+      }
+
+      const duplicateName = snapshot.installmentContracts.some(
+        (contract) =>
+          contract.status === "active" &&
+          contract.name.trim().toLocaleLowerCase("th-TH") ===
+            parsed.name.trim().toLocaleLowerCase("th-TH")
+      );
+      if (duplicateName) {
+        throw new Error("INSTALLMENT_NAME_EXISTS");
+      }
+
+      const financedPrincipal = roundMoney(
+        originalPrincipal.minus(downPayment),
+        parsed.currency
+      );
+      let generatedRows: InstallmentScheduleRow[];
+      if (parsed.interestMethod === "manual") {
+        const manualRows = parsed.manualRows!;
+        validateManualSchedule({
+          principal: financedPrincipal,
+          currency: parsed.currency,
+          rows: manualRows
+        });
+        let opening = parseMoney({
+          amount: financedPrincipal,
+          currency: parsed.currency
+        });
+        generatedRows = manualRows.map((row, index) => {
+          const principal = roundMoney(row.principal, parsed.currency);
+          const interest = roundMoney(row.interest, parsed.currency);
+          const fees = roundMoney(row.fees, parsed.currency);
+          const closing = opening.minus(
+            parseMoney({
+              amount: principal,
+              currency: parsed.currency
+            })
+          );
+          const scheduleRow: InstallmentScheduleRow = {
+            sequence: index + 1,
+            dueDate: row.dueDate,
+            openingPrincipal: roundMoney(opening, parsed.currency),
+            principal,
+            interest,
+            fees,
+            total: roundMoney(
+              parseMoney({
+                amount: principal,
+                currency: parsed.currency
+              })
+                .plus(
+                  parseMoney({
+                    amount: interest,
+                    currency: parsed.currency
+                  })
+                )
+                .plus(
+                  parseMoney({
+                    amount: fees,
+                    currency: parsed.currency
+                  })
+                ),
+              parsed.currency
+            ),
+            closingPrincipal: roundMoney(closing, parsed.currency)
+          };
+          opening = closing;
+          return scheduleRow;
+        });
+      } else {
+        generatedRows = generateInstallmentSchedule({
+          principal: financedPrincipal,
+          financedFees: parsed.financedFees,
+          currency: parsed.currency,
+          interestMethod: parsed.interestMethod,
+          annualRate: parsed.annualRate,
+          periods: parsed.periods,
+          firstDueDate: parsed.firstDueDate
+        });
+      }
+
+      const contractId = crypto.randomUUID();
+      const contract: LocalInstallmentContract = {
+        id: contractId,
+        workspaceId: parsed.workspaceId,
+        name: parsed.name,
+        kind: parsed.kind,
+        ...(parsed.creditor ? { creditor: parsed.creditor } : {}),
+        originalPrincipal: roundMoney(
+          parsed.originalPrincipal,
+          parsed.currency
+        ),
+        downPayment: roundMoney(
+          parsed.downPayment,
+          parsed.currency
+        ),
+        financedPrincipal,
+        financedFees: roundMoney(
+          parsed.financedFees,
+          parsed.currency
+        ),
+        currency: parsed.currency,
+        interestMethod: parsed.interestMethod,
+        annualRate: parsed.annualRate,
+        periods: generatedRows.length,
+        firstDueDate: parsed.firstDueDate,
+        ...(parsed.fundingAccountId
+          ? { fundingAccountId: parsed.fundingAccountId }
+          : {}),
+        ...(parsed.expenseCategoryId
+          ? { expenseCategoryId: parsed.expenseCategoryId }
+          : {}),
+        ...(parsed.interestCategoryId
+          ? { interestCategoryId: parsed.interestCategoryId }
+          : {}),
+        status: "active",
+        version: 1
+      };
+      const zero = roundMoney("0", parsed.currency);
+      const schedule = generatedRows.map<LocalInstallmentScheduleRow>(
+        (row) => ({
+          ...row,
+          paidPrincipal: zero,
+          paidInterest: zero,
+          paidFees: zero,
+          paidPenalty: zero,
+          status: "upcoming"
+        })
+      );
+
+      persist({
+        ...snapshot,
+        installmentContracts: [
+          ...snapshot.installmentContracts,
+          contract
+        ],
+        installmentSchedules: {
+          ...snapshot.installmentSchedules,
+          [contract.id]: schedule
+        }
+      });
+
+      return { contract, schedule };
     },
 
     async createAccount(input): Promise<AccountCreationResult> {
