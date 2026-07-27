@@ -1,14 +1,14 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { LocalTransaction } from "../../lib/local-finance-api";
+import type { FinanceTransaction } from "@systems-credit/contracts";
 import { SummaryCards } from "./summary-cards";
 
 function transaction(
   type: "income" | "expense",
   amount: string,
   financialDate = "2026-07-12"
-): LocalTransaction {
+): FinanceTransaction {
   return {
     id: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),

@@ -7,11 +7,11 @@ import {
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Account } from "@systems-credit/contracts";
 import type {
-  LocalInstallmentContract,
-  LocalInstallmentScheduleRow
-} from "../../lib/local-finance-api";
+  Account,
+  FinanceInstallmentContract,
+  FinanceInstallmentScheduleRow
+} from "@systems-credit/contracts";
 import { InstallmentPaymentForm } from "./installment-payment-form";
 
 const workspaceId = "52d3fbcb-c083-42dd-87d0-62a66e337fd0";
@@ -42,7 +42,7 @@ const contract = {
   firstDueDate: "2026-08-15",
   status: "active",
   version: 1
-} satisfies LocalInstallmentContract;
+} satisfies FinanceInstallmentContract;
 
 const row = {
   sequence: 1,
@@ -59,7 +59,7 @@ const row = {
   paidFees: "0.00",
   paidPenalty: "0.00",
   status: "upcoming"
-} satisfies LocalInstallmentScheduleRow;
+} satisfies FinanceInstallmentScheduleRow;
 
 describe("InstallmentPaymentForm", () => {
   it("previews exact allocation and posts only after explicit confirmation", async () => {

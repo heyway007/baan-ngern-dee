@@ -47,7 +47,7 @@ export function OnboardingPage({
   return (
     <main className="onboarding-shell">
       <section className="onboarding-copy" aria-labelledby="welcome-title">
-        <span className="eyebrow">เริ่มต้นในเครื่องนี้</span>
+        <span className="eyebrow">เริ่มต้นบนคลาวด์</span>
         <h1 id="welcome-title">
           เงินทุกก้อน
           <br />
@@ -59,7 +59,7 @@ export function OnboardingPage({
         </p>
         <div className="privacy-note">
           <span aria-hidden="true">●</span>
-          โหมด Local — ข้อมูลยังอยู่บนอุปกรณ์นี้
+          Cloud mode — ข้อมูลซิงก์ผ่านบัญชี Supabase ของคุณ
         </div>
       </section>
 

@@ -6,7 +6,11 @@ import {
 } from "react";
 import { CheckCircle2, WalletCards } from "lucide-react";
 
-import type { Account } from "@systems-credit/contracts";
+import type {
+  Account,
+  FinanceInstallmentContract,
+  FinanceInstallmentScheduleRow
+} from "@systems-credit/contracts";
 import {
   allocateInstallmentPayment,
   normalizeAccountKind,
@@ -19,16 +23,12 @@ import type {
   FinanceApi,
   InstallmentPaymentResult
 } from "../../lib/finance-api";
-import type {
-  LocalInstallmentContract,
-  LocalInstallmentScheduleRow
-} from "../../lib/local-finance-api";
 import { formatMoney } from "../../lib/money-display";
 
 type InstallmentPaymentFormProps = Readonly<{
   api: Pick<FinanceApi, "postInstallmentPayment">;
-  contract: LocalInstallmentContract;
-  row: LocalInstallmentScheduleRow;
+  contract: FinanceInstallmentContract;
+  row: FinanceInstallmentScheduleRow;
   accounts: Account[];
   onPosted(result: InstallmentPaymentResult): void;
 }>;
@@ -36,7 +36,7 @@ type InstallmentPaymentFormProps = Readonly<{
 const moneyPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/;
 
 function remainingScheduledAmount(
-  row: LocalInstallmentScheduleRow,
+  row: FinanceInstallmentScheduleRow,
   currency: string
 ) {
   const scheduled = [

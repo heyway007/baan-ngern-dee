@@ -1,77 +1,130 @@
 # นำ Baan Ngern Dee ขึ้น Supabase และ Cloudflare Workers
 
-คู่มือนี้เตรียมระบบจาก Local ไป Cloud โดยไม่ย้ายข้อมูล Local Storage
-อัตโนมัติ และไม่ใช้ Supabase `service_role` key ใน Worker
+ระบบนี้เป็น Cloud-only: Browser ใช้ Supabase เฉพาะ Email/Password Auth
+แล้วส่ง access token ไปยัง Worker origin เดียวกัน Worker จึงอ่านและเขียน
+PostgreSQL ผ่าน PostgREST/RPC ภายใต้ RLS ของผู้ใช้คนนั้น
 
-## สิ่งที่เตรียมไว้แล้ว
+ห้ามใช้ `service_role`, key ที่ขึ้นต้นด้วย `sb_secret_`, database password
+หรือ connection string ใน Browser, Git หรือ Cloudflare public variables
 
-- Supabase migrations สำหรับ workspace, บัญชี, รายการเงิน, โอนเงิน
-  และสัญญาผ่อน
-- RLS แบบสมาชิก workspace และ RPC แบบ transaction สำหรับการลงบัญชี
-- Worker ตรวจ Supabase JWT แล้วส่ง JWT เดิมเข้า PostgREST/RPC
-- CORS จำกัดไว้ที่ origin ของเว็บที่กำหนด
-- ตัวอย่าง environment ที่ไม่มี secret จริง
-- dry-run build และชุดทดสอบ Local PostgreSQL
+## 1. เตรียมและตรวจ migration
 
-## 1. สร้างโปรเจกต์ Supabase
-
-ติดตั้ง Supabase CLI และเข้าสู่ระบบ จาก root ของ repository:
+จาก root ของ repository:
 
 ```powershell
+npm install
+npm test -- --run
+npm run test:db
+npm run typecheck
 npx supabase login
 npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase migration list
+npx supabase db push --dry-run
+```
+
+ตรวจว่า dry run แสดงเฉพาะ forward migrations ที่คาดไว้และไม่มีการลบข้อมูล
+จากนั้นจึงใช้:
+
+```powershell
 npx supabase db push
 npx supabase test db
 ```
 
-ตรวจใน Supabase Dashboard ว่า Email Auth เปิดใช้งานตามต้องการ และจดค่า:
+ลำดับที่ปลอดภัยคือ tests → link/ตรวจ migration → `db push` → deploy Worker
 
-- Project URL
-- anon/publishable key
+## 2. ตั้ง Supabase Auth URL
 
-ห้ามนำ `service_role` key ไปไว้ในเว็บหรือ commit ลง Git
+ใน Supabase Dashboard → Authentication → URL Configuration ตั้ง:
 
-## 2. ทดสอบ Worker กับ Supabase จากเครื่อง
+```text
+Site URL:
+https://baan-ngern-dee.newforico-9ea.workers.dev
 
-คัดลอกไฟล์ตัวอย่าง:
+Redirect URLs:
+https://baan-ngern-dee.newforico-9ea.workers.dev/
+https://baan-ngern-dee.newforico-9ea.workers.dev/reset-password
+http://127.0.0.1:8787/
+http://127.0.0.1:8787/reset-password
+http://127.0.0.1:5173/
+http://127.0.0.1:5173/reset-password
+```
+
+เปิด Confirm Email ไว้ ระบบ Supabase mailer เริ่มต้นเหมาะกับการทดสอบและจำกัด
+ประมาณ 2 อีเมลต่อชั่วโมง ก่อนเปิดให้ผู้ใช้ทั่วไปควรตั้ง Custom SMTP
+
+ค่าที่ระบบต้องใช้:
+
+- Project URL รูปแบบ `https://YOUR_PROJECT_REF.supabase.co`
+- Browser-safe publishable key ที่ขึ้นต้นด้วย `sb_publishable_`
+
+## 3. ทดสอบ Cloud runtime ในเครื่อง
+
+คัดลอกและแก้ `.dev.vars`:
 
 ```powershell
 Copy-Item .dev.vars.example .dev.vars
 ```
 
-แก้ `.dev.vars`:
-
 ```dotenv
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-SUPABASE_ANON_KEY=YOUR_ANON_KEY
+SUPABASE_ANON_KEY=sb_publishable_YOUR_KEY
 ALLOWED_ORIGIN=http://127.0.0.1:5173
 ```
 
-จากนั้นรัน:
+`ALLOWED_ORIGIN` ไม่บังคับเมื่อ SPA และ API ใช้ origin เดียวกัน ใส่เฉพาะตอน
+ใช้ Vite หรือ client อื่นแบบ cross-origin เท่านั้น
+
+ทดสอบแบบ Worker เสิร์ฟ SPA:
 
 ```powershell
+npm run build
 npm run dev:api
 ```
 
-ตรวจ health endpoint ที่ `http://127.0.0.1:8787/health`
+เปิด `http://127.0.0.1:8787` หรือใช้ Vite HMR อีก terminal:
 
-## 3. ตั้งค่า Cloudflare secrets
+```powershell
+npm run dev:web
+```
 
-เข้าสู่ระบบ Cloudflare แล้วตั้งค่าทั้งสามค่า:
+หน้าเว็บไม่อ่าน `VITE_API_URL` หรือ `VITE_SUPABASE_*`; public URL/key มาจาก
+`GET /config` ขณะ runtime
+
+Endpoint สำคัญ:
+
+- `GET /config` public และคืนเฉพาะ Supabase URL/publishable key
+- `GET /health` public
+- `GET /v1/snapshot` ต้องมี `Authorization: Bearer <ACCESS_TOKEN>`
+- ทุก `/v1/*` อื่นต้องมี token เช่นกัน
+
+## 4. ตั้ง Cloudflare Variables and secrets
+
+ใน Cloudflare Worker/Build settings → Variables and secrets เพิ่ม:
+
+```text
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_YOUR_KEY
+```
+
+หรือใช้ Wrangler:
 
 ```powershell
 npx wrangler login
 npx wrangler secret put SUPABASE_URL -c wrangler.jsonc
 npx wrangler secret put SUPABASE_ANON_KEY -c wrangler.jsonc
-npx wrangler secret put ALLOWED_ORIGIN -c wrangler.jsonc
 ```
 
-`ALLOWED_ORIGIN` ต้องเป็น origin ของเว็บจริง เช่น
-`https://baan-ngern-dee.pages.dev` โดยไม่มี slash ปิดท้าย
+ไม่ต้องตั้ง `ALLOWED_ORIGIN` บน production แบบ same-origin หากมีเว็บอื่น
+เรียก API ข้าม origin จึงค่อยเพิ่มเป็นค่าของ origin นั้นโดยไม่มี slash ปิดท้าย
 
-## 4. ตรวจและ deploy
+สำหรับ Cloudflare Builds:
 
-ให้ deploy ฐานข้อมูลก่อน Worker เสมอ:
+- Root directory: `/`
+- Build command: `npm run build`
+- Deploy command: `npx wrangler deploy`
+- Production branch: `main`
+
+## 5. Deploy และตรวจ production
 
 ```powershell
 npm test -- --run
@@ -81,56 +134,32 @@ npm run build
 npm run deploy:worker
 ```
 
-หากเชื่อม GitHub ผ่าน Cloudflare Builds ให้ตั้งค่า:
-
-- Root directory: `/`
-- Build command: `npm run build`
-- Deploy command: `npx wrangler deploy`
-
-ไฟล์ `wrangler.jsonc` อยู่ที่ root ของ repository เพื่อรองรับคำสั่ง deploy
-ของ Cloudflare CI โดยตรง ส่วน source ของ Worker ยังอยู่ใน `workers/api`
-
-บันทึก URL `workers.dev` ที่ Wrangler แสดง แล้วตรวจ:
+ตรวจ endpoint:
 
 ```powershell
-curl.exe https://YOUR-WORKER.workers.dev/health
+curl.exe -i https://baan-ngern-dee.newforico-9ea.workers.dev/config
+curl.exe -i https://baan-ngern-dee.newforico-9ea.workers.dev/health
+curl.exe -i https://baan-ngern-dee.newforico-9ea.workers.dev/v1/snapshot
 ```
 
-คำตอบที่ถูกต้อง:
-
-```json
-{"ok":true,"service":"systems-credit-api"}
-```
-
-Endpoint ภายใต้ `/v1/*` ต้องส่ง
-`Authorization: Bearer <SUPABASE_ACCESS_TOKEN>` เสมอ
-
-## 5. เตรียมเว็บสำหรับรอบเชื่อม Cloud
-
-คัดลอก `apps/web/.env.example` เป็น `apps/web/.env.local` แล้วกำหนด
-Worker URL, Supabase URL และ anon key จริง
-
-ขณะนี้หน้าเว็บยังใช้ Local Finance API ตามข้อตกลงเดิม การใส่ environment
-เพียงอย่างเดียวจะยังไม่ย้ายหรือ sync ข้อมูล Local Storage ต้องทำขั้นเชื่อม
-Supabase Auth/Remote Finance API และขั้นนำเข้าข้อมูลเป็นงานถัดไปโดยตั้งใจ
+ผลที่คาด: `/config` และ `/health` ตอบ 200, ส่วน `/v1/snapshot` ที่ไม่มี
+token ตอบ 401
 
 ## Rollback และการกู้คืน
 
-- Worker: ใช้ Cloudflare Deployments เลือก version ก่อนหน้าและ Rollback
-- Database: migrations ชุดนี้เป็นแบบเดินหน้า หาก production migration มีปัญหา
-  ให้หยุด Worker version ใหม่ก่อน แล้วออก corrective migration; ไม่ควรลบตาราง
-  ที่มีข้อมูลด้วยคำสั่งย้อนกลับแบบทำลายข้อมูล
-- Secret รั่ว: rotate anon key/credentials ที่ Supabase และตั้ง Worker secret ใหม่
-- CORS ผิด: แก้ `ALLOWED_ORIGIN` แล้ว deploy Worker ใหม่
+- Worker: เลือก version ก่อนหน้าใน Cloudflare Deployments แล้ว Rollback
+- Database: หยุด deploy ใหม่และออก corrective forward migration
+  ห้ามย้อนด้วยคำสั่งที่ลบตารางหรือข้อมูล
+- Key/credential รั่ว: rotate ที่ Supabase แล้วตั้ง Cloudflare secret ใหม่
+- CORS ผิด: แก้หรือลบ `ALLOWED_ORIGIN` แล้ว deploy ใหม่
 
-## Preflight ก่อนเปิดใช้จริง
+## Acceptance ก่อนเปิดใช้จริง
 
-- `supabase test db` ผ่าน
-- tests, typecheck และ build ผ่านทั้งหมด
-- Worker health ตอบ 200
+- สมัคร, ยืนยันอีเมล, sign in/out และ reset password ได้
+- ผู้ใช้ใหม่เข้า onboarding และสร้าง workspace ได้
+- บัญชี รายการ สัญญาผ่อน ชำระงวด และปิดยอดคงอยู่หลัง hard refresh
 - request ไม่มี token ตอบ 401
-- สมาชิก workspace อ่านข้อมูลของตนเองได้
-- ผู้ใช้คนอื่นอ่านสัญญา/ตารางผ่อนไม่ได้
-- retry ด้วย `clientMutationId` เดิมไม่สร้างรายการซ้ำ
+- ผู้ใช้คนที่สองอ่าน snapshot ของคนแรกไม่ได้
+- retry ใช้ `clientMutationId` เดิมและไม่สร้างรายการซ้ำ
 - stale `expectedVersion` ตอบ conflict
-- principal ไม่ถูกนับเป็นรายจ่าย ดอกเบี้ย/ค่าธรรมเนียมถูกนับครั้งเดียว
+- เงินต้นไม่ถูกนับเป็นรายจ่าย; ดอกเบี้ย/ค่าธรรมเนียมถูกนับครั้งเดียว

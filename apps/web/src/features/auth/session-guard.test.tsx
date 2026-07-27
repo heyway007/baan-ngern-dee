@@ -11,7 +11,7 @@ function renderGuard(
   render(
     <MemoryRouter initialEntries={["/overview"]}>
       <Routes>
-        <Route path="/sign-in" element={<p>หน้าเริ่มต้น Local</p>} />
+        <Route path="/sign-in" element={<p>หน้าเข้าสู่ระบบ</p>} />
         <Route path="/onboarding" element={<p>ตั้งค่าพื้นที่</p>} />
         <Route
           element={
@@ -29,17 +29,17 @@ function renderGuard(
 }
 
 describe("SessionGuard", () => {
-  it("sends a visitor without local session to sign in", () => {
+  it("sends a visitor without a cloud session to sign in", () => {
     renderGuard(null, false);
-    expect(screen.getByText("หน้าเริ่มต้น Local")).toBeInTheDocument();
+    expect(screen.getByText("หน้าเข้าสู่ระบบ")).toBeInTheDocument();
   });
 
-  it("sends a local user without workspace to onboarding", () => {
+  it("sends a cloud user without workspace to onboarding", () => {
     renderGuard({ displayName: "มิน" }, false);
     expect(screen.getByText("ตั้งค่าพื้นที่")).toBeInTheDocument();
   });
 
-  it("shows protected content after local setup", () => {
+  it("shows protected content after cloud setup", () => {
     renderGuard({ displayName: "มิน" }, true);
     expect(screen.getByText("ภาพรวมของฉัน")).toBeInTheDocument();
   });

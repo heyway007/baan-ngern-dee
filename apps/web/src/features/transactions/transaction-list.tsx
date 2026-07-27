@@ -4,13 +4,15 @@ import {
   ReceiptText
 } from "lucide-react";
 
-import type { Account, Category } from "@systems-credit/contracts";
-
-import type { LocalTransaction } from "../../lib/local-finance-api";
+import type {
+  Account,
+  Category,
+  FinanceTransaction
+} from "@systems-credit/contracts";
 import { formatMoney } from "../../lib/money-display";
 
 type TransactionListProps = Readonly<{
-  transactions: LocalTransaction[];
+  transactions: FinanceTransaction[];
   accounts: Account[];
   categories: Category[];
 }>;

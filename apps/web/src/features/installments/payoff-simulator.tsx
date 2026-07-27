@@ -11,7 +11,11 @@ import {
   TimerReset
 } from "lucide-react";
 
-import type { Account } from "@systems-credit/contracts";
+import type {
+  Account,
+  FinanceInstallmentContract,
+  FinanceInstallmentScheduleRow
+} from "@systems-credit/contracts";
 import {
   normalizeAccountKind,
   parseMoney,
@@ -26,17 +30,13 @@ import type {
   FinanceApi,
   InstallmentPayoffResult
 } from "../../lib/finance-api";
-import type {
-  LocalInstallmentContract,
-  LocalInstallmentScheduleRow
-} from "../../lib/local-finance-api";
 import { formatMoney } from "../../lib/money-display";
 import { SchedulePreview } from "./schedule-preview";
 
 type PayoffSimulatorProps = Readonly<{
   api: Pick<FinanceApi, "postInstallmentPayoff">;
-  contract: LocalInstallmentContract;
-  schedule: LocalInstallmentScheduleRow[];
+  contract: FinanceInstallmentContract;
+  schedule: FinanceInstallmentScheduleRow[];
   accounts: Account[];
   onPosted(result: InstallmentPayoffResult): void;
 }>;

@@ -4,12 +4,12 @@ import {
   Scale
 } from "lucide-react";
 
-import type { LocalTransaction } from "../../lib/local-finance-api";
+import type { FinanceTransaction } from "@systems-credit/contracts";
 import { addExactMoney, formatMoney } from "../../lib/money-display";
 
 type SummaryCardsProps = Readonly<{
   month: string;
-  transactions: LocalTransaction[];
+  transactions: FinanceTransaction[];
 }>;
 
 function negate(amount: string) {

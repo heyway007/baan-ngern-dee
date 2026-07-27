@@ -5,16 +5,16 @@ import { describe, expect, it, vi } from "vitest";
 import { generateInstallmentSchedule } from "@systems-credit/domain";
 
 import type {
-  LocalInstallmentContract,
-  LocalInstallmentScheduleRow
-} from "../../lib/local-finance-api";
+  FinanceInstallmentContract,
+  FinanceInstallmentScheduleRow
+} from "@systems-credit/contracts";
 import { PayoffSimulator } from "./payoff-simulator";
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 const contractId = "22222222-2222-4222-8222-222222222222";
 const accountId = "33333333-3333-4333-8333-333333333333";
 
-function flatContract(): LocalInstallmentContract {
+function flatContract(): FinanceInstallmentContract {
   return {
     id: contractId,
     workspaceId,
@@ -34,7 +34,7 @@ function flatContract(): LocalInstallmentContract {
   };
 }
 
-function flatSchedule(): LocalInstallmentScheduleRow[] {
+function flatSchedule(): FinanceInstallmentScheduleRow[] {
   return generateInstallmentSchedule({
     principal: "12000.00",
     financedFees: "0.00",

@@ -3,10 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  LocalFinanceApi,
-  LocalFinanceSnapshot
-} from "../../lib/local-finance-api";
+import type { FinanceSnapshot } from "@systems-credit/contracts";
+
+import type { FinanceApi } from "../../lib/finance-api";
 import { InstallmentsPage } from "./installments-page";
 
 const workspaceId = "52d3fbcb-c083-42dd-87d0-62a66e337fd0";
@@ -36,8 +35,8 @@ describe("InstallmentsPage", () => {
     });
     const api = {
       createInstallmentContract
-    } as unknown as LocalFinanceApi;
-    const snapshot: LocalFinanceSnapshot = {
+    } as unknown as FinanceApi;
+    const snapshot: FinanceSnapshot = {
       version: 1,
       workspace: {
         id: workspaceId,
@@ -98,7 +97,7 @@ describe("InstallmentsPage", () => {
     const user = userEvent.setup();
     const contractId = "f8212dc2-bba0-46e2-a381-c39a134b2bc7";
     const accountId = "ad304c0f-7371-41d4-bd2c-a6bb34c4aeb7";
-    const snapshot: LocalFinanceSnapshot = {
+    const snapshot: FinanceSnapshot = {
       version: 1,
       workspace: {
         id: workspaceId,
@@ -173,7 +172,7 @@ describe("InstallmentsPage", () => {
     };
     const api = {
       postInstallmentPayment: vi.fn()
-    } as unknown as LocalFinanceApi;
+    } as unknown as FinanceApi;
 
     render(
       <MemoryRouter initialEntries={["/installments"]}>
