@@ -8,6 +8,9 @@ import type {
   CreatePrivateWorkspaceInput,
   CreateTransferInput,
   CreateTransactionInput,
+  FinanceInstallmentPayment,
+  FinanceInstallmentPayoff,
+  FinanceSnapshot,
   PostedTransactionResponse,
   PostedTransferResponse,
   PostInstallmentPayoffInput,
@@ -34,6 +37,7 @@ import { ApiError } from "../api-error";
 import type { AuthSession } from "../middleware/auth";
 
 export interface FinanceRepository {
+  getSnapshot(actor: AuthSession): Promise<FinanceSnapshot>;
   createPrivateWorkspace(
     actor: AuthSession,
     input: CreatePrivateWorkspaceInput
@@ -200,6 +204,12 @@ type StoredTransaction = {
   state: TransactionState;
   version: number;
   balanceDelta: string;
+  financialDate?: string;
+  categoryId?: string;
+  splits?: CreateTransactionInput["splits"];
+  note?: string;
+  tagIds?: string[];
+  createdAt?: string;
 };
 
 type StoredInstallmentContract =
@@ -290,8 +300,133 @@ export function createMemoryFinanceRepository(): FinanceRepository {
     string,
     InstallmentPayoffResponse
   >();
+  const installmentPayments = new Map<
+    string,
+    FinanceInstallmentPayment
+  >();
+  const installmentPayoffs = new Map<
+    string,
+    FinanceInstallmentPayoff
+  >();
 
   return {
+    async getSnapshot(actor) {
+      const selectedWorkspace = [...workspaces.values()].find(
+        (workspace) =>
+          memberships.get(workspace.id)?.has(actor.userId)
+      );
+      if (!selectedWorkspace) {
+        return {
+          version: 1,
+          workspace: null,
+          categories: [],
+          accounts: [],
+          accountBalances: {},
+          openingTransactions: [],
+          transactions: [],
+          installmentContracts: [],
+          installmentSchedules: {},
+          installmentPayments: [],
+          installmentPayoffs: []
+        };
+      }
+
+      const workspaceId = selectedWorkspace.id;
+      const role = memberships
+        .get(workspaceId)!
+        .get(actor.userId)!;
+      const workspaceAccounts = [...accounts.values()].filter(
+        (account) => account.workspaceId === workspaceId
+      );
+      const snapshot: FinanceSnapshot = {
+        version: 1,
+        workspace: {
+          id: selectedWorkspace.id,
+          name: selectedWorkspace.name,
+          kind: selectedWorkspace.kind,
+          baseCurrency: selectedWorkspace.baseCurrency,
+          timeZone: selectedWorkspace.timeZone,
+          role,
+          version: selectedWorkspace.version
+        },
+        categories: [...categories.values()].filter(
+          (category) => category.workspaceId === workspaceId
+        ),
+        accounts: workspaceAccounts.map(
+          ({ balance: _balance, ...account }) => account
+        ),
+        accountBalances: Object.fromEntries(
+          workspaceAccounts.map((account) => [
+            account.id,
+            {
+              accountId: account.id,
+              amount: account.balance,
+              currency: account.currency
+            }
+          ])
+        ),
+        openingTransactions: [...transactions.values()]
+          .filter(
+            (transaction) =>
+              transaction.workspaceId === workspaceId &&
+              transaction.type === "balance_adjustment" &&
+              transaction.state === "posted"
+          )
+          .map((transaction) => ({
+            id: transaction.id,
+            workspaceId: transaction.workspaceId,
+            accountId: transaction.accountId,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            state: "posted" as const,
+            version: 1 as const
+          })),
+        transactions: [...transactions.values()]
+          .filter(
+            (transaction) =>
+              transaction.workspaceId === workspaceId &&
+              transaction.type !== "balance_adjustment" &&
+              transaction.state === "posted"
+          )
+          .map((transaction) => ({
+            id: transaction.id,
+            workspaceId: transaction.workspaceId,
+            accountId: transaction.accountId,
+            type: transaction.type as "income" | "expense",
+            amount: transaction.amount,
+            currency: transaction.currency,
+            financialDate: transaction.financialDate!,
+            ...(transaction.categoryId
+              ? { categoryId: transaction.categoryId }
+              : {}),
+            ...(transaction.splits
+              ? { splits: transaction.splits }
+              : {}),
+            ...(transaction.note ? { note: transaction.note } : {}),
+            tagIds: transaction.tagIds ?? [],
+            state: "posted" as const,
+            version: 1 as const,
+            createdAt: transaction.createdAt!
+          })),
+        installmentContracts: [...installmentContracts.values()]
+          .filter((contract) => contract.workspaceId === workspaceId)
+          .map(({ createdBy: _createdBy, ...contract }) => contract),
+        installmentSchedules: Object.fromEntries(
+          [...installmentSchedules.entries()].filter(([contractId]) =>
+            installmentContracts.get(contractId)?.workspaceId ===
+            workspaceId
+          )
+        ),
+        installmentPayments: [...installmentPayments.values()].filter(
+          (payment) => payment.workspaceId === workspaceId
+        ),
+        installmentPayoffs: [...installmentPayoffs.values()].filter(
+          (payoff) => payoff.workspaceId === workspaceId
+        )
+      };
+      return snapshot;
+    },
+
     async createPrivateWorkspace(actor, input) {
       const { userId } = actor;
       const existing = [...workspaces.values()].some(
@@ -563,6 +698,14 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         type: input.type,
         amount,
         currency: input.currency,
+        financialDate: input.financialDate,
+        ...(input.categoryId
+          ? { categoryId: input.categoryId }
+          : {}),
+        ...(input.splits ? { splits: input.splits } : {}),
+        ...(input.note ? { note: input.note } : {}),
+        tagIds: input.tagIds,
+        createdAt: new Date().toISOString(),
         state: "posted",
         version: 1,
         balanceDelta: roundMoney(balanceDelta, input.currency)
@@ -793,6 +936,13 @@ export function createMemoryFinanceRepository(): FinanceRepository {
           type: "expense",
           amount: roundMoney(feeAmount, source.currency),
           currency: source.currency,
+          financialDate: input.financialDate,
+          ...(input.feeCategoryId
+            ? { categoryId: input.feeCategoryId }
+            : {}),
+          ...(input.note ? { note: input.note } : {}),
+          tagIds: [],
+          createdAt: new Date().toISOString(),
           state: "posted",
           version: 1,
           balanceDelta: roundMoney(
@@ -1165,8 +1315,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         ),
         currency: account.currency
       };
+      const paymentId = crypto.randomUUID();
       const response: InstallmentPaymentResponse = {
-        paymentId: crypto.randomUUID(),
+        paymentId,
         allocation: allocation.allocation,
         reportableExpense: allocation.reportableExpense,
         scheduleStatus: allocation.status,
@@ -1188,6 +1339,28 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         mutationKey,
         response
       );
+      installmentPayments.set(paymentId, {
+        id: paymentId,
+        workspaceId: input.workspaceId,
+        contractId: input.contractId,
+        sequence: input.sequence,
+        accountId: input.accountId,
+        amount: roundMoney(input.amount, input.currency),
+        currency: input.currency,
+        financialDate: input.financialDate,
+        penaltyAssessed: roundMoney(
+          input.penaltyAmount,
+          input.currency
+        ),
+        allocatedPenalty: allocation.allocation.penalty,
+        allocatedFees: allocation.allocation.fees,
+        allocatedInterest: allocation.allocation.interest,
+        allocatedPrincipal: allocation.allocation.principal,
+        reportableExpense: allocation.reportableExpense,
+        ...(input.note ? { note: input.note } : {}),
+        clientMutationId: input.clientMutationId,
+        createdAt: new Date().toISOString()
+      });
       return { response, replayed: false };
     },
 
@@ -1374,8 +1547,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         ),
         input.currency
       );
+      const payoffId = crypto.randomUUID();
       const response: InstallmentPayoffResponse = {
-        payoffId: crypto.randomUUID(),
+        payoffId,
         action: input.action,
         ...(input.strategy ? { strategy: input.strategy } : {}),
         principalPayment: simulation.principalPayment,
@@ -1400,6 +1574,44 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       });
       installmentSchedules.set(contract.id, updatedSchedule);
       installmentPayoffMutationResults.set(mutationKey, response);
+      installmentPayoffs.set(payoffId, {
+        id: payoffId,
+        workspaceId: input.workspaceId,
+        contractId: input.contractId,
+        accountId: input.accountId,
+        action: input.action,
+        ...(input.strategy ? { strategy: input.strategy } : {}),
+        expectedRemainingPrincipal: roundMoney(
+          input.expectedRemainingPrincipal,
+          input.currency
+        ),
+        ...(input.extraPrincipal
+          ? {
+              extraPrincipal: roundMoney(
+                input.extraPrincipal,
+                input.currency
+              )
+            }
+          : {}),
+        quotedInterest: roundMoney(
+          input.quotedInterest,
+          input.currency
+        ),
+        quotedFees: roundMoney(input.quotedFees, input.currency),
+        principalPayment: simulation.principalPayment,
+        interestDue: simulation.interestDue,
+        feesDue: simulation.feesDue,
+        totalCashRequired: simulation.totalCashRequired,
+        remainingPrincipal: simulation.remainingPrincipal,
+        interestSaved: simulation.interestSaved,
+        currency: input.currency,
+        financialDate: input.financialDate,
+        priorRows: payableRows,
+        regeneratedRows: regenerated,
+        ...(input.note ? { note: input.note } : {}),
+        clientMutationId: input.clientMutationId,
+        createdAt: new Date().toISOString()
+      });
       return { response, replayed: false };
     }
   };

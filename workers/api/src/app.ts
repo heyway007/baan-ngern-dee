@@ -15,6 +15,7 @@ import { requestId } from "./middleware/request-id";
 import { accountRoutes } from "./routes/accounts";
 import { catalogRoutes } from "./routes/catalog";
 import { installmentRoutes } from "./routes/installments";
+import { snapshotRoutes } from "./routes/snapshot";
 import { transactionRoutes } from "./routes/transactions";
 import { transferRoutes } from "./routes/transfers";
 import { workspaceRoutes } from "./routes/workspaces";
@@ -54,6 +55,7 @@ export function createApp(
     )
   );
   app.use("/v1/*", requireAuth(authVerifier));
+  app.route("/v1/snapshot", snapshotRoutes(financeRepository));
   app.route("/v1/accounts", accountRoutes(financeRepository));
   app.route("/v1/workspaces", workspaceRoutes(financeRepository));
   app.route("/v1/categories", catalogRoutes(financeRepository));

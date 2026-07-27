@@ -1,8 +1,9 @@
-import type {
-  Account,
-  Category,
-  PostedTransferResponse,
-  Workspace
+import {
+  financeSnapshotSchema,
+  type Account,
+  type Category,
+  type PostedTransferResponse,
+  type Workspace
 } from "@systems-credit/contracts";
 import {
   generateInstallmentSchedule,
@@ -105,6 +106,15 @@ export function createSupabaseFinanceRepository(
   const client = new SupabaseRestClient(config);
 
   return {
+    async getSnapshot(actor) {
+      const body = await client.rpc<unknown>(
+        actor,
+        "get_finance_snapshot",
+        {}
+      );
+      return financeSnapshotSchema.parse(body);
+    },
+
     async createPrivateWorkspace(actor, input) {
       const rows = await client.rpc<WorkspaceRow[]>(
         actor,

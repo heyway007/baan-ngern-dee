@@ -14,6 +14,41 @@ const actor = {
 };
 
 describe("Supabase Worker adapters", () => {
+  it("loads and validates the finance snapshot through one RPC", async () => {
+    const snapshot = {
+      version: 1,
+      workspace: null,
+      categories: [],
+      accounts: [],
+      accountBalances: {},
+      openingTransactions: [],
+      transactions: [],
+      installmentContracts: [],
+      installmentSchedules: {},
+      installmentPayments: [],
+      installmentPayoffs: []
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(snapshot));
+    const repository = createSupabaseFinanceRepository({
+      url: "https://project.supabase.co",
+      anonKey: "anon-key",
+      fetch: requestFetch
+    });
+
+    await expect(repository.getSnapshot(actor)).resolves.toEqual(
+      snapshot
+    );
+    expect(requestFetch).toHaveBeenCalledWith(
+      "https://project.supabase.co/rest/v1/rpc/get_finance_snapshot",
+      expect.objectContaining({
+        method: "POST",
+        body: "{}"
+      })
+    );
+  });
+
   it("verifies the caller JWT with Supabase Auth", async () => {
     const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({ id: actor.userId })
