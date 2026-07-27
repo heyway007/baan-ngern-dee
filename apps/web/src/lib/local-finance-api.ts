@@ -8,7 +8,13 @@ import {
   postInstallmentPaymentSchema,
   type Account,
   type Category,
-  type CreateTransactionInput,
+  type FinanceInstallmentContract,
+  type FinanceInstallmentPayment,
+  type FinanceInstallmentPayoff,
+  type FinanceInstallmentScheduleRow,
+  type FinanceSnapshot,
+  type FinanceTransaction,
+  type OpeningTransaction,
   type InstallmentScheduleRow,
   type PostedTransactionResponse,
   type Workspace
@@ -36,134 +42,20 @@ import type {
 
 const STORAGE_KEY = "systems-credit:finance:v1";
 
-type LocalOpeningTransaction = Readonly<{
-  id: string;
-  workspaceId: string;
-  accountId: string;
-  amount: string;
-  currency: string;
-  state: "posted";
-  version: 1;
-}>;
+type LocalOpeningTransaction = OpeningTransaction;
 
-export type LocalTransaction = Readonly<{
-  id: string;
-  workspaceId: string;
-  accountId: string;
-  type: CreateTransactionInput["type"];
-  amount: string;
-  currency: string;
-  financialDate: string;
-  categoryId?: string;
-  splits?: CreateTransactionInput["splits"];
-  note?: string;
-  tagIds: string[];
-  state: "posted";
-  version: 1;
-  createdAt: string;
-  source?: "installment_payment" | "installment_payoff";
-  sourceId?: string;
-}>;
-
-export type LocalInstallmentContract =
-  Omit<InstallmentContractCreationResult["contract"], "status"> &
-    Readonly<{
-      status:
-        | "active"
-        | "paid_off"
-        | "cancelled"
-        | "defaulted";
-    }>;
-
-export type LocalInstallmentScheduleRow =
-  InstallmentScheduleRow &
-    Readonly<{
-      paidPrincipal: string;
-      paidInterest: string;
-      paidFees: string;
-      paidPenalty: string;
-      scheduledPenalty: string;
-      status:
-        | "upcoming"
-        | "due"
-        | "partially_paid"
-        | "paid"
-        | "overdue"
-        | "waived"
-        | "cancelled";
-    }>;
-
-export type LocalInstallmentPayment = Readonly<{
-  id: string;
-  workspaceId: string;
-  contractId: string;
-  sequence: number;
-  accountId: string;
-  amount: string;
-  currency: string;
-  financialDate: string;
-  penaltyAssessed: string;
-  allocatedPenalty: string;
-  allocatedFees: string;
-  allocatedInterest: string;
-  allocatedPrincipal: string;
-  reportableExpense: string;
-  expenseTransactionId?: string;
-  note?: string;
-  clientMutationId: string;
-  createdAt: string;
-}>;
-
-export type LocalInstallmentPayoff = Readonly<{
-  id: string;
-  workspaceId: string;
-  contractId: string;
-  accountId: string;
-  action: "extra_principal" | "payoff";
-  strategy?: "reduce_payment" | "shorten_term";
-  expectedRemainingPrincipal: string;
-  extraPrincipal?: string;
-  quotedInterest: string;
-  quotedFees: string;
-  principalPayment: string;
-  interestDue: string;
-  feesDue: string;
-  totalCashRequired: string;
-  remainingPrincipal: string;
-  interestSaved: string;
-  currency: string;
-  financialDate: string;
-  priorRows: LocalInstallmentScheduleRow[];
-  regeneratedRows: LocalInstallmentScheduleRow[];
-  expenseTransactionId?: string;
-  note?: string;
-  clientMutationId: string;
-  createdAt: string;
-}>;
-
-export type LocalFinanceSnapshot = Readonly<{
-  version: 1;
-  workspace: Workspace | null;
-  categories: Category[];
-  accounts: Account[];
-  accountBalances: Record<
-    string,
-    Readonly<{
-      accountId: string;
-      amount: string;
-      currency: string;
-    }>
-  >;
-  openingTransactions: LocalOpeningTransaction[];
-  transactions: LocalTransaction[];
-  installmentContracts: LocalInstallmentContract[];
-  installmentSchedules: Record<
-    string,
-    LocalInstallmentScheduleRow[]
-  >;
-  installmentPayments: LocalInstallmentPayment[];
-  installmentPayoffs: LocalInstallmentPayoff[];
-}>;
+/** @deprecated Use FinanceTransaction from @systems-credit/contracts. */
+export type LocalTransaction = FinanceTransaction;
+/** @deprecated Use FinanceInstallmentContract from @systems-credit/contracts. */
+export type LocalInstallmentContract = FinanceInstallmentContract;
+/** @deprecated Use FinanceInstallmentScheduleRow from @systems-credit/contracts. */
+export type LocalInstallmentScheduleRow = FinanceInstallmentScheduleRow;
+/** @deprecated Use FinanceInstallmentPayment from @systems-credit/contracts. */
+export type LocalInstallmentPayment = FinanceInstallmentPayment;
+/** @deprecated Use FinanceInstallmentPayoff from @systems-credit/contracts. */
+export type LocalInstallmentPayoff = FinanceInstallmentPayoff;
+/** @deprecated Use FinanceSnapshot from @systems-credit/contracts. */
+export type LocalFinanceSnapshot = FinanceSnapshot;
 
 export type LocalFinanceApi = FinanceApi &
   Readonly<{

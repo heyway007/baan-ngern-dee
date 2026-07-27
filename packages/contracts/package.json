@@ -6,7 +6,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
   },
   "dependencies": {
     "zod": "^3.25.67"
