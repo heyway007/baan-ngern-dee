@@ -12,21 +12,6 @@ async function loadMigration(name: string) {
   return readFile(`${migrationDirectory}${name}`, "utf8");
 }
 
-async function loadOptionalMigration(name: string) {
-  try {
-    return await loadMigration(name);
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return "";
-    }
-    throw error;
-  }
-}
-
 describe("finance snapshot migration", () => {
   it("returns the owner's complete read model and hides it from a stranger", async () => {
     const database = new PGlite();
@@ -48,15 +33,13 @@ describe("finance snapshot migration", () => {
       "202607260003_accounts.sql",
       "202607260004_transactions.sql",
       "202607260005_transfers.sql",
-      "202607270009_installment_contracts.sql"
+      "202607270009_installment_contracts.sql",
+      "202607270010_finance_snapshot.sql",
+      "202607270011_recurring_items.sql",
+      "202607270012_recurring_snapshot.sql"
     ]) {
       await database.exec(await loadMigration(migration));
     }
-    await database.exec(
-      await loadOptionalMigration(
-        "202607270010_finance_snapshot.sql"
-      )
-    );
 
     const ownerId = "11111111-1111-4111-8111-111111111111";
     const strangerId = "22222222-2222-4222-8222-222222222222";
@@ -154,6 +137,34 @@ describe("finance snapshot migration", () => {
       ]
     );
     const contractId = contract.rows[0]!.result.contract.id;
+    const periodResult = await database.query<{ period: string }>(
+      "select to_char(date_trunc('month', now() at time zone 'Asia/Bangkok'), 'YYYY-MM') as period"
+    );
+    const period = periodResult.rows[0]!.period;
+    const recurringTemplate = await database.query<{
+      result: { id: string };
+    }>(
+      "select public.create_recurring_template($1::jsonb) as result",
+      [
+        JSON.stringify({
+          workspaceId,
+          name: "Monthly salary",
+          kind: "income",
+          amount: "30000.00",
+          currency: "THB",
+          accountId,
+          categoryId,
+          dayOfMonth: 25,
+          startMonth: period
+        })
+      ]
+    );
+    const recurringTemplateId =
+      recurringTemplate.rows[0]!.result.id;
+    await database.query(
+      "select public.materialize_recurring_period($1::jsonb)",
+      [JSON.stringify({ workspaceId, period })]
+    );
 
     const ownerResult = await database.query<{ snapshot: unknown }>(
       "select public.get_finance_snapshot() as snapshot"
@@ -190,6 +201,20 @@ describe("finance snapshot migration", () => {
         sequence: 1,
         principal: "1000.00",
         status: "upcoming"
+      })
+    ]);
+    expect(ownerSnapshot.recurringTemplates).toEqual([
+      expect.objectContaining({
+        id: recurringTemplateId,
+        name: "Monthly salary",
+        status: "active"
+      })
+    ]);
+    expect(ownerSnapshot.recurringOccurrences).toEqual([
+      expect.objectContaining({
+        templateId: recurringTemplateId,
+        period,
+        status: "pending"
       })
     ]);
 
