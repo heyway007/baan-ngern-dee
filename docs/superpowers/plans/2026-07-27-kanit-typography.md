@@ -4,7 +4,7 @@
 
 **Goal:** เปลี่ยนตัวอักษรทั้งหมดในเว็บบ้านเงินดีให้ใช้ Kanit จาก Google Fonts โดยไม่เปลี่ยน typography metrics หรือ layout ที่กำหนดไว้เดิม
 
-**Architecture:** งานนี้แก้เฉพาะ presentation layer ใน `apps/web/src/styles.css` โดยกำหนด Kanit เป็น global font และแทนที่ทุก explicit font override ด้วย fallback stack เดียวกัน เพิ่ม source-level regression test ที่อ่านไฟล์ CSS จริงเพื่อป้องกันการนำฟอนต์เดิมกลับมาในอนาคต
+**Architecture:** งานนี้แก้เฉพาะ presentation layer ใน `apps/web/src/styles.css` โดยกำหนด Kanit เป็น global font และแทนที่ทุก explicit font override ด้วย fallback stack เดียวกัน เพิ่ม DOM regression test ที่โหลด stylesheet จริงและตรวจ computed style ของ typography roles เพื่อป้องกันไม่ให้ส่วนใดกลับไปแสดงฟอนต์เดิม
 
 **Tech Stack:** CSS, Google Fonts, Vitest, TypeScript, Vite, React
 
@@ -31,32 +31,70 @@
 - Consumes: ไฟล์ CSS หลักที่ import โดย `apps/web/src/main.tsx`
 - Produces: global font contract ซึ่งกำหนดให้ทุก explicit `font-family` ใน `styles.css` เท่ากับ `"Kanit", sans-serif`
 
-- [ ] **Step 1: Write the failing typography contract test**
+- [ ] **Step 1: Write the failing computed-style typography test**
 
 สร้าง `apps/web/src/styles.test.ts`:
 
 ```ts
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-
-const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+import { afterEach, describe, expect, it } from "vitest";
+import "./styles.css";
 
 describe("global typography", () => {
-  it("loads the approved Kanit weights from Google Fonts", () => {
-    expect(styles).toContain(
-      '@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap");'
-    );
+  afterEach(() => {
+    document.body.replaceChildren();
   });
 
-  it("uses only the Kanit fallback stack in explicit font-family rules", () => {
-    const fontFamilies = [...styles.matchAll(/font-family:\s*([^;]+);/g)].map(
-      ([, family]) => family.trim()
-    );
+  it("renders the global and explicit typography roles with Kanit", () => {
+    document.body.innerHTML = `
+      <div class="brand-mark">บ</div>
+      <section class="story-copy"><h1>บ้านเงินดี</h1></section>
+      <section class="onboarding-copy"><h1>เริ่มต้น</h1></section>
+      <div class="balance-copy"><strong>100</strong></div>
+      <div class="balance-orbit"><span>100</span></div>
+      <div class="summary-card"><strong>100</strong></div>
+      <div class="account-balance"><strong>100</strong></div>
+      <label class="amount-input"><span>฿</span><input value="100" /></label>
+      <span class="transaction-amount">100</span>
+      <div class="financed-principal-callout"><strong>100</strong></div>
+      <fieldset class="manual-schedule-row"><legend>งวด 1</legend></fieldset>
+      <div class="schedule-totals"><strong>100</strong></div>
+      <div class="contract-principal"><strong>100</strong></div>
+      <div class="next-installment"><strong>100</strong></div>
+      <div class="payment-allocation-preview"><strong>100</strong></div>
+      <div class="payoff-heading"><p><strong>100</strong></p></div>
+      <div class="payoff-summary"><strong>100</strong></div>
+    `;
 
-    expect(fontFamilies.length).toBeGreaterThan(0);
-    expect(new Set(fontFamilies)).toEqual(new Set(['"Kanit", sans-serif']));
-    expect(styles).not.toContain("Manrope");
-    expect(styles).not.toContain("IBM Plex Sans Thai");
+    const typographySelectors = [
+      ":root",
+      ".brand-mark",
+      ".story-copy h1",
+      ".onboarding-copy h1",
+      ".balance-copy > strong",
+      ".balance-orbit span",
+      ".summary-card strong",
+      ".account-balance strong",
+      ".amount-input > span",
+      ".amount-input > input",
+      ".transaction-amount",
+      ".financed-principal-callout strong",
+      ".manual-schedule-row legend",
+      ".schedule-totals strong",
+      ".contract-principal strong",
+      ".next-installment strong",
+      ".payment-allocation-preview strong",
+      ".payoff-heading p strong",
+      ".payoff-summary strong"
+    ];
+
+    for (const selector of typographySelectors) {
+      const element = document.querySelector(selector);
+
+      expect(element, selector).not.toBeNull();
+      expect(getComputedStyle(element!).fontFamily, selector).toBe(
+        '"Kanit", sans-serif'
+      );
+    }
   });
 });
 ```
@@ -69,7 +107,7 @@ Run:
 npm test -- --run apps/web/src/styles.test.ts
 ```
 
-Expected: FAIL เพราะ `styles.css` ยัง import IBM Plex Sans Thai และ Manrope และยังมี explicit font stacks ของฟอนต์เดิม
+Expected: FAIL ที่ selector `:root` หรือ typography role แรก เพราะ computed `font-family` ยังเป็น IBM Plex Sans Thai หรือ Manrope
 
 - [ ] **Step 3: Replace the Google Fonts import and explicit font stacks**
 
@@ -103,7 +141,7 @@ Run:
 npm test -- --run apps/web/src/styles.test.ts
 ```
 
-Expected: 1 test file และ 2 tests ผ่าน
+Expected: 1 test file และ 1 test ผ่าน โดยทุก selector มี computed `font-family` เท่ากับ `"Kanit", sans-serif`
 
 - [ ] **Step 5: Confirm the source contains no legacy font references**
 
@@ -111,10 +149,11 @@ Run:
 
 ```powershell
 rg -n "Manrope|IBM Plex Sans Thai" apps/web/src
+rg -n "family=Kanit:wght@300;400;500;600;700" apps/web/src/styles.css
 rg -n "font-family:" apps/web/src/styles.css
 ```
 
-Expected: คำสั่งแรกไม่พบผลลัพธ์ ส่วนคำสั่งที่สองแสดงเฉพาะ `font-family: "Kanit", sans-serif;`
+Expected: คำสั่งแรกไม่พบผลลัพธ์ คำสั่งที่สองพบ Google Fonts import หนึ่งจุด และคำสั่งสุดท้ายแสดงเฉพาะ `font-family: "Kanit", sans-serif;`
 
 - [ ] **Step 6: Run the full automated verification**
 
