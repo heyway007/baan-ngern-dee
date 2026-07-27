@@ -12,7 +12,7 @@ type RecurringTemplateManagerProps = Readonly<{
     | "cancelRecurringTemplate"
   >;
   templates: RecurringTemplate[];
-  onChanged(): void;
+  onChanged(): void | Promise<void>;
   onEdit?(template: RecurringTemplate): void;
 }>;
 
@@ -54,7 +54,7 @@ export function RecurringTemplateManager({
         });
       }
       setCancelTarget(null);
-      onChanged();
+      await onChanged();
     } catch {
       setError(
         "ยังเปลี่ยนสถานะรายการไม่ได้ กรุณาลองอีกครั้ง"

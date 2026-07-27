@@ -27,7 +27,7 @@ type RecurringTemplateFormProps = Readonly<{
   categories: Category[];
   template?: RecurringTemplate;
   currentOccurrence?: RecurringOccurrence;
-  onChanged(): void;
+  onChanged(): void | Promise<void>;
 }>;
 
 const positiveMoneyPattern =
@@ -158,7 +158,7 @@ export function RecurringTemplateForm({
     try {
       await api.updateRecurringTemplate(template.id, input);
       setPendingUpdate(null);
-      onChanged();
+      await onChanged();
     } catch {
       setError(
         "ยังบันทึกรายการประจำไม่ได้ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง"
@@ -192,7 +192,7 @@ export function RecurringTemplateForm({
       await api.createRecurringTemplate(
         input as CreateRecurringTemplateInput
       );
-      onChanged();
+      await onChanged();
     } catch {
       setError(
         "ยังบันทึกรายการประจำไม่ได้ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง"
