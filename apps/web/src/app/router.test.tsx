@@ -42,7 +42,9 @@ const emptySnapshot: FinanceSnapshot = {
   installmentContracts: [],
   installmentSchedules: {},
   installmentPayments: [],
-  installmentPayoffs: []
+  installmentPayoffs: [],
+  recurringTemplates: [],
+  recurringOccurrences: []
 };
 
 const workspaceSnapshot: FinanceSnapshot = {

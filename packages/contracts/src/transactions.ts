@@ -54,6 +54,25 @@ export const voidTransactionSchema = z
   })
   .strict();
 
+export const postedTransactionResponseSchema = z
+  .object({
+    transactionId: z.string().uuid(),
+    version: z.number().int().positive(),
+    state: transactionStateSchema,
+    accountBalances: z.array(
+      z
+        .object({
+          accountId: z.string().uuid(),
+          amount: z
+            .string()
+            .regex(/^-?(?:0|[1-9]\d*)(?:\.\d{1,4})?$/),
+          currency: z.string().regex(/^[A-Z]{3}$/)
+        })
+        .strict()
+    )
+  })
+  .strict();
+
 export type TransactionType = z.infer<typeof transactionTypeSchema>;
 export type TransactionState = z.infer<typeof transactionStateSchema>;
 export type TransactionSplitInput = z.infer<typeof transactionSplitSchema>;
@@ -62,13 +81,6 @@ export type CreateTransactionInput = z.infer<
 >;
 export type VoidTransactionInput = z.infer<typeof voidTransactionSchema>;
 
-export type PostedTransactionResponse = Readonly<{
-  transactionId: string;
-  version: number;
-  state: TransactionState;
-  accountBalances: Array<{
-    accountId: string;
-    amount: string;
-    currency: string;
-  }>;
-}>;
+export type PostedTransactionResponse = z.infer<
+  typeof postedTransactionResponseSchema
+>;

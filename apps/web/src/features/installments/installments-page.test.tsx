@@ -55,7 +55,9 @@ describe("InstallmentsPage", () => {
       installmentContracts: [],
       installmentSchedules: {},
       installmentPayments: [],
-      installmentPayoffs: []
+      installmentPayoffs: [],
+      recurringTemplates: [],
+      recurringOccurrences: []
     };
 
     render(
@@ -168,7 +170,9 @@ describe("InstallmentsPage", () => {
         ]
       },
       installmentPayments: [],
-      installmentPayoffs: []
+      installmentPayoffs: [],
+      recurringTemplates: [],
+      recurringOccurrences: []
     };
     const api = {
       postInstallmentPayment: vi.fn()

@@ -327,7 +327,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
           installmentContracts: [],
           installmentSchedules: {},
           installmentPayments: [],
-          installmentPayoffs: []
+          installmentPayoffs: [],
+          recurringTemplates: [],
+          recurringOccurrences: []
         };
       }
 
@@ -422,7 +424,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         ),
         installmentPayoffs: [...installmentPayoffs.values()].filter(
           (payoff) => payoff.workspaceId === workspaceId
-        )
+        ),
+        recurringTemplates: [],
+        recurringOccurrences: []
       };
       return snapshot;
     },

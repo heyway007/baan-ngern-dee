@@ -17,7 +17,9 @@ const emptySnapshot = {
   installmentContracts: [],
   installmentSchedules: {},
   installmentPayments: [],
-  installmentPayoffs: []
+  installmentPayoffs: [],
+  recurringTemplates: [],
+  recurringOccurrences: []
 } as const;
 
 describe("financeSnapshotSchema", () => {
@@ -74,5 +76,51 @@ describe("financeSnapshotSchema", () => {
         version: 2
       })
     ).toMatchObject({ version: 2 });
+  });
+
+  it("validates recurring templates and current-month occurrences", () => {
+    const workspaceId = "10000000-0000-4000-8000-000000000001";
+    const accountId = "20000000-0000-4000-8000-000000000002";
+    const categoryId = "30000000-0000-4000-8000-000000000003";
+    const templateId = "40000000-0000-4000-8000-000000000004";
+
+    expect(
+      financeSnapshotSchema.parse({
+        ...emptySnapshot,
+        recurringTemplates: [
+          {
+            id: templateId,
+            workspaceId,
+            name: "ค่าเช่า",
+            kind: "expense",
+            amount: "8000.00",
+            currency: "THB",
+            accountId,
+            categoryId,
+            dayOfMonth: 1,
+            startMonth: "2026-07",
+            status: "active",
+            version: 1
+          }
+        ],
+        recurringOccurrences: [
+          {
+            id: "50000000-0000-4000-8000-000000000005",
+            workspaceId,
+            templateId,
+            name: "ค่าเช่า",
+            kind: "expense",
+            period: "2026-07",
+            scheduledDate: "2026-07-01",
+            amount: "8000.00",
+            currency: "THB",
+            accountId,
+            categoryId,
+            status: "pending",
+            version: 1
+          }
+        ]
+      }).recurringOccurrences
+    ).toHaveLength(1);
   });
 });

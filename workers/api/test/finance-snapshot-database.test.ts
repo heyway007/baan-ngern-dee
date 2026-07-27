@@ -216,7 +216,9 @@ describe("finance snapshot migration", () => {
       installmentContracts: [],
       installmentSchedules: {},
       installmentPayments: [],
-      installmentPayoffs: []
+      installmentPayoffs: [],
+      recurringTemplates: [],
+      recurringOccurrences: []
     });
 
     await database.close();

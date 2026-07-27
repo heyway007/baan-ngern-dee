@@ -27,7 +27,9 @@ const emptySnapshot: FinanceSnapshot = {
   installmentContracts: [],
   installmentSchedules: {},
   installmentPayments: [],
-  installmentPayoffs: []
+  installmentPayoffs: [],
+  recurringTemplates: [],
+  recurringOccurrences: []
 };
 
 describe("cloudReducer", () => {

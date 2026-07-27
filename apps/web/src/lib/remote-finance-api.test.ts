@@ -27,7 +27,9 @@ const emptySnapshot = {
   installmentContracts: [],
   installmentSchedules: {},
   installmentPayments: [],
-  installmentPayoffs: []
+  installmentPayoffs: [],
+  recurringTemplates: [],
+  recurringOccurrences: []
 } as const;
 
 function createAuth(): CloudAuth {

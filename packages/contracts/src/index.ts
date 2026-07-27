@@ -78,11 +78,42 @@ export type {
 } from "./transactions";
 export {
   createTransactionSchema,
+  postedTransactionResponseSchema,
   transactionSplitSchema,
   transactionStateSchema,
   transactionTypeSchema,
   voidTransactionSchema
 } from "./transactions";
+export type {
+  CreateRecurringTemplateInput,
+  MaterializeRecurringPeriodInput,
+  MaterializeRecurringPeriodResult,
+  PostRecurringOccurrenceInput,
+  PostRecurringOccurrenceResult,
+  RecurringOccurrence,
+  RecurringOccurrenceStatus,
+  RecurringPeriod,
+  RecurringTemplate,
+  RecurringTemplateStatus,
+  RecurringVersionActionInput,
+  UpdateRecurringOccurrenceInput,
+  UpdateRecurringTemplateInput
+} from "./recurring";
+export {
+  createRecurringTemplateSchema,
+  materializeRecurringPeriodResultSchema,
+  materializeRecurringPeriodSchema,
+  postRecurringOccurrenceResultSchema,
+  postRecurringOccurrenceSchema,
+  recurringOccurrenceSchema,
+  recurringOccurrenceStatusSchema,
+  recurringPeriodSchema,
+  recurringTemplateSchema,
+  recurringTemplateStatusSchema,
+  recurringVersionActionSchema,
+  updateRecurringOccurrenceSchema,
+  updateRecurringTemplateSchema
+} from "./recurring";
 export type {
   CreateTransferInput,
   PostedTransferResponse

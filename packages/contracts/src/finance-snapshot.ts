@@ -8,6 +8,10 @@ import {
   installmentExtraPaymentStrategySchema,
   installmentInterestMethodSchema
 } from "./installments";
+import {
+  recurringOccurrenceSchema,
+  recurringTemplateSchema
+} from "./recurring";
 import { transactionSplitSchema } from "./transactions";
 import type { Workspace } from "./workspaces";
 
@@ -243,7 +247,9 @@ export const financeSnapshotSchema = z
       z.array(financeInstallmentScheduleRowSchema)
     ),
     installmentPayments: z.array(financeInstallmentPaymentSchema),
-    installmentPayoffs: z.array(financeInstallmentPayoffSchema)
+    installmentPayoffs: z.array(financeInstallmentPayoffSchema),
+    recurringTemplates: z.array(recurringTemplateSchema),
+    recurringOccurrences: z.array(recurringOccurrenceSchema)
   })
   .strict();
 
