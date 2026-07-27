@@ -2,6 +2,7 @@ import type {
   FinanceSnapshot,
   PublicAppConfig
 } from "@systems-credit/contracts";
+import { toFinancialDate } from "@systems-credit/domain";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -85,6 +86,11 @@ class MemoryStorage implements Storage {
 function createDependencies(options: {
   session: CloudSession | null;
   snapshot?: FinanceSnapshot;
+  snapshots?: FinanceSnapshot[];
+  materialized?: Readonly<{
+    createdCount: number;
+    existingCount: number;
+  }>;
   storage?: Storage;
 }) {
   let listener: ((next: CloudSession | null) => void) | undefined;
@@ -103,10 +109,21 @@ function createDependencies(options: {
       listener?.(null);
     })
   };
+  const getSnapshot = vi.fn();
+  for (const snapshot of options.snapshots ?? [
+    options.snapshot ?? emptySnapshot
+  ]) {
+    getSnapshot.mockResolvedValueOnce(snapshot);
+  }
+  const materializeRecurringPeriod = vi.fn().mockResolvedValue(
+    options.materialized ?? {
+      createdCount: 0,
+      existingCount: 0
+    }
+  );
   const api = {
-    getSnapshot: vi.fn().mockResolvedValue(
-      options.snapshot ?? emptySnapshot
-    )
+    getSnapshot,
+    materializeRecurringPeriod
   } as unknown as RemoteFinanceApi;
   const dependencies: CloudRouterDependencies = {
     storage: options.storage ?? new MemoryStorage(),
@@ -114,7 +131,13 @@ function createDependencies(options: {
     createAuth: vi.fn(() => auth),
     createApi: vi.fn(() => api)
   };
-  return { auth, api, dependencies };
+  return {
+    auth,
+    api,
+    dependencies,
+    getSnapshot,
+    materializeRecurringPeriod
+  };
 }
 
 describe("cloud application flow", () => {
@@ -173,6 +196,114 @@ describe("cloud application flow", () => {
     expect(storage.getItem("systems-credit:session:v1")).toBeNull();
     expect(storage.getItem("systems-credit:finance:v1")).toBeNull();
     expect(storage.getItem("keep-me")).toBe("preserved");
+  });
+
+  it("materializes the current workspace period and reloads a changed snapshot", async () => {
+    const occurrenceSnapshot: FinanceSnapshot = {
+      ...workspaceSnapshot,
+      recurringOccurrences: [
+        {
+          id: "bf7c0791-164e-43d4-a572-1e91f76c135a",
+          workspaceId: workspaceSnapshot.workspace!.id,
+          templateId: "657867ab-90ea-4578-b9dd-474b4de6f559",
+          name: "ค่าเช่า",
+          kind: "expense",
+          period: toFinancialDate(
+            new Date().toISOString(),
+            workspaceSnapshot.workspace!.timeZone
+          ).slice(0, 7),
+          scheduledDate: toFinancialDate(
+            new Date().toISOString(),
+            workspaceSnapshot.workspace!.timeZone
+          ).slice(0, 7) + "-01",
+          amount: "8000.00",
+          currency: "THB",
+          accountId: "5eb5d48f-94c3-4b4e-9564-9e66d31bb64e",
+          categoryId: "3ae7b8fd-d151-4e2a-9cb1-bbca58e1bf63",
+          status: "pending",
+          version: 1
+        }
+      ]
+    };
+    const {
+      dependencies,
+      getSnapshot,
+      materializeRecurringPeriod
+    } = createDependencies({
+      session,
+      snapshots: [workspaceSnapshot, occurrenceSnapshot],
+      materialized: { createdCount: 1, existingCount: 0 }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /สวัสดี มิน/ })
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getSnapshot).toHaveBeenCalledTimes(2);
+    });
+    expect(materializeRecurringPeriod).toHaveBeenCalledWith({
+      workspaceId: workspaceSnapshot.workspace!.id,
+      period: toFinancialDate(
+        new Date().toISOString(),
+        workspaceSnapshot.workspace!.timeZone
+      ).slice(0, 7)
+    });
+    expect(getSnapshot.mock.invocationCallOrder[0]).toBeLessThan(
+      materializeRecurringPeriod.mock.invocationCallOrder[0]
+    );
+    expect(
+      materializeRecurringPeriod.mock.invocationCallOrder[0]
+    ).toBeLessThan(getSnapshot.mock.invocationCallOrder[1]);
+  });
+
+  it("does not reload the snapshot when the current period already exists", async () => {
+    const {
+      dependencies,
+      getSnapshot,
+      materializeRecurringPeriod
+    } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      materialized: { createdCount: 0, existingCount: 2 }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /สวัสดี มิน/ })
+    ).toBeInTheDocument();
+    expect(materializeRecurringPeriod).toHaveBeenCalledOnce();
+    expect(getSnapshot).toHaveBeenCalledOnce();
+  });
+
+  it("does not materialize before a workspace exists", async () => {
+    const {
+      dependencies,
+      getSnapshot,
+      materializeRecurringPeriod
+    } = createDependencies({ session });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "สร้างพื้นที่ส่วนตัว" })
+    ).toBeInTheDocument();
+    expect(materializeRecurringPeriod).not.toHaveBeenCalled();
+    expect(getSnapshot).toHaveBeenCalledOnce();
   });
 
   it("signs out through Supabase and returns to sign in", async () => {

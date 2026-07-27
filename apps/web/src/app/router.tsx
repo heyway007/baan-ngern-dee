@@ -1,6 +1,7 @@
 import type {
   PublicAppConfig
 } from "@systems-credit/contracts";
+import { toFinancialDate } from "@systems-credit/domain";
 import {
   useCallback,
   useEffect,
@@ -126,7 +127,22 @@ export function FinanceRoutes({
     async (session: CloudSession, api: RemoteFinanceApi) => {
       dispatch({ type: "SESSION_FOUND", session });
       try {
-        const snapshot = await api.getSnapshot();
+        const initial = await api.getSnapshot();
+        let snapshot = initial;
+        if (initial.workspace) {
+          const period = toFinancialDate(
+            new Date().toISOString(),
+            initial.workspace.timeZone
+          ).slice(0, 7);
+          const materialized =
+            await api.materializeRecurringPeriod({
+              workspaceId: initial.workspace.id,
+              period
+            });
+          if (materialized.createdCount > 0) {
+            snapshot = await api.getSnapshot();
+          }
+        }
         if (activeRef.current) {
           dispatch({
             type: "SNAPSHOT_LOADED",

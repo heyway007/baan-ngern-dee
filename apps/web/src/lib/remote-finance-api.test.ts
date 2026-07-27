@@ -8,6 +8,8 @@ const accountId = "22222222-2222-4222-8222-222222222222";
 const categoryId = "33333333-3333-4333-8333-333333333333";
 const contractId = "44444444-4444-4444-8444-444444444444";
 const mutationId = "55555555-5555-4555-8555-555555555555";
+const templateId = "77777777-7777-4777-8777-777777777777";
+const occurrenceId = "88888888-8888-4888-8888-888888888888";
 
 const session: CloudSession = {
   userId: "66666666-6666-4666-8666-666666666666",
@@ -400,5 +402,188 @@ describe("createRemoteFinanceApi", () => {
     expect(requestFetch.mock.calls[3]![0]).toBe(
       `/v1/installments/${contractId}/payoff`
     );
+  });
+
+  it("maps every recurring template and occurrence operation", async () => {
+    const templateInput = {
+      workspaceId,
+      name: "ค่าเช่า",
+      kind: "expense" as const,
+      amount: "8000.00",
+      currency: "THB",
+      accountId,
+      categoryId,
+      dayOfMonth: 1,
+      startMonth: "2026-07"
+    };
+    const template = {
+      id: templateId,
+      ...templateInput,
+      status: "active" as const,
+      version: 1
+    };
+    const updatedTemplate = {
+      ...template,
+      amount: "8250.00",
+      version: 2
+    };
+    const occurrence = {
+      id: occurrenceId,
+      workspaceId,
+      templateId,
+      name: "ค่าเช่า",
+      kind: "expense" as const,
+      period: "2026-07",
+      scheduledDate: "2026-07-01",
+      amount: "8250.00",
+      currency: "THB",
+      accountId,
+      categoryId,
+      status: "pending" as const,
+      version: 2
+    };
+    const postedOccurrence = {
+      ...occurrence,
+      status: "posted" as const,
+      transactionId: mutationId,
+      version: 3
+    };
+    const postedResult = {
+      occurrence: postedOccurrence,
+      transaction: {
+        transactionId: mutationId,
+        version: 1,
+        state: "posted" as const,
+        accountBalances: [
+          {
+            accountId,
+            amount: "-8250.00",
+            currency: "THB"
+          }
+        ]
+      }
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(template))
+      .mockResolvedValueOnce(Response.json(updatedTemplate))
+      .mockResolvedValueOnce(
+        Response.json({ ...updatedTemplate, status: "paused", version: 3 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ...updatedTemplate, status: "active", version: 4 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ...updatedTemplate, status: "cancelled", version: 5 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ createdCount: 1, existingCount: 0 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ period: "2026-07", occurrences: [occurrence] })
+      )
+      .mockResolvedValueOnce(Response.json(occurrence))
+      .mockResolvedValueOnce(
+        Response.json({ ...occurrence, status: "skipped", version: 3 })
+      )
+      .mockResolvedValueOnce(Response.json(postedResult));
+    const api = createRemoteFinanceApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+
+    await expect(api.createRecurringTemplate(templateInput)).resolves.toEqual(
+      template
+    );
+    await api.updateRecurringTemplate(templateId, {
+      ...templateInput,
+      amount: "8250.00",
+      version: 1
+    });
+    await api.pauseRecurringTemplate(templateId, { version: 2 });
+    await api.resumeRecurringTemplate(templateId, { version: 3 });
+    await api.cancelRecurringTemplate(templateId, { version: 4 });
+    await api.materializeRecurringPeriod({
+      workspaceId,
+      period: "2026-07"
+    });
+    await expect(
+      api.getRecurringPeriod(workspaceId, "2026-07")
+    ).resolves.toEqual({
+      period: "2026-07",
+      occurrences: [occurrence]
+    });
+    await api.updateRecurringOccurrence(occurrenceId, {
+      amount: "8250.00",
+      scheduledDate: "2026-07-01",
+      version: 1
+    });
+    await api.skipRecurringOccurrence(occurrenceId, { version: 2 });
+    await expect(
+      api.postRecurringOccurrence(occurrenceId, {
+        version: 2,
+        clientMutationId: mutationId
+      })
+    ).resolves.toEqual(postedResult);
+
+    expect(
+      requestFetch.mock.calls.map(([url, init]) => [
+        url,
+        init?.method,
+        init?.body ? JSON.parse(String(init.body)) : undefined
+      ])
+    ).toEqual([
+      ["/v1/recurring-templates", "POST", templateInput],
+      [
+        `/v1/recurring-templates/${templateId}`,
+        "PATCH",
+        { ...templateInput, amount: "8250.00", version: 1 }
+      ],
+      [
+        `/v1/recurring-templates/${templateId}/pause`,
+        "POST",
+        { version: 2 }
+      ],
+      [
+        `/v1/recurring-templates/${templateId}/resume`,
+        "POST",
+        { version: 3 }
+      ],
+      [
+        `/v1/recurring-templates/${templateId}/cancel`,
+        "POST",
+        { version: 4 }
+      ],
+      [
+        "/v1/recurring-periods/materialize",
+        "POST",
+        { workspaceId, period: "2026-07" }
+      ],
+      [
+        `/v1/recurring-periods/2026-07?workspaceId=${workspaceId}`,
+        "GET",
+        undefined
+      ],
+      [
+        `/v1/recurring-occurrences/${occurrenceId}`,
+        "PATCH",
+        {
+          amount: "8250.00",
+          scheduledDate: "2026-07-01",
+          version: 1
+        }
+      ],
+      [
+        `/v1/recurring-occurrences/${occurrenceId}/skip`,
+        "POST",
+        { version: 2 }
+      ],
+      [
+        `/v1/recurring-occurrences/${occurrenceId}/post`,
+        "POST",
+        { version: 2, clientMutationId: mutationId }
+      ]
+    ]);
   });
 });

@@ -2,6 +2,12 @@ import {
   accountBalanceSchema,
   apiErrorCodes,
   financeSnapshotSchema,
+  materializeRecurringPeriodResultSchema,
+  postedTransactionResponseSchema,
+  postRecurringOccurrenceResultSchema,
+  recurringOccurrenceSchema,
+  recurringPeriodSchema,
+  recurringTemplateSchema,
   type ApiErrorCode,
   type FinanceSnapshot
 } from "@systems-credit/contracts";
@@ -87,15 +93,6 @@ const accountCreationSchema: z.ZodType<AccountCreationResult> = z
       .strict()
       .optional(),
     accountBalance: accountBalanceSchema
-  })
-  .strict();
-
-const postedTransactionSchema = z
-  .object({
-    transactionId: uuidSchema,
-    version: z.number().int().positive(),
-    state: z.enum(["posted", "void"]),
-    accountBalances: z.array(accountBalanceSchema)
   })
   .strict();
 
@@ -294,6 +291,17 @@ export function createRemoteFinanceApi(options: {
       schema
     );
 
+  const patch = <T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>
+  ) =>
+    request(
+      path,
+      { method: "PATCH", body: JSON.stringify(body) },
+      schema
+    );
+
   function contractVersion(contractId: string) {
     const version = latestSnapshot?.installmentContracts.find(
       (contract) => contract.id === contractId
@@ -337,7 +345,11 @@ export function createRemoteFinanceApi(options: {
     },
 
     postTransaction(input) {
-      return post("/v1/transactions", input, postedTransactionSchema);
+      return post(
+        "/v1/transactions",
+        input,
+        postedTransactionResponseSchema
+      );
     },
 
     createInstallmentContract(input, clientMutationId) {
@@ -371,6 +383,88 @@ export function createRemoteFinanceApi(options: {
           expectedVersion: contractVersion(input.contractId)
         },
         installmentPayoffSchema
+      );
+    },
+
+    createRecurringTemplate(input) {
+      return post(
+        "/v1/recurring-templates",
+        input,
+        recurringTemplateSchema
+      );
+    },
+
+    updateRecurringTemplate(templateId, input) {
+      return patch(
+        `/v1/recurring-templates/${encodeURIComponent(templateId)}`,
+        input,
+        recurringTemplateSchema
+      );
+    },
+
+    pauseRecurringTemplate(templateId, input) {
+      return post(
+        `/v1/recurring-templates/${encodeURIComponent(templateId)}/pause`,
+        input,
+        recurringTemplateSchema
+      );
+    },
+
+    resumeRecurringTemplate(templateId, input) {
+      return post(
+        `/v1/recurring-templates/${encodeURIComponent(templateId)}/resume`,
+        input,
+        recurringTemplateSchema
+      );
+    },
+
+    cancelRecurringTemplate(templateId, input) {
+      return post(
+        `/v1/recurring-templates/${encodeURIComponent(templateId)}/cancel`,
+        input,
+        recurringTemplateSchema
+      );
+    },
+
+    materializeRecurringPeriod(input) {
+      return post(
+        "/v1/recurring-periods/materialize",
+        input,
+        materializeRecurringPeriodResultSchema
+      );
+    },
+
+    getRecurringPeriod(workspaceId, period) {
+      const encodedPeriod = encodeURIComponent(period);
+      const encodedWorkspaceId = encodeURIComponent(workspaceId);
+      return request(
+        `/v1/recurring-periods/${encodedPeriod}?workspaceId=${encodedWorkspaceId}`,
+        { method: "GET" },
+        recurringPeriodSchema
+      );
+    },
+
+    updateRecurringOccurrence(occurrenceId, input) {
+      return patch(
+        `/v1/recurring-occurrences/${encodeURIComponent(occurrenceId)}`,
+        input,
+        recurringOccurrenceSchema
+      );
+    },
+
+    skipRecurringOccurrence(occurrenceId, input) {
+      return post(
+        `/v1/recurring-occurrences/${encodeURIComponent(occurrenceId)}/skip`,
+        input,
+        recurringOccurrenceSchema
+      );
+    },
+
+    postRecurringOccurrence(occurrenceId, input) {
+      return post(
+        `/v1/recurring-occurrences/${encodeURIComponent(occurrenceId)}/post`,
+        input,
+        postRecurringOccurrenceResultSchema
       );
     }
   };

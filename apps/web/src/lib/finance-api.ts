@@ -5,10 +5,21 @@ import type {
   CreateCategoryInput,
   CreateInstallmentContractInput,
   CreatePrivateWorkspaceInput,
+  CreateRecurringTemplateInput,
   CreateTransactionInput,
+  MaterializeRecurringPeriodInput,
+  MaterializeRecurringPeriodResult,
   PostInstallmentPayoffInput,
   PostInstallmentPaymentInput,
+  PostRecurringOccurrenceInput,
+  PostRecurringOccurrenceResult,
   PostedTransactionResponse,
+  RecurringOccurrence,
+  RecurringPeriod,
+  RecurringTemplate,
+  RecurringVersionActionInput,
+  UpdateRecurringOccurrenceInput,
+  UpdateRecurringTemplateInput,
   Workspace
 } from "@systems-credit/contracts";
 
@@ -127,4 +138,42 @@ export interface FinanceApi {
   postTransaction(
     input: CreateTransactionInput
   ): Promise<PostedTransactionResponse>;
+  createRecurringTemplate(
+    input: CreateRecurringTemplateInput
+  ): Promise<RecurringTemplate>;
+  updateRecurringTemplate(
+    templateId: string,
+    input: UpdateRecurringTemplateInput
+  ): Promise<RecurringTemplate>;
+  pauseRecurringTemplate(
+    templateId: string,
+    input: RecurringVersionActionInput
+  ): Promise<RecurringTemplate>;
+  resumeRecurringTemplate(
+    templateId: string,
+    input: RecurringVersionActionInput
+  ): Promise<RecurringTemplate>;
+  cancelRecurringTemplate(
+    templateId: string,
+    input: RecurringVersionActionInput
+  ): Promise<RecurringTemplate>;
+  materializeRecurringPeriod(
+    input: MaterializeRecurringPeriodInput
+  ): Promise<MaterializeRecurringPeriodResult>;
+  getRecurringPeriod(
+    workspaceId: string,
+    period: string
+  ): Promise<RecurringPeriod>;
+  updateRecurringOccurrence(
+    occurrenceId: string,
+    input: UpdateRecurringOccurrenceInput
+  ): Promise<RecurringOccurrence>;
+  skipRecurringOccurrence(
+    occurrenceId: string,
+    input: RecurringVersionActionInput
+  ): Promise<RecurringOccurrence>;
+  postRecurringOccurrence(
+    occurrenceId: string,
+    input: PostRecurringOccurrenceInput
+  ): Promise<PostRecurringOccurrenceResult>;
 }
