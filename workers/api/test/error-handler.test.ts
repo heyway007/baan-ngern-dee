@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
@@ -30,6 +31,62 @@ describe("API error handling", () => {
       status: 500
     });
     expect(JSON.stringify(errorLog.mock.calls)).not.toContain("secret financial detail");
+    errorLog.mockRestore();
+  });
+
+  it("logs only bounded Zod issue metadata", async () => {
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const app = createApp();
+    const invalidSnapshot = {
+      workspace: {
+        version: "not-a-number",
+        ownerEmail: "owner@example.com"
+      },
+      accessToken: "token-secret"
+    };
+    const diagnosticSchema = z.object({
+      workspace: z.object({
+        version: z.number()
+      })
+    });
+    app.get("/invalid-snapshot", () => {
+      diagnosticSchema.parse(invalidSnapshot);
+      return new Response(null, { status: 204 });
+    });
+
+    const response = await app.request("/invalid-snapshot", {
+      headers: { "x-request-id": "request-zod" }
+    });
+
+    expect(response.status).toBe(500);
+    const responseBody = await response.json();
+    expect(responseBody).toMatchObject({
+      error: {
+        code: "INTERNAL_ERROR",
+        requestId: "request-zod"
+      }
+    });
+    expect(responseBody).not.toHaveProperty("error.validationIssues");
+    expect(errorLog).toHaveBeenCalledWith({
+      code: "INTERNAL_ERROR",
+      method: "GET",
+      path: "/invalid-snapshot",
+      requestId: "request-zod",
+      status: 500,
+      validationIssues: [
+        {
+          code: "invalid_type",
+          path: ["workspace", "version"],
+          expected: "number"
+        }
+      ]
+    });
+    const serializedLog = JSON.stringify(errorLog.mock.calls);
+    expect(serializedLog).not.toContain("not-a-number");
+    expect(serializedLog).not.toContain("owner@example.com");
+    expect(serializedLog).not.toContain("token-secret");
     errorLog.mockRestore();
   });
 });
