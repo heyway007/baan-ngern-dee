@@ -1,5 +1,6 @@
 import {
   CalendarClock,
+  CircleDollarSign,
   CreditCard,
   Plus,
   X
@@ -7,12 +8,18 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import {
+  parseMoney,
+  roundMoney
+} from "@systems-credit/domain";
+
 import type {
   LocalFinanceApi,
   LocalFinanceSnapshot
 } from "../../lib/local-finance-api";
 import { formatMoney } from "../../lib/money-display";
 import { InstallmentForm } from "./installment-form";
+import { InstallmentPaymentForm } from "./installment-payment-form";
 import { SchedulePreview } from "./schedule-preview";
 
 type InstallmentsPageProps = Readonly<{
@@ -29,6 +36,33 @@ const interestLabels = {
   manual: "ตามตารางเจ้าหนี้"
 } as const;
 
+function remainingForRow(
+  row: LocalFinanceSnapshot["installmentSchedules"][string][number],
+  currency: string
+) {
+  const scheduled = [
+    row.principal,
+    row.interest,
+    row.fees,
+    row.scheduledPenalty
+  ].reduce(
+    (total, amount) =>
+      total.plus(parseMoney({ amount, currency })),
+    parseMoney({ amount: "0", currency })
+  );
+  const paid = [
+    row.paidPrincipal,
+    row.paidInterest,
+    row.paidFees,
+    row.paidPenalty
+  ].reduce(
+    (total, amount) =>
+      total.plus(parseMoney({ amount, currency })),
+    parseMoney({ amount: "0", currency })
+  );
+  return roundMoney(scheduled.minus(paid), currency);
+}
+
 export function InstallmentsPage({
   api,
   snapshot,
@@ -37,6 +71,9 @@ export function InstallmentsPage({
 }: InstallmentsPageProps) {
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(initiallyOpen);
+  const [paymentTarget, setPaymentTarget] = useState<string | null>(
+    null
+  );
 
   if (!snapshot.workspace) {
     return null;
@@ -88,13 +125,30 @@ export function InstallmentsPage({
             const schedule =
               snapshot.installmentSchedules[contract.id] ?? [];
             const next = schedule.find((row) => row.status !== "paid");
+            const paymentKey = next
+              ? `${contract.id}:${next.sequence}`
+              : null;
+            const paymentCount = snapshot.installmentPayments.filter(
+              (payment) => payment.contractId === contract.id
+            ).length;
             return (
-              <article className="installment-card" key={contract.id}>
+              <article
+                className={
+                  paymentTarget === paymentKey
+                    ? "installment-card payment-open"
+                    : "installment-card"
+                }
+                key={contract.id}
+              >
                 <div className="installment-card-top">
                   <span className="installment-card-icon">
                     <CreditCard size={22} aria-hidden="true" />
                   </span>
-                  <span className="contract-status">กำลังผ่อน</span>
+                  <span className="contract-status">
+                    {contract.status === "paid_off"
+                      ? "ชำระครบแล้ว"
+                      : "กำลังผ่อน"}
+                  </span>
                 </div>
                 <div>
                   <span className="interest-pill">
@@ -112,9 +166,48 @@ export function InstallmentsPage({
                     <CalendarClock size={18} aria-hidden="true" />
                     <span>
                       <small>งวดถัดไป · {next.dueDate}</small>
-                      <strong>{formatMoney(next.total, contract.currency)}</strong>
+                      <strong>
+                        {formatMoney(
+                          remainingForRow(next, contract.currency),
+                          contract.currency
+                        )}
+                      </strong>
                     </span>
                   </div>
+                ) : null}
+                {next && contract.status === "active" ? (
+                  <button
+                    type="button"
+                    className="secondary-button installment-pay-button"
+                    aria-label={`ชำระงวดที่ ${next.sequence}`}
+                    onClick={() =>
+                      setPaymentTarget((current) =>
+                        current === paymentKey ? null : paymentKey
+                      )
+                    }
+                  >
+                    <CircleDollarSign size={18} aria-hidden="true" />
+                    {paymentTarget === paymentKey
+                      ? "ปิดฟอร์มชำระ"
+                      : `ชำระงวดที่ ${next.sequence}`}
+                  </button>
+                ) : null}
+                {paymentCount > 0 ? (
+                  <p className="installment-payment-count">
+                    บันทึกการชำระแล้ว {paymentCount} ครั้ง
+                  </p>
+                ) : null}
+                {next && paymentTarget === paymentKey ? (
+                  <InstallmentPaymentForm
+                    api={api}
+                    contract={contract}
+                    row={next}
+                    accounts={snapshot.accounts}
+                    onPosted={() => {
+                      onChanged();
+                      setPaymentTarget(null);
+                    }}
+                  />
                 ) : null}
                 <details>
                   <summary>ดูตารางทั้งหมด</summary>

@@ -4,6 +4,7 @@ import {
   createInstallmentContractSchema,
   createPrivateWorkspaceSchema,
   createTransactionSchema,
+  postInstallmentPaymentSchema,
   type Account,
   type Category,
   type CreateTransactionInput,
@@ -12,7 +13,9 @@ import {
   type Workspace
 } from "@systems-credit/contracts";
 import {
+  allocateInstallmentPayment,
   generateManualInstallmentSchedule,
+  normalizeAccountKind,
   parseMoney,
   generateInstallmentSchedule,
   roundMoney,
@@ -24,6 +27,7 @@ import type {
   AccountCreationResult,
   FinanceApi,
   InstallmentContractCreationResult,
+  InstallmentPaymentResult,
   WorkspaceCreationResult
 } from "./finance-api";
 
@@ -54,10 +58,19 @@ export type LocalTransaction = Readonly<{
   state: "posted";
   version: 1;
   createdAt: string;
+  source?: "installment_payment";
+  sourceId?: string;
 }>;
 
 export type LocalInstallmentContract =
-  InstallmentContractCreationResult["contract"];
+  Omit<InstallmentContractCreationResult["contract"], "status"> &
+    Readonly<{
+      status:
+        | "active"
+        | "paid_off"
+        | "cancelled"
+        | "defaulted";
+    }>;
 
 export type LocalInstallmentScheduleRow =
   InstallmentScheduleRow &
@@ -66,6 +79,7 @@ export type LocalInstallmentScheduleRow =
       paidInterest: string;
       paidFees: string;
       paidPenalty: string;
+      scheduledPenalty: string;
       status:
         | "upcoming"
         | "due"
@@ -75,6 +89,27 @@ export type LocalInstallmentScheduleRow =
         | "waived"
         | "cancelled";
     }>;
+
+export type LocalInstallmentPayment = Readonly<{
+  id: string;
+  workspaceId: string;
+  contractId: string;
+  sequence: number;
+  accountId: string;
+  amount: string;
+  currency: string;
+  financialDate: string;
+  penaltyAssessed: string;
+  allocatedPenalty: string;
+  allocatedFees: string;
+  allocatedInterest: string;
+  allocatedPrincipal: string;
+  reportableExpense: string;
+  expenseTransactionId?: string;
+  note?: string;
+  clientMutationId: string;
+  createdAt: string;
+}>;
 
 export type LocalFinanceSnapshot = Readonly<{
   version: 1;
@@ -96,6 +131,7 @@ export type LocalFinanceSnapshot = Readonly<{
     string,
     LocalInstallmentScheduleRow[]
   >;
+  installmentPayments: LocalInstallmentPayment[];
 }>;
 
 export type LocalFinanceApi = FinanceApi &
@@ -134,7 +170,8 @@ function emptySnapshot(): LocalFinanceSnapshot {
     openingTransactions: [],
     transactions: [],
     installmentContracts: [],
-    installmentSchedules: {}
+    installmentSchedules: {},
+    installmentPayments: []
   };
 }
 
@@ -181,9 +218,26 @@ function readSnapshot(storage: Storage): LocalFinanceSnapshot {
               .installmentSchedules &&
             typeof (parsed as Partial<LocalFinanceSnapshot>)
               .installmentSchedules === "object"
-              ? (parsed as LocalFinanceSnapshot)
-                  .installmentSchedules
-              : {}
+              ? Object.fromEntries(
+                  Object.entries(
+                    (parsed as LocalFinanceSnapshot)
+                      .installmentSchedules
+                  ).map(([contractId, rows]) => [
+                    contractId,
+                    rows.map((row) => ({
+                      ...row,
+                      scheduledPenalty:
+                        row.scheduledPenalty ?? "0.00"
+                    }))
+                  ])
+                )
+              : {},
+          installmentPayments: Array.isArray(
+            (parsed as Partial<LocalFinanceSnapshot>)
+              .installmentPayments
+          )
+            ? (parsed as LocalFinanceSnapshot).installmentPayments
+            : []
         }
       : emptySnapshot();
   } catch {
@@ -371,7 +425,7 @@ export function createLocalFinanceApi(
       }
 
       const contractId = crypto.randomUUID();
-      const contract: LocalInstallmentContract = {
+      const contract: InstallmentContractCreationResult["contract"] = {
         id: contractId,
         workspaceId: parsed.workspaceId,
         name: parsed.name,
@@ -415,6 +469,7 @@ export function createLocalFinanceApi(
           paidInterest: zero,
           paidFees: zero,
           paidPenalty: zero,
+          scheduledPenalty: zero,
           status: "upcoming"
         })
       );
@@ -432,6 +487,296 @@ export function createLocalFinanceApi(
       });
 
       return { contract, schedule };
+    },
+
+    async postInstallmentPayment(
+      input
+    ): Promise<InstallmentPaymentResult> {
+      const parsed = postInstallmentPaymentSchema.parse(input);
+      if (!snapshot.workspace || parsed.workspaceId !== snapshot.workspace.id) {
+        throw new Error("WORKSPACE_NOT_FOUND");
+      }
+      if (
+        snapshot.installmentPayments.some(
+          (payment) =>
+            payment.clientMutationId === parsed.clientMutationId
+        )
+      ) {
+        throw new Error("INSTALLMENT_PAYMENT_REPLAYED");
+      }
+
+      const contract = snapshot.installmentContracts.find(
+        (candidate) =>
+          candidate.id === parsed.contractId &&
+          candidate.workspaceId === parsed.workspaceId
+      );
+      if (
+        !contract ||
+        contract.status !== "active" ||
+        contract.currency !== parsed.currency
+      ) {
+        throw new Error("INSTALLMENT_CONTRACT_NOT_PAYABLE");
+      }
+      const schedule = snapshot.installmentSchedules[contract.id];
+      const row = schedule?.find(
+        (candidate) => candidate.sequence === parsed.sequence
+      );
+      if (
+        !row ||
+        row.status === "paid" ||
+        row.status === "waived" ||
+        row.status === "cancelled"
+      ) {
+        throw new Error("INSTALLMENT_ROW_NOT_PAYABLE");
+      }
+
+      const account = snapshot.accounts.find(
+        (candidate) =>
+          candidate.id === parsed.accountId &&
+          candidate.workspaceId === parsed.workspaceId &&
+          candidate.currency === parsed.currency
+      );
+      if (!account || !normalizeAccountKind(account.type).liquid) {
+        throw new Error("INSTALLMENT_PAYMENT_ACCOUNT_INVALID");
+      }
+      const currentBalance =
+        snapshot.accountBalances[account.id]?.amount ??
+        roundMoney("0", account.currency);
+      const paymentAmount = parseMoney({
+        amount: parsed.amount,
+        currency: parsed.currency
+      });
+      if (
+        parseMoney({
+          amount: currentBalance,
+          currency: account.currency
+        }).lessThan(paymentAmount)
+      ) {
+        throw new Error("INSTALLMENT_PAYMENT_INSUFFICIENT_BALANCE");
+      }
+
+      const scheduledPenalty = roundMoney(
+        parseMoney({
+          amount: row.scheduledPenalty,
+          currency: parsed.currency
+        }).plus(
+          parseMoney({
+            amount: parsed.penaltyAmount,
+            currency: parsed.currency
+          })
+        ),
+        parsed.currency
+      );
+      const allocation = allocateInstallmentPayment({
+        currency: parsed.currency as CurrencyCode,
+        amount: parsed.amount,
+        scheduledPrincipal: row.principal,
+        scheduledInterest: row.interest,
+        scheduledFees: row.fees,
+        scheduledPenalty,
+        paidPrincipal: row.paidPrincipal,
+        paidInterest: row.paidInterest,
+        paidFees: row.paidFees,
+        paidPenalty: row.paidPenalty
+      });
+      const addComponent = (current: string, value: string) =>
+        roundMoney(
+          parseMoney({
+            amount: current,
+            currency: parsed.currency
+          }).plus(
+            parseMoney({
+              amount: value,
+              currency: parsed.currency
+            })
+          ),
+          parsed.currency
+        );
+      const updatedRow: LocalInstallmentScheduleRow = {
+        ...row,
+        scheduledPenalty,
+        paidPenalty: addComponent(
+          row.paidPenalty,
+          allocation.allocation.penalty
+        ),
+        paidFees: addComponent(
+          row.paidFees,
+          allocation.allocation.fees
+        ),
+        paidInterest: addComponent(
+          row.paidInterest,
+          allocation.allocation.interest
+        ),
+        paidPrincipal: addComponent(
+          row.paidPrincipal,
+          allocation.allocation.principal
+        ),
+        status: allocation.status
+      };
+      const updatedSchedule = schedule!.map((candidate) =>
+        candidate.sequence === row.sequence ? updatedRow : candidate
+      );
+      const contractStatus = updatedSchedule.every(
+        (candidate) => candidate.status === "paid"
+      )
+        ? "paid_off"
+        : "active";
+
+      const nextBalance = roundMoney(
+        parseMoney({
+          amount: currentBalance,
+          currency: account.currency
+        }).minus(paymentAmount),
+        account.currency
+      );
+      const accountBalance = {
+        accountId: account.id,
+        amount: nextBalance,
+        currency: account.currency
+      };
+
+      const paymentId = crypto.randomUUID();
+      const financialFeesCategory = snapshot.categories.find(
+        (category) =>
+          category.workspaceId === parsed.workspaceId &&
+          category.slug === "financial-fees"
+      );
+      const debtInterestCategory = snapshot.categories.find(
+        (category) =>
+          category.workspaceId === parsed.workspaceId &&
+          category.slug === "debt-interest"
+      );
+      const interestCategoryId =
+        contract.interestCategoryId ??
+        debtInterestCategory?.id ??
+        contract.expenseCategoryId;
+      const feesCategoryId =
+        financialFeesCategory?.id ??
+        contract.expenseCategoryId ??
+        interestCategoryId;
+      const interestExpense = allocation.allocation.interest;
+      const feesExpense = roundMoney(
+        parseMoney({
+          amount: allocation.allocation.fees,
+          currency: parsed.currency
+        }).plus(
+          parseMoney({
+            amount: allocation.allocation.penalty,
+            currency: parsed.currency
+          })
+        ),
+        parsed.currency
+      );
+      const zero = roundMoney("0", parsed.currency);
+      const expenseParts = new Map<string, string>();
+      const addExpensePart = (
+        categoryId: string | undefined,
+        amount: string
+      ) => {
+        if (amount === zero) {
+          return;
+        }
+        if (!categoryId) {
+          throw new Error("INSTALLMENT_PAYMENT_CATEGORY_INVALID");
+        }
+        expenseParts.set(
+          categoryId,
+          addComponent(expenseParts.get(categoryId) ?? zero, amount)
+        );
+      };
+      addExpensePart(interestCategoryId, interestExpense);
+      addExpensePart(feesCategoryId, feesExpense);
+
+      let expenseTransaction: LocalTransaction | undefined;
+      if (allocation.reportableExpense !== zero) {
+        const parts = [...expenseParts.entries()].map(
+          ([categoryId, amount]) => ({ categoryId, amount })
+        );
+        expenseTransaction = {
+          id: crypto.randomUUID(),
+          workspaceId: parsed.workspaceId,
+          accountId: account.id,
+          type: "expense",
+          amount: allocation.reportableExpense,
+          currency: parsed.currency,
+          financialDate: parsed.financialDate,
+          ...(parts.length === 1
+            ? { categoryId: parts[0]!.categoryId }
+            : { splits: parts }),
+          note:
+            parsed.note ??
+            `ดอกเบี้ยและค่าธรรมเนียม: ${contract.name}`,
+          tagIds: [],
+          state: "posted",
+          version: 1,
+          createdAt: new Date().toISOString(),
+          source: "installment_payment",
+          sourceId: paymentId
+        };
+      }
+
+      const payment: LocalInstallmentPayment = {
+        id: paymentId,
+        workspaceId: parsed.workspaceId,
+        contractId: contract.id,
+        sequence: row.sequence,
+        accountId: account.id,
+        amount: roundMoney(parsed.amount, parsed.currency),
+        currency: parsed.currency,
+        financialDate: parsed.financialDate,
+        penaltyAssessed: roundMoney(
+          parsed.penaltyAmount,
+          parsed.currency
+        ),
+        allocatedPenalty: allocation.allocation.penalty,
+        allocatedFees: allocation.allocation.fees,
+        allocatedInterest: allocation.allocation.interest,
+        allocatedPrincipal: allocation.allocation.principal,
+        reportableExpense: allocation.reportableExpense,
+        ...(expenseTransaction
+          ? { expenseTransactionId: expenseTransaction.id }
+          : {}),
+        ...(parsed.note ? { note: parsed.note } : {}),
+        clientMutationId: parsed.clientMutationId,
+        createdAt: new Date().toISOString()
+      };
+
+      persist({
+        ...snapshot,
+        accountBalances: {
+          ...snapshot.accountBalances,
+          [account.id]: accountBalance
+        },
+        installmentSchedules: {
+          ...snapshot.installmentSchedules,
+          [contract.id]: updatedSchedule
+        },
+        installmentContracts: snapshot.installmentContracts.map(
+          (candidate) =>
+            candidate.id === contract.id
+              ? { ...candidate, status: contractStatus }
+              : candidate
+        ),
+        installmentPayments: [
+          ...snapshot.installmentPayments,
+          payment
+        ],
+        transactions: expenseTransaction
+          ? [...snapshot.transactions, expenseTransaction]
+          : snapshot.transactions
+      });
+
+      return {
+        paymentId,
+        allocation: allocation.allocation,
+        reportableExpense: allocation.reportableExpense,
+        scheduleStatus: allocation.status,
+        contractStatus,
+        accountBalance,
+        ...(expenseTransaction
+          ? { expenseTransactionId: expenseTransaction.id }
+          : {})
+      };
     },
 
     async createAccount(input): Promise<AccountCreationResult> {

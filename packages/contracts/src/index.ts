@@ -17,14 +17,16 @@ export type {
   InstallmentContractStatus,
   InstallmentInterestMethod,
   InstallmentScheduleRow,
-  ManualInstallmentRowInput
+  ManualInstallmentRowInput,
+  PostInstallmentPaymentInput
 } from "./installments";
 export {
   createInstallmentContractSchema,
   installmentContractKindSchema,
   installmentContractStatusSchema,
   installmentInterestMethodSchema,
-  manualInstallmentRowSchema
+  manualInstallmentRowSchema,
+  postInstallmentPaymentSchema
 } from "./installments";
 export type {
   Category,

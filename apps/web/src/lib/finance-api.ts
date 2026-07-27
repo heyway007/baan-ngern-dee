@@ -6,6 +6,7 @@ import type {
   CreateInstallmentContractInput,
   CreatePrivateWorkspaceInput,
   CreateTransactionInput,
+  PostInstallmentPaymentInput,
   PostedTransactionResponse,
   Workspace
 } from "@systems-credit/contracts";
@@ -65,6 +66,26 @@ export type InstallmentContractCreationResult = Readonly<{
   >;
 }>;
 
+export type InstallmentPaymentResult = Readonly<{
+  paymentId: string;
+  allocation: Readonly<{
+    penalty: string;
+    fees: string;
+    interest: string;
+    principal: string;
+    total: string;
+  }>;
+  reportableExpense: string;
+  scheduleStatus: "partially_paid" | "paid";
+  contractStatus: "active" | "paid_off";
+  accountBalance: Readonly<{
+    accountId: string;
+    amount: string;
+    currency: string;
+  }>;
+  expenseTransactionId?: string;
+}>;
+
 export interface FinanceApi {
   createPrivateWorkspace(
     input: CreatePrivateWorkspaceInput
@@ -76,6 +97,9 @@ export interface FinanceApi {
   createInstallmentContract(
     input: CreateInstallmentContractInput
   ): Promise<InstallmentContractCreationResult>;
+  postInstallmentPayment(
+    input: PostInstallmentPaymentInput
+  ): Promise<InstallmentPaymentResult>;
   postTransaction(
     input: CreateTransactionInput
   ): Promise<PostedTransactionResponse>;

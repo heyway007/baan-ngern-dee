@@ -73,6 +73,21 @@ export const createInstallmentContractSchema = z
     }
   });
 
+export const postInstallmentPaymentSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    contractId: z.string().uuid(),
+    sequence: z.number().int().min(1).max(600),
+    accountId: z.string().uuid(),
+    amount: positiveMoneyAmountSchema,
+    penaltyAmount: moneyAmountSchema.default("0"),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    financialDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    note: z.string().trim().max(500).optional(),
+    clientMutationId: z.string().uuid()
+  })
+  .strict();
+
 export type InstallmentContractKind = z.infer<
   typeof installmentContractKindSchema
 >;
@@ -87,6 +102,9 @@ export type ManualInstallmentRowInput = z.infer<
 >;
 export type CreateInstallmentContractInput = z.infer<
   typeof createInstallmentContractSchema
+>;
+export type PostInstallmentPaymentInput = z.infer<
+  typeof postInstallmentPaymentSchema
 >;
 
 export type InstallmentScheduleRow = Readonly<{

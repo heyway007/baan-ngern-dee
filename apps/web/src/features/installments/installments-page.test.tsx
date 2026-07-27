@@ -54,7 +54,8 @@ describe("InstallmentsPage", () => {
       openingTransactions: [],
       transactions: [],
       installmentContracts: [],
-      installmentSchedules: {}
+      installmentSchedules: {},
+      installmentPayments: []
     };
 
     render(
@@ -90,5 +91,106 @@ describe("InstallmentsPage", () => {
     expect(
       await screen.findByRole("heading", { name: "รายการสัญญา" })
     ).toBeInTheDocument();
+  });
+
+  it("opens the payment form for the next unpaid installment", async () => {
+    const user = userEvent.setup();
+    const contractId = "f8212dc2-bba0-46e2-a381-c39a134b2bc7";
+    const accountId = "ad304c0f-7371-41d4-bd2c-a6bb34c4aeb7";
+    const snapshot: LocalFinanceSnapshot = {
+      version: 1,
+      workspace: {
+        id: workspaceId,
+        name: "การเงินทดสอบ",
+        kind: "private",
+        baseCurrency: "THB",
+        timeZone: "Asia/Bangkok",
+        role: "owner",
+        version: 1
+      },
+      categories: [],
+      accounts: [
+        {
+          id: accountId,
+          workspaceId,
+          name: "บัญชีเงินเดือน",
+          type: "bank",
+          currency: "THB",
+          version: 1
+        }
+      ],
+      accountBalances: {
+        [accountId]: {
+          accountId,
+          amount: "1000.00",
+          currency: "THB"
+        }
+      },
+      openingTransactions: [],
+      transactions: [],
+      installmentContracts: [
+        {
+          id: contractId,
+          workspaceId,
+          name: "สินเชื่อทดสอบ",
+          kind: "debt",
+          originalPrincipal: "100.00",
+          downPayment: "0.00",
+          financedPrincipal: "100.00",
+          financedFees: "0.00",
+          currency: "THB",
+          interestMethod: "zero",
+          annualRate: "0",
+          periods: 1,
+          firstDueDate: "2026-08-15",
+          status: "active",
+          version: 1
+        }
+      ],
+      installmentSchedules: {
+        [contractId]: [
+          {
+            sequence: 1,
+            dueDate: "2026-08-15",
+            openingPrincipal: "100.00",
+            principal: "100.00",
+            interest: "0.00",
+            fees: "0.00",
+            total: "100.00",
+            closingPrincipal: "0.00",
+            scheduledPenalty: "0.00",
+            paidPrincipal: "0.00",
+            paidInterest: "0.00",
+            paidFees: "0.00",
+            paidPenalty: "0.00",
+            status: "upcoming"
+          }
+        ]
+      },
+      installmentPayments: []
+    };
+    const api = {
+      postInstallmentPayment: vi.fn()
+    } as unknown as LocalFinanceApi;
+
+    render(
+      <MemoryRouter initialEntries={["/installments"]}>
+        <InstallmentsPage
+          api={api}
+          snapshot={snapshot}
+          onChanged={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "ชำระงวดที่ 1" })
+    );
+    expect(
+      screen.getByRole("heading", { name: "บันทึกการชำระ" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("บัญชีที่ใช้ชำระ")).toHaveValue(
+      accountId
+    );
   });
 });

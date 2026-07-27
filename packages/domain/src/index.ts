@@ -3,9 +3,12 @@ export { normalizeAccountKind } from "./accounts";
 export { minorDigits, type CurrencyCode } from "./currency";
 export { toFinancialDate } from "./financial-date";
 export {
+  allocateInstallmentPayment,
   generateInstallmentSchedule,
   generateManualInstallmentSchedule,
   validateManualSchedule,
+  type InstallmentPaymentAllocation,
+  type InstallmentPaymentAllocationInput,
   type InstallmentScheduleInput,
   type ManualScheduleInput
 } from "./installments";

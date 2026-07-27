@@ -30,6 +30,34 @@ export type ManualScheduleInput = Readonly<{
   rows: ManualInstallmentRowInput[];
 }>;
 
+export type InstallmentPaymentAllocationInput = Readonly<{
+  currency: CurrencyCode;
+  amount: string;
+  scheduledPrincipal: string;
+  scheduledInterest: string;
+  scheduledFees: string;
+  scheduledPenalty: string;
+  paidPrincipal: string;
+  paidInterest: string;
+  paidFees: string;
+  paidPenalty: string;
+}>;
+
+type InstallmentPaymentComponents = Readonly<{
+  penalty: string;
+  fees: string;
+  interest: string;
+  principal: string;
+  total: string;
+}>;
+
+export type InstallmentPaymentAllocation = Readonly<{
+  allocation: InstallmentPaymentComponents;
+  remaining: InstallmentPaymentComponents;
+  reportableExpense: string;
+  status: "partially_paid" | "paid";
+}>;
+
 function money(value: string, currency: CurrencyCode) {
   return parseMoney({ amount: value, currency });
 }
@@ -333,4 +361,85 @@ export function generateManualInstallmentSchedule(
     opening = closing;
     return scheduleRow;
   });
+}
+
+export function allocateInstallmentPayment(
+  input: InstallmentPaymentAllocationInput
+): InstallmentPaymentAllocation {
+  const amount = money(input.amount, input.currency);
+  if (!amount.greaterThan(0)) {
+    throw new Error("INSTALLMENT_PAYMENT_AMOUNT_INVALID");
+  }
+
+  const components = [
+    ["penalty", input.scheduledPenalty, input.paidPenalty],
+    ["fees", input.scheduledFees, input.paidFees],
+    ["interest", input.scheduledInterest, input.paidInterest],
+    ["principal", input.scheduledPrincipal, input.paidPrincipal]
+  ] as const;
+  const remainingByComponent = components.map(
+    ([name, scheduledValue, paidValue]) => {
+      const scheduled = money(scheduledValue, input.currency);
+      const paid = money(paidValue, input.currency);
+      if (
+        scheduled.isNegative() ||
+        paid.isNegative() ||
+        paid.greaterThan(scheduled)
+      ) {
+        throw new Error("INSTALLMENT_PAYMENT_STATE_INVALID");
+      }
+      return {
+        name,
+        value: scheduled.minus(paid)
+      };
+    }
+  );
+  const totalRemaining = remainingByComponent.reduce(
+    (total, component) => total.plus(component.value),
+    new Decimal(0)
+  );
+  if (amount.greaterThan(totalRemaining)) {
+    throw new Error("INSTALLMENT_PAYMENT_EXCEEDS_REMAINING");
+  }
+
+  let unallocated = amount;
+  const allocated = new Map<string, Decimal>();
+  for (const component of remainingByComponent) {
+    const value = Decimal.min(component.value, unallocated);
+    allocated.set(component.name, value);
+    unallocated = unallocated.minus(value);
+  }
+
+  const componentValue = (name: string) =>
+    allocated.get(name) ?? new Decimal(0);
+  const penalty = componentValue("penalty");
+  const fees = componentValue("fees");
+  const interest = componentValue("interest");
+  const principal = componentValue("principal");
+  const remainingValue = (name: string) =>
+    remainingByComponent.find((component) => component.name === name)!
+      .value.minus(componentValue(name));
+  const remainingTotal = totalRemaining.minus(amount);
+
+  return {
+    allocation: {
+      penalty: roundMoney(penalty, input.currency),
+      fees: roundMoney(fees, input.currency),
+      interest: roundMoney(interest, input.currency),
+      principal: roundMoney(principal, input.currency),
+      total: roundMoney(amount, input.currency)
+    },
+    remaining: {
+      penalty: roundMoney(remainingValue("penalty"), input.currency),
+      fees: roundMoney(remainingValue("fees"), input.currency),
+      interest: roundMoney(remainingValue("interest"), input.currency),
+      principal: roundMoney(remainingValue("principal"), input.currency),
+      total: roundMoney(remainingTotal, input.currency)
+    },
+    reportableExpense: roundMoney(
+      penalty.plus(fees).plus(interest),
+      input.currency
+    ),
+    status: remainingTotal.isZero() ? "paid" : "partially_paid"
+  };
 }

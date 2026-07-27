@@ -304,4 +304,203 @@ describe("local finance API", () => {
         .installmentSchedules[result.contract.id]
     ).toHaveLength(2);
   });
+
+  it("posts an installment payment atomically without reporting principal as expense", async () => {
+    const storage = new MemoryStorage();
+    const api = createLocalFinanceApi(storage);
+    const created = await api.createPrivateWorkspace({
+      name: "ชำระหนี้",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "บัญชีจ่ายหนี้",
+      type: "bank",
+      currency: "THB",
+      openingBalance: "1000.00"
+    });
+    const interestCategory = created.categories.find(
+      (category) => category.slug === "debt-interest"
+    )!;
+    const contract = await api.createInstallmentContract({
+      workspaceId: created.workspace.id,
+      name: "หนี้หนึ่งงวด",
+      kind: "debt",
+      originalPrincipal: "100.00",
+      downPayment: "0.00",
+      financedFees: "0.00",
+      currency: "THB",
+      interestMethod: "manual",
+      annualRate: "0",
+      periods: 1,
+      firstDueDate: "2026-08-15",
+      interestCategoryId: interestCategory.id,
+      manualRows: [
+        {
+          dueDate: "2026-08-15",
+          principal: "100.00",
+          interest: "20.00",
+          fees: "5.00"
+        }
+      ]
+    });
+
+    const firstPayment = await api.postInstallmentPayment({
+      workspaceId: created.workspace.id,
+      contractId: contract.contract.id,
+      sequence: 1,
+      accountId: account.account.id,
+      amount: "35.00",
+      penaltyAmount: "10.00",
+      currency: "THB",
+      financialDate: "2026-08-15",
+      clientMutationId: crypto.randomUUID()
+    });
+    expect(firstPayment.allocation).toEqual({
+      penalty: "10.00",
+      fees: "5.00",
+      interest: "20.00",
+      principal: "0.00",
+      total: "35.00"
+    });
+    expect(firstPayment.scheduleStatus).toBe("partially_paid");
+
+    const secondPayment = await api.postInstallmentPayment({
+      workspaceId: created.workspace.id,
+      contractId: contract.contract.id,
+      sequence: 1,
+      accountId: account.account.id,
+      amount: "100.00",
+      penaltyAmount: "0.00",
+      currency: "THB",
+      financialDate: "2026-08-16",
+      clientMutationId: crypto.randomUUID()
+    });
+    expect(secondPayment.scheduleStatus).toBe("paid");
+
+    const reloaded = createLocalFinanceApi(storage).getSnapshot();
+    expect(reloaded.accountBalances[account.account.id]?.amount).toBe(
+      "865.00"
+    );
+    expect(reloaded.installmentPayments).toHaveLength(2);
+    expect(reloaded.installmentContracts[0]?.status).toBe("paid_off");
+    expect(
+      reloaded.installmentSchedules[contract.contract.id]?.[0]
+    ).toMatchObject({
+      paidPenalty: "10.00",
+      paidFees: "5.00",
+      paidInterest: "20.00",
+      paidPrincipal: "100.00",
+      status: "paid"
+    });
+    expect(reloaded.transactions).toHaveLength(1);
+    expect(reloaded.transactions[0]).toMatchObject({
+      type: "expense",
+      amount: "35.00"
+    });
+  });
+
+  it("rejects a replayed installment payment without changing balances", async () => {
+    const api = createLocalFinanceApi(new MemoryStorage());
+    const created = await api.createPrivateWorkspace({
+      name: "กันรายการซ้ำ",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "เงินสด",
+      type: "cash",
+      currency: "THB",
+      openingBalance: "500.00"
+    });
+    const contract = await api.createInstallmentContract({
+      workspaceId: created.workspace.id,
+      name: "หนี้ทดสอบซ้ำ",
+      kind: "debt",
+      originalPrincipal: "100.00",
+      downPayment: "0.00",
+      financedFees: "0.00",
+      currency: "THB",
+      interestMethod: "zero",
+      annualRate: "0",
+      periods: 1,
+      firstDueDate: "2026-08-15"
+    });
+    const clientMutationId = crypto.randomUUID();
+    const input = {
+      workspaceId: created.workspace.id,
+      contractId: contract.contract.id,
+      sequence: 1,
+      accountId: account.account.id,
+      amount: "50.00",
+      penaltyAmount: "0.00",
+      currency: "THB",
+      financialDate: "2026-08-15",
+      clientMutationId
+    };
+
+    await api.postInstallmentPayment(input);
+    await expect(api.postInstallmentPayment(input)).rejects.toThrow(
+      "INSTALLMENT_PAYMENT_REPLAYED"
+    );
+    expect(
+      api.getSnapshot().accountBalances[account.account.id]?.amount
+    ).toBe("450.00");
+    expect(api.getSnapshot().installmentPayments).toHaveLength(1);
+  });
+
+  it("leaves all local state unchanged when the payment account has insufficient funds", async () => {
+    const api = createLocalFinanceApi(new MemoryStorage());
+    const created = await api.createPrivateWorkspace({
+      name: "ยอดไม่พอ",
+      baseCurrency: "THB",
+      timeZone: "Asia/Bangkok"
+    });
+    const account = await api.createAccount({
+      workspaceId: created.workspace.id,
+      name: "เงินสดน้อย",
+      type: "cash",
+      currency: "THB",
+      openingBalance: "50.00"
+    });
+    const contract = await api.createInstallmentContract({
+      workspaceId: created.workspace.id,
+      name: "หนี้เกินยอดบัญชี",
+      kind: "debt",
+      originalPrincipal: "100.00",
+      downPayment: "0.00",
+      financedFees: "0.00",
+      currency: "THB",
+      interestMethod: "zero",
+      annualRate: "0",
+      periods: 1,
+      firstDueDate: "2026-08-15"
+    });
+
+    await expect(
+      api.postInstallmentPayment({
+        workspaceId: created.workspace.id,
+        contractId: contract.contract.id,
+        sequence: 1,
+        accountId: account.account.id,
+        amount: "100.00",
+        penaltyAmount: "0.00",
+        currency: "THB",
+        financialDate: "2026-08-15",
+        clientMutationId: crypto.randomUUID()
+      })
+    ).rejects.toThrow("INSTALLMENT_PAYMENT_INSUFFICIENT_BALANCE");
+
+    const snapshot = api.getSnapshot();
+    expect(snapshot.accountBalances[account.account.id]?.amount).toBe(
+      "50.00"
+    );
+    expect(snapshot.installmentPayments).toHaveLength(0);
+    expect(
+      snapshot.installmentSchedules[contract.contract.id]?.[0]
+        ?.paidPrincipal
+    ).toBe("0.00");
+  });
 });

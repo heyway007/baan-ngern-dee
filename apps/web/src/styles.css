@@ -1725,6 +1725,10 @@ select:focus {
   box-shadow: 0 10px 30px rgba(32, 52, 43, 0.05);
 }
 
+.installment-card.payment-open {
+  grid-column: 1 / -1;
+}
+
 .installment-card-top {
   display: flex;
   align-items: center;
@@ -1804,6 +1808,116 @@ select:focus {
 
 .next-installment strong {
   font-family: Manrope, sans-serif;
+}
+
+.installment-pay-button {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.installment-payment-count {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.installment-payment-form {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d8ddd5;
+  border-radius: 0.85rem;
+  background: #faf9f4;
+}
+
+.payment-form-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.payment-form-heading h3,
+.payment-form-heading p {
+  margin: 0;
+}
+
+.payment-form-heading p {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.payment-form-icon {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: var(--mint);
+  color: var(--forest);
+}
+
+.installment-payment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.payment-allocation-preview {
+  display: grid;
+  margin-top: 0.9rem;
+  padding: 0.8rem;
+  border-radius: 0.75rem;
+  background: white;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.payment-allocation-preview span {
+  display: grid;
+}
+
+.payment-allocation-preview small {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.payment-allocation-preview strong {
+  color: var(--forest);
+  font-family: Manrope, sans-serif;
+  font-size: 0.86rem;
+}
+
+.payment-allocation-preview .payment-remaining {
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--line);
+}
+
+.payment-preview-error {
+  margin: 0.9rem 0 0;
+  color: #a33b32;
+  font-size: 0.76rem;
+}
+
+.payment-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.9rem 0;
+  color: var(--forest);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.payment-confirmation input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--forest);
+}
+
+.installment-payment-form > .primary-button {
+  width: 100%;
 }
 
 .installment-card details {
@@ -2088,6 +2202,10 @@ select:focus {
     justify-self: end;
   }
 
+  .payment-allocation-preview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .summary-grid {
     grid-template-columns: 1fr;
   }
@@ -2134,8 +2252,17 @@ select:focus {
   }
 
   .installment-money-grid,
-  .installment-contracts {
+  .installment-contracts,
+  .installment-payment-grid,
+  .payment-allocation-preview {
     grid-template-columns: 1fr;
+  }
+
+  .payment-allocation-preview .payment-remaining {
+    padding-top: 0.55rem;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 
   .schedule-preview-head {
