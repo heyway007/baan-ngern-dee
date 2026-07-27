@@ -15,6 +15,11 @@ import { requestId } from "./middleware/request-id";
 import { accountRoutes } from "./routes/accounts";
 import { catalogRoutes } from "./routes/catalog";
 import { installmentRoutes } from "./routes/installments";
+import {
+  recurringOccurrenceRoutes,
+  recurringPeriodRoutes,
+  recurringTemplateRoutes
+} from "./routes/recurring";
 import { snapshotRoutes } from "./routes/snapshot";
 import { transactionRoutes } from "./routes/transactions";
 import { transferRoutes } from "./routes/transfers";
@@ -68,6 +73,18 @@ export function createApp(
     transactionRoutes(financeRepository)
   );
   app.route("/v1/transfers", transferRoutes(financeRepository));
+  app.route(
+    "/v1/recurring-templates",
+    recurringTemplateRoutes(financeRepository)
+  );
+  app.route(
+    "/v1/recurring-periods",
+    recurringPeriodRoutes(financeRepository)
+  );
+  app.route(
+    "/v1/recurring-occurrences",
+    recurringOccurrenceRoutes(financeRepository)
+  );
 
   return app;
 }

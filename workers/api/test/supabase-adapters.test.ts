@@ -89,6 +89,177 @@ describe("Supabase Worker adapters", () => {
     );
   });
 
+  it("maps recurring commands to exact Supabase RPC payloads", async () => {
+    const workspaceId = "22222222-2222-4222-8222-222222222222";
+    const templateId = "33333333-3333-4333-8333-333333333333";
+    const occurrenceId = "44444444-4444-4444-8444-444444444444";
+    const accountId = "55555555-5555-4555-8555-555555555555";
+    const categoryId = "66666666-6666-4666-8666-666666666666";
+    const transactionId = "77777777-7777-4777-8777-777777777777";
+    const clientMutationId =
+      "88888888-8888-4888-8888-888888888888";
+    const template = {
+      id: templateId,
+      workspaceId,
+      name: "เงินเดือน",
+      kind: "income" as const,
+      amount: "35000.00",
+      currency: "THB",
+      accountId,
+      categoryId,
+      dayOfMonth: 25,
+      startMonth: "2026-07",
+      status: "active" as const,
+      version: 1
+    };
+    const occurrence = {
+      id: occurrenceId,
+      workspaceId,
+      templateId,
+      name: "เงินเดือน",
+      kind: "income" as const,
+      period: "2026-07",
+      scheduledDate: "2026-07-25",
+      amount: "35000.00",
+      currency: "THB",
+      accountId,
+      categoryId,
+      status: "pending" as const,
+      version: 1
+    };
+    const postedOccurrence = {
+      ...occurrence,
+      status: "posted" as const,
+      transactionId,
+      version: 2
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(template))
+      .mockResolvedValueOnce(
+        Response.json({ ...template, version: 2 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          ...template,
+          status: "paused",
+          version: 2
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ createdCount: 1, existingCount: 0 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          period: "2026-07",
+          occurrences: [occurrence]
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ...occurrence, amount: "36000.00", version: 2 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          ...occurrence,
+          status: "skipped",
+          version: 2
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          response: {
+            occurrence: postedOccurrence,
+            transaction: {
+              transactionId,
+              version: 1,
+              state: "posted",
+              accountBalances: [
+                { accountId, amount: "36000.00", currency: "THB" }
+              ]
+            }
+          },
+          replayed: false
+        })
+      );
+    const repository = createSupabaseFinanceRepository({
+      url: "https://project.supabase.co",
+      anonKey: "anon-key",
+      fetch: requestFetch
+    });
+    const createInput = {
+      workspaceId,
+      name: template.name,
+      kind: template.kind,
+      amount: template.amount,
+      currency: template.currency,
+      accountId,
+      categoryId,
+      dayOfMonth: 25,
+      startMonth: "2026-07"
+    };
+    const {
+      workspaceId: _workspaceId,
+      ...updateTemplateFields
+    } = createInput;
+
+    await repository.createRecurringTemplate(actor, createInput);
+    await repository.updateRecurringTemplate(actor, templateId, {
+      ...updateTemplateFields,
+      version: 1
+    });
+    await repository.setRecurringTemplateStatus(
+      actor,
+      templateId,
+      "paused",
+      1
+    );
+    await repository.materializeRecurringPeriod(actor, {
+      workspaceId,
+      period: "2026-07"
+    });
+    await repository.getRecurringPeriod(
+      actor,
+      workspaceId,
+      "2026-07"
+    );
+    await repository.updateRecurringOccurrence(actor, occurrenceId, {
+      amount: "36000.00",
+      scheduledDate: "2026-07-25",
+      version: 1
+    });
+    await repository.skipRecurringOccurrence(actor, occurrenceId, 1);
+    await repository.postRecurringOccurrence(actor, occurrenceId, {
+      version: 1,
+      clientMutationId
+    });
+
+    expect(
+      requestFetch.mock.calls.map(([url]) => url)
+    ).toEqual([
+      "https://project.supabase.co/rest/v1/rpc/create_recurring_template",
+      "https://project.supabase.co/rest/v1/rpc/update_recurring_template",
+      "https://project.supabase.co/rest/v1/rpc/set_recurring_template_status",
+      "https://project.supabase.co/rest/v1/rpc/materialize_recurring_period",
+      "https://project.supabase.co/rest/v1/rpc/get_recurring_period",
+      "https://project.supabase.co/rest/v1/rpc/update_recurring_occurrence",
+      "https://project.supabase.co/rest/v1/rpc/skip_recurring_occurrence",
+      "https://project.supabase.co/rest/v1/rpc/post_recurring_occurrence"
+    ]);
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[2]![1]?.body))
+    ).toEqual({
+      p_id: templateId,
+      p_expected_version: 1,
+      p_status: "paused"
+    });
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[4]![1]?.body))
+    ).toEqual({
+      p_workspace_id: workspaceId,
+      p_period: "2026-07"
+    });
+  });
+
   it("verifies the caller JWT with Supabase Auth", async () => {
     const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({ id: actor.userId })

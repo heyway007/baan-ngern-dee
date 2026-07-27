@@ -6,17 +6,28 @@ import type {
   CreateCategoryInput,
   CreateInstallmentContractInput,
   CreatePrivateWorkspaceInput,
+  CreateRecurringTemplateInput,
   CreateTransferInput,
   CreateTransactionInput,
   FinanceInstallmentPayment,
   FinanceInstallmentPayoff,
   FinanceSnapshot,
+  MaterializeRecurringPeriodInput,
+  MaterializeRecurringPeriodResult,
   PostedTransactionResponse,
   PostedTransferResponse,
+  PostRecurringOccurrenceInput,
+  PostRecurringOccurrenceResult,
   PostInstallmentPayoffInput,
   PostInstallmentPaymentInput,
+  RecurringOccurrence,
+  RecurringPeriod,
+  RecurringTemplate,
+  RecurringTemplateStatus,
   TransactionState,
   TransactionType,
+  UpdateRecurringOccurrenceInput,
+  UpdateRecurringTemplateInput,
   VoidTransactionInput,
   Workspace,
   WorkspaceRole
@@ -28,7 +39,9 @@ import {
   normalizeAccountKind,
   parseMoney,
   roundMoney,
+  resolveRecurringDate,
   simulateInstallmentPayoff,
+  toFinancialDate,
   transferReportEffect,
   validateSplits
 } from "@systems-credit/domain";
@@ -76,6 +89,48 @@ export interface FinanceRepository {
     actor: AuthSession,
     input: InstallmentPayoffCommand
   ): Promise<InstallmentPayoffPostResult>;
+  createRecurringTemplate(
+    actor: AuthSession,
+    input: CreateRecurringTemplateInput
+  ): Promise<RecurringTemplate>;
+  updateRecurringTemplate(
+    actor: AuthSession,
+    templateId: string,
+    input: UpdateRecurringTemplateInput
+  ): Promise<RecurringTemplate>;
+  setRecurringTemplateStatus(
+    actor: AuthSession,
+    templateId: string,
+    status: RecurringTemplateStatus,
+    version: number
+  ): Promise<RecurringTemplate>;
+  materializeRecurringPeriod(
+    actor: AuthSession,
+    input: MaterializeRecurringPeriodInput
+  ): Promise<MaterializeRecurringPeriodResult>;
+  getRecurringPeriod(
+    actor: AuthSession,
+    workspaceId: string,
+    period: string
+  ): Promise<RecurringPeriod>;
+  updateRecurringOccurrence(
+    actor: AuthSession,
+    occurrenceId: string,
+    input: UpdateRecurringOccurrenceInput
+  ): Promise<RecurringOccurrence>;
+  skipRecurringOccurrence(
+    actor: AuthSession,
+    occurrenceId: string,
+    version: number
+  ): Promise<RecurringOccurrence>;
+  postRecurringOccurrence(
+    actor: AuthSession,
+    occurrenceId: string,
+    input: PostRecurringOccurrenceInput
+  ): Promise<{
+    response: PostRecurringOccurrenceResult;
+    replayed: boolean;
+  }>;
 }
 
 export type AccountCreationResult = Readonly<{
@@ -308,8 +363,18 @@ export function createMemoryFinanceRepository(): FinanceRepository {
     string,
     FinanceInstallmentPayoff
   >();
+  const recurringTemplates = new Map<string, RecurringTemplate>();
+  const recurringOccurrences = new Map<string, RecurringOccurrence>();
+  const recurringOccurrenceIndex = new Map<string, string>();
+  const recurringPostResults = new Map<
+    string,
+    {
+      occurrenceId: string;
+      response: PostRecurringOccurrenceResult;
+    }
+  >();
 
-  return {
+  const repository: FinanceRepository = {
     async getSnapshot(actor) {
       const selectedWorkspace = [...workspaces.values()].find(
         (workspace) =>
@@ -425,8 +490,18 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         installmentPayoffs: [...installmentPayoffs.values()].filter(
           (payoff) => payoff.workspaceId === workspaceId
         ),
-        recurringTemplates: [],
-        recurringOccurrences: []
+        recurringTemplates: [...recurringTemplates.values()].filter(
+          (template) => template.workspaceId === workspaceId
+        ),
+        recurringOccurrences: [...recurringOccurrences.values()].filter(
+          (occurrence) =>
+            occurrence.workspaceId === workspaceId &&
+            occurrence.period ===
+              toFinancialDate(
+                new Date().toISOString(),
+                selectedWorkspace.timeZone
+              ).slice(0, 7)
+        )
       };
       return snapshot;
     },
@@ -1617,6 +1692,367 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         createdAt: new Date().toISOString()
       });
       return { response, replayed: false };
+    },
+
+    async createRecurringTemplate(actor, input) {
+      const role = memberships.get(input.workspaceId)?.get(actor.userId);
+      if (role !== "owner" && role !== "editor") {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงพื้นที่นี้"
+        );
+      }
+      validateRecurringDestination(input);
+
+      const template: RecurringTemplate = {
+        ...input,
+        id: crypto.randomUUID(),
+        amount: roundMoney(input.amount, input.currency),
+        status: "active",
+        version: 1
+      };
+      recurringTemplates.set(template.id, template);
+      return template;
+    },
+
+    async updateRecurringTemplate(actor, templateId, input) {
+      const template = requireRecurringTemplate(actor, templateId);
+      if (
+        template.version !== input.version ||
+        template.status === "cancelled"
+      ) {
+        throw staleRecurring();
+      }
+      validateRecurringDestination({
+        workspaceId: template.workspaceId,
+        ...input
+      });
+
+      const { version: _version, ...values } = input;
+      const updated: RecurringTemplate = {
+        ...template,
+        ...values,
+        amount: roundMoney(input.amount, input.currency),
+        version: template.version + 1
+      };
+      const workspace = workspaces.get(template.workspaceId)!;
+      const period = currentWorkspacePeriod(workspace);
+      const occurrenceId = recurringOccurrenceIndex.get(
+        `${template.id}:${period}`
+      );
+      const occurrence = occurrenceId
+        ? recurringOccurrences.get(occurrenceId)
+        : undefined;
+      if (occurrence?.status === "pending") {
+        recurringOccurrences.set(occurrence.id, {
+          ...occurrence,
+          name: updated.name,
+          kind: updated.kind,
+          amount: updated.amount,
+          currency: updated.currency,
+          accountId: updated.accountId,
+          categoryId: updated.categoryId,
+          scheduledDate: resolveRecurringDate(
+            period,
+            updated.dayOfMonth
+          ),
+          version: occurrence.version + 1
+        });
+      }
+      recurringTemplates.set(template.id, updated);
+      return updated;
+    },
+
+    async setRecurringTemplateStatus(
+      actor,
+      templateId,
+      status,
+      version
+    ) {
+      const template = requireRecurringTemplate(actor, templateId);
+      const allowed =
+        (template.status === "active" && status === "paused") ||
+        (template.status === "paused" && status === "active") ||
+        ((template.status === "active" ||
+          template.status === "paused") &&
+          status === "cancelled");
+      if (template.version !== version || !allowed) {
+        throw staleRecurring();
+      }
+
+      const updated = {
+        ...template,
+        status,
+        version: template.version + 1
+      };
+      recurringTemplates.set(template.id, updated);
+      return updated;
+    },
+
+    async materializeRecurringPeriod(actor, input) {
+      const role = memberships
+        .get(input.workspaceId)
+        ?.get(actor.userId);
+      const workspace = workspaces.get(input.workspaceId);
+      if (
+        (role !== "owner" && role !== "editor") ||
+        !workspace
+      ) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงพื้นที่นี้"
+        );
+      }
+      if (input.period !== currentWorkspacePeriod(workspace)) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "สร้างรายการประจำได้เฉพาะเดือนปัจจุบัน"
+        );
+      }
+
+      let createdCount = 0;
+      let existingCount = 0;
+      for (const template of recurringTemplates.values()) {
+        if (
+          template.workspaceId !== input.workspaceId ||
+          template.status !== "active" ||
+          template.startMonth > input.period ||
+          (template.endMonth !== undefined &&
+            template.endMonth < input.period)
+        ) {
+          continue;
+        }
+        const indexKey = `${template.id}:${input.period}`;
+        if (recurringOccurrenceIndex.has(indexKey)) {
+          existingCount += 1;
+          continue;
+        }
+
+        const occurrence: RecurringOccurrence = {
+          id: crypto.randomUUID(),
+          workspaceId: template.workspaceId,
+          templateId: template.id,
+          name: template.name,
+          kind: template.kind,
+          period: input.period,
+          scheduledDate: resolveRecurringDate(
+            input.period,
+            template.dayOfMonth
+          ),
+          amount: template.amount,
+          currency: template.currency,
+          accountId: template.accountId,
+          categoryId: template.categoryId,
+          status: "pending",
+          version: 1
+        };
+        recurringOccurrences.set(occurrence.id, occurrence);
+        recurringOccurrenceIndex.set(indexKey, occurrence.id);
+        createdCount += 1;
+      }
+      return { createdCount, existingCount };
+    },
+
+    async getRecurringPeriod(actor, workspaceId, period) {
+      if (!memberships.get(workspaceId)?.has(actor.userId)) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงพื้นที่นี้"
+        );
+      }
+      return {
+        period,
+        occurrences: [...recurringOccurrences.values()]
+          .filter(
+            (occurrence) =>
+              occurrence.workspaceId === workspaceId &&
+              occurrence.period === period
+          )
+          .sort(
+            (left, right) =>
+              left.scheduledDate.localeCompare(right.scheduledDate) ||
+              left.name.localeCompare(right.name, "th")
+          )
+      };
+    },
+
+    async updateRecurringOccurrence(actor, occurrenceId, input) {
+      const occurrence = requireRecurringOccurrence(actor, occurrenceId);
+      if (
+        occurrence.version !== input.version ||
+        occurrence.status !== "pending"
+      ) {
+        throw staleRecurring();
+      }
+      if (!input.scheduledDate.startsWith(`${occurrence.period}-`)) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "วันที่ต้องอยู่ในเดือนของรายการ"
+        );
+      }
+
+      const updated = {
+        ...occurrence,
+        amount: roundMoney(input.amount, occurrence.currency),
+        scheduledDate: input.scheduledDate,
+        version: occurrence.version + 1
+      };
+      recurringOccurrences.set(occurrence.id, updated);
+      return updated;
+    },
+
+    async skipRecurringOccurrence(actor, occurrenceId, version) {
+      const occurrence = requireRecurringOccurrence(actor, occurrenceId);
+      if (
+        occurrence.version !== version ||
+        occurrence.status !== "pending"
+      ) {
+        throw staleRecurring();
+      }
+
+      const updated: RecurringOccurrence = {
+        ...occurrence,
+        status: "skipped",
+        version: occurrence.version + 1
+      };
+      recurringOccurrences.set(occurrence.id, updated);
+      return updated;
+    },
+
+    async postRecurringOccurrence(actor, occurrenceId, input) {
+      const mutationKey = `${actor.userId}:${input.clientMutationId}`;
+      const replay = recurringPostResults.get(mutationKey);
+      if (replay) {
+        if (replay.occurrenceId !== occurrenceId) {
+          throw new ApiError(
+            "DUPLICATE_MUTATION",
+            409,
+            "รหัสคำขอนี้ถูกใช้กับรายการอื่นแล้ว"
+          );
+        }
+        return { response: replay.response, replayed: true };
+      }
+
+      const occurrence = requireRecurringOccurrence(actor, occurrenceId);
+      if (
+        occurrence.version !== input.version ||
+        occurrence.status !== "pending"
+      ) {
+        throw staleRecurring();
+      }
+      const transaction = await repository.postTransaction(actor, {
+        workspaceId: occurrence.workspaceId,
+        accountId: occurrence.accountId,
+        type: occurrence.kind,
+        amount: occurrence.amount,
+        currency: occurrence.currency,
+        financialDate: occurrence.scheduledDate,
+        categoryId: occurrence.categoryId,
+        note: `รายการประจำ: ${occurrence.name}`,
+        tagIds: [],
+        clientMutationId: input.clientMutationId
+      });
+      const posted: RecurringOccurrence = {
+        ...occurrence,
+        status: "posted",
+        transactionId: transaction.transactionId,
+        version: occurrence.version + 1
+      };
+      recurringOccurrences.set(occurrence.id, posted);
+      const response = { occurrence: posted, transaction };
+      recurringPostResults.set(mutationKey, {
+        occurrenceId,
+        response
+      });
+      return { response, replayed: false };
     }
   };
+  return repository;
+
+  function currentWorkspacePeriod(workspace: StoredWorkspace): string {
+    return toFinancialDate(
+      new Date().toISOString(),
+      workspace.timeZone
+    ).slice(0, 7);
+  }
+
+  function staleRecurring(): ApiError {
+    return new ApiError(
+      "STALE_VERSION",
+      409,
+      "รายการถูกแก้ไขแล้ว กรุณาโหลดข้อมูลใหม่"
+    );
+  }
+
+  function requireRecurringTemplate(
+    actor: AuthSession,
+    templateId: string
+  ): RecurringTemplate {
+    const template = recurringTemplates.get(templateId);
+    const role = template
+      ? memberships.get(template.workspaceId)?.get(actor.userId)
+      : undefined;
+    if (
+      !template ||
+      (role !== "owner" && role !== "editor")
+    ) {
+      throw new ApiError(
+        "FORBIDDEN_WORKSPACE",
+        403,
+        "ไม่มีสิทธิ์เข้าถึงรายการนี้"
+      );
+    }
+    return template;
+  }
+
+  function requireRecurringOccurrence(
+    actor: AuthSession,
+    occurrenceId: string
+  ): RecurringOccurrence {
+    const occurrence = recurringOccurrences.get(occurrenceId);
+    const role = occurrence
+      ? memberships.get(occurrence.workspaceId)?.get(actor.userId)
+      : undefined;
+    if (
+      !occurrence ||
+      (role !== "owner" && role !== "editor")
+    ) {
+      throw new ApiError(
+        "FORBIDDEN_WORKSPACE",
+        403,
+        "ไม่มีสิทธิ์เข้าถึงรายการนี้"
+      );
+    }
+    return occurrence;
+  }
+
+  function validateRecurringDestination(input: {
+    workspaceId: string;
+    kind: "income" | "expense";
+    accountId: string;
+    categoryId: string;
+    currency: string;
+  }): void {
+    const account = accounts.get(input.accountId);
+    const category = categories.get(input.categoryId);
+    if (
+      !account ||
+      account.workspaceId !== input.workspaceId ||
+      account.currency !== input.currency ||
+      !category ||
+      category.workspaceId !== input.workspaceId ||
+      category.kind !== input.kind
+    ) {
+      throw new ApiError(
+        "VALIDATION_FAILED",
+        400,
+        "บัญชี หมวดหมู่ หรือสกุลเงินไม่ถูกต้อง"
+      );
+    }
+  }
 }

@@ -1,10 +1,16 @@
 import {
   financeSnapshotSchema,
+  materializeRecurringPeriodResultSchema,
+  postRecurringOccurrenceResultSchema,
+  recurringOccurrenceSchema,
+  recurringPeriodSchema,
+  recurringTemplateSchema,
   type Account,
   type Category,
   type PostedTransferResponse,
   type Workspace
 } from "@systems-credit/contracts";
+import { z } from "zod";
 import {
   generateInstallmentSchedule,
   generateManualInstallmentSchedule,
@@ -71,6 +77,13 @@ type CloudMutationResult<T> = Readonly<{
   response: T;
   replayed: boolean;
 }>;
+
+const recurringPostMutationResultSchema = z
+  .object({
+    response: postRecurringOccurrenceResultSchema,
+    replayed: z.boolean()
+  })
+  .strict();
 
 function categoryFromRow(row: CategoryRow): Category {
   return {
@@ -354,6 +367,86 @@ export function createSupabaseFinanceRepository(
             regeneratedRows: simulation.regeneratedRows
           }
       });
+    },
+
+    async createRecurringTemplate(actor, input) {
+      return recurringTemplateSchema.parse(
+        await client.rpc(actor, "create_recurring_template", {
+          p_input: input
+        })
+      );
+    },
+
+    async updateRecurringTemplate(actor, templateId, input) {
+      return recurringTemplateSchema.parse(
+        await client.rpc(actor, "update_recurring_template", {
+          p_id: templateId,
+          p_input: input
+        })
+      );
+    },
+
+    async setRecurringTemplateStatus(
+      actor,
+      templateId,
+      status,
+      version
+    ) {
+      return recurringTemplateSchema.parse(
+        await client.rpc(
+          actor,
+          "set_recurring_template_status",
+          {
+            p_id: templateId,
+            p_expected_version: version,
+            p_status: status
+          }
+        )
+      );
+    },
+
+    async materializeRecurringPeriod(actor, input) {
+      return materializeRecurringPeriodResultSchema.parse(
+        await client.rpc(actor, "materialize_recurring_period", {
+          p_input: input
+        })
+      );
+    },
+
+    async getRecurringPeriod(actor, workspaceId, period) {
+      return recurringPeriodSchema.parse(
+        await client.rpc(actor, "get_recurring_period", {
+          p_workspace_id: workspaceId,
+          p_period: period
+        })
+      );
+    },
+
+    async updateRecurringOccurrence(actor, occurrenceId, input) {
+      return recurringOccurrenceSchema.parse(
+        await client.rpc(actor, "update_recurring_occurrence", {
+          p_id: occurrenceId,
+          p_input: input
+        })
+      );
+    },
+
+    async skipRecurringOccurrence(actor, occurrenceId, version) {
+      return recurringOccurrenceSchema.parse(
+        await client.rpc(actor, "skip_recurring_occurrence", {
+          p_id: occurrenceId,
+          p_expected_version: version
+        })
+      );
+    },
+
+    async postRecurringOccurrence(actor, occurrenceId, input) {
+      return recurringPostMutationResultSchema.parse(
+        await client.rpc(actor, "post_recurring_occurrence", {
+          p_id: occurrenceId,
+          p_input: input
+        })
+      );
     }
   };
 }
