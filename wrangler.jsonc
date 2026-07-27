@@ -7,6 +7,14 @@
   "observability": {
     "enabled": true
   },
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/health",
+      "/v1/*"
+    ]
+  },
   "secrets": {
     "required": [
       "SUPABASE_URL",
