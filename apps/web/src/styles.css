@@ -2445,6 +2445,207 @@ select:focus {
   color: var(--muted);
 }
 
+/* User invitations */
+.invitation-admin-grid {
+  display: grid;
+  margin-bottom: 1.2rem;
+  grid-template-columns: minmax(19rem, 0.8fr) minmax(0, 1.2fr);
+  gap: 1.2rem;
+}
+
+.invitation-create-card,
+.invitation-link-panel,
+.invitation-history {
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+.invitation-create-card .section-heading {
+  justify-content: flex-start;
+}
+
+.invitation-create-card .section-heading > svg {
+  flex: 0 0 auto;
+  color: var(--forest);
+}
+
+.invitation-create-card .section-heading p,
+.invitation-history .section-heading p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.invitation-create-card .form-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.invitation-create-card .form-grid input {
+  margin-bottom: 0.55rem;
+}
+
+.invitation-link-panel {
+  position: relative;
+  align-content: center;
+  border-color: rgba(33, 76, 60, 0.18);
+  background:
+    linear-gradient(140deg, rgba(219, 233, 220, 0.68), transparent),
+    var(--paper);
+}
+
+.invitation-link-panel > .icon-button {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+}
+
+.invitation-link-panel h2 {
+  margin: 0.45rem 2.5rem 0.35rem 0;
+}
+
+.invitation-link-panel p {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.invitation-link-panel code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 0.85rem;
+  padding: 0.8rem;
+  border: 1px dashed rgba(33, 76, 60, 0.28);
+  border-radius: 0.7rem;
+  background: rgba(255, 254, 250, 0.72);
+  color: var(--forest-deep);
+  font-family: "Kanit", sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.invitation-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.invitation-row {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: white;
+  grid-template-columns:
+    minmax(10rem, 1.2fr)
+    minmax(11rem, 0.9fr)
+    auto
+    auto;
+  gap: 0.8rem;
+}
+
+.invitation-row > div:first-child,
+.invitation-dates {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.invitation-row > div:first-child span,
+.invitation-dates {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.invitation-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.8rem;
+  padding: 0.25rem 0.62rem;
+  border-radius: 999px;
+  background: #edf1eb;
+  color: var(--forest);
+  font-family: "Kanit", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.invitation-status.ready {
+  background: var(--mint);
+  color: var(--forest-deep);
+}
+
+.invitation-status.busy {
+  background: #faf0d7;
+  color: #795d18;
+}
+
+.invitation-status.redeemed {
+  background: #e5edf6;
+  color: #315879;
+}
+
+.invitation-status.expired,
+.invitation-status.revoked {
+  background: #f3e4e0;
+  color: #8d3e31;
+}
+
+.invitation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.invitation-actions .ghost-button,
+.invitation-actions .danger-button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.invitation-accept-card,
+.invitation-session-card {
+  width: min(29rem, 100%);
+}
+
+.invitation-accept-card h1,
+.invitation-session-card h1 {
+  margin: 0.65rem 0 0.35rem;
+}
+
+.invitation-recipient {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: #f5f5ef;
+}
+
+.invitation-recipient > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.invitation-recipient strong {
+  font-family: "Kanit", sans-serif;
+}
+
+.invitation-recipient small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
 .menu-backdrop {
   display: none;
 }
@@ -2472,6 +2673,22 @@ select:focus {
 }
 
 @media (max-width: 820px) {
+  .invitation-admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .invitation-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .invitation-dates {
+    grid-column: 1 / 2;
+  }
+
+  .invitation-actions {
+    grid-column: 1 / -1;
+  }
+
   .sign-in-shell,
   .onboarding-shell {
     display: block;
@@ -2609,6 +2826,24 @@ select:focus {
 }
 
 @media (max-width: 620px) {
+  .invitation-row {
+    grid-template-columns: 1fr;
+  }
+
+  .invitation-dates,
+  .invitation-actions {
+    grid-column: auto;
+  }
+
+  .invitation-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .invitation-actions button {
+    width: 100%;
+  }
+
   .page-heading {
     align-items: flex-start;
   }

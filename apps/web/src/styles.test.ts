@@ -25,6 +25,9 @@ describe("global typography", () => {
       <div class="payment-allocation-preview"><strong>100</strong></div>
       <div class="payoff-heading"><p><strong>100</strong></p></div>
       <div class="payoff-summary"><strong>100</strong></div>
+      <div class="invitation-link-panel"><code>ลิงก์คำเชิญ</code></div>
+      <span class="invitation-status">พร้อมใช้</span>
+      <div class="invitation-recipient"><strong>ผู้รับ</strong></div>
     `;
 
     const typographySelectors = [
@@ -46,7 +49,10 @@ describe("global typography", () => {
       ".next-installment strong",
       ".payment-allocation-preview strong",
       ".payoff-heading p strong",
-      ".payoff-summary strong"
+      ".payoff-summary strong",
+      ".invitation-link-panel code",
+      ".invitation-status",
+      ".invitation-recipient strong"
     ];
 
     for (const selector of typographySelectors) {
@@ -57,5 +63,29 @@ describe("global typography", () => {
         '"Kanit", sans-serif'
       );
     }
+  });
+
+  it("lays out invitation controls for readable links and statuses", () => {
+    document.body.innerHTML = `
+      <div class="invitation-admin-grid"></div>
+      <div class="invitation-link-panel"><code>https://example.test/very-long-link</code></div>
+      <span class="invitation-status ready">พร้อมใช้</span>
+    `;
+
+    expect(
+      getComputedStyle(
+        document.querySelector(".invitation-admin-grid")!
+      ).display
+    ).toBe("grid");
+    expect(
+      getComputedStyle(
+        document.querySelector(".invitation-link-panel code")!
+      ).whiteSpace
+    ).toBe("pre-wrap");
+    expect(
+      getComputedStyle(
+        document.querySelector(".invitation-status")!
+      ).display
+    ).toBe("inline-flex");
   });
 });
