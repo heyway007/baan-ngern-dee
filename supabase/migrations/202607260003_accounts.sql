@@ -70,7 +70,10 @@ begin
       message = 'authentication required';
   end if;
 
-  if public.workspace_role_for(p_workspace_id) not in ('owner', 'editor') then
+  if coalesce(
+    public.workspace_role_for(p_workspace_id)::text,
+    ''
+  ) not in ('owner', 'editor') then
     raise exception using
       errcode = '42501',
       message = 'workspace access denied';

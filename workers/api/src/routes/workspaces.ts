@@ -21,7 +21,7 @@ export function workspaceRoutes(financeRepository: FinanceRepository) {
     }
 
     const result = await financeRepository.createPrivateWorkspace(
-      context.get("auth").userId,
+      context.get("auth"),
       parsed.data
     );
     return context.json(result, 201);

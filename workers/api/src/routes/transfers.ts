@@ -21,7 +21,7 @@ export function transferRoutes(financeRepository: FinanceRepository) {
     }
 
     const result = await financeRepository.postTransfer(
-      context.get("auth").userId,
+      context.get("auth"),
       parsed.data
     );
     return context.json(

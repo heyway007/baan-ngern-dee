@@ -26,7 +26,7 @@ export function transactionRoutes(
     }
 
     const result = await financeRepository.postTransaction(
-      context.get("auth").userId,
+      context.get("auth"),
       parsed.data
     );
     return context.json(result, 201);
@@ -51,7 +51,7 @@ export function transactionRoutes(
     }
 
     const result = await financeRepository.voidTransaction(
-      context.get("auth").userId,
+      context.get("auth"),
       transactionId,
       parsed.data
     );

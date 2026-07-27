@@ -216,8 +216,10 @@ begin
   for update;
   if v_source.id is null
     or v_destination.id is null
-    or public.workspace_role_for(v_workspace_id)
-      not in ('owner', 'editor')
+    or coalesce(
+      public.workspace_role_for(v_workspace_id)::text,
+      ''
+    ) not in ('owner', 'editor')
   then
     raise exception using errcode = '42501', message = 'workspace access denied';
   end if;

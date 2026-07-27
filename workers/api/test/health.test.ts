@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import app from "../src/index";
+import { createApp } from "../src/app";
 
 describe("GET /health", () => {
   it("returns the stable health contract", async () => {
+    const app = createApp();
     const response = await app.request("/health");
 
     expect(response.status).toBe(200);

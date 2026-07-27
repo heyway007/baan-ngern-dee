@@ -211,7 +211,10 @@ begin
     and archived_at is null
   for update;
   if not found
-    or public.workspace_role_for(v_workspace_id) not in ('owner', 'editor')
+    or coalesce(
+      public.workspace_role_for(v_workspace_id)::text,
+      ''
+    ) not in ('owner', 'editor')
   then
     raise exception using errcode = '42501', message = 'workspace access denied';
   end if;
@@ -405,8 +408,10 @@ begin
   where id = p_transaction_id
   for update;
   if not found
-    or public.workspace_role_for(v_transaction.workspace_id)
-      not in ('owner', 'editor')
+    or coalesce(
+      public.workspace_role_for(v_transaction.workspace_id)::text,
+      ''
+    ) not in ('owner', 'editor')
   then
     raise exception using errcode = '42501', message = 'workspace access denied';
   end if;

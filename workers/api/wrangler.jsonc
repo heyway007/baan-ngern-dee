@@ -1,6 +1,17 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "systems-credit-api",
+  "name": "baan-ngern-dee-api",
   "main": "src/index.ts",
-  "compatibility_date": "2026-07-26"
+  "compatibility_date": "2026-07-27",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "secrets": {
+    "required": [
+      "SUPABASE_URL",
+      "SUPABASE_ANON_KEY",
+      "ALLOWED_ORIGIN"
+    ]
+  }
 }

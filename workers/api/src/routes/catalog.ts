@@ -21,7 +21,7 @@ export function catalogRoutes(financeRepository: FinanceRepository) {
     }
 
     const category = await financeRepository.createCategory(
-      context.get("auth").userId,
+      context.get("auth"),
       parsed.data
     );
     return context.json({ category }, 201);

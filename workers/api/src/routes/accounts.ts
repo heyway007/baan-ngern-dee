@@ -23,7 +23,7 @@ export function accountRoutes(financeRepository: FinanceRepository) {
     }
 
     const result = await financeRepository.createAccount(
-      context.get("auth").userId,
+      context.get("auth"),
       parsed.data
     );
     return context.json(result, 201);

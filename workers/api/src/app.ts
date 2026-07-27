@@ -10,6 +10,7 @@ import {
 import { requestId } from "./middleware/request-id";
 import { accountRoutes } from "./routes/accounts";
 import { catalogRoutes } from "./routes/catalog";
+import { installmentRoutes } from "./routes/installments";
 import { transactionRoutes } from "./routes/transactions";
 import { transferRoutes } from "./routes/transfers";
 import { workspaceRoutes } from "./routes/workspaces";
@@ -46,6 +47,10 @@ export function createApp(
   app.route("/v1/accounts", accountRoutes(financeRepository));
   app.route("/v1/workspaces", workspaceRoutes(financeRepository));
   app.route("/v1/categories", catalogRoutes(financeRepository));
+  app.route(
+    "/v1/installments",
+    installmentRoutes(financeRepository)
+  );
   app.route(
     "/v1/transactions",
     transactionRoutes(financeRepository)

@@ -4,11 +4,14 @@ import type {
   CategoryKind,
   CreateAccountWithOpeningBalanceInput,
   CreateCategoryInput,
+  CreateInstallmentContractInput,
   CreatePrivateWorkspaceInput,
   CreateTransferInput,
   CreateTransactionInput,
   PostedTransactionResponse,
   PostedTransferResponse,
+  PostInstallmentPayoffInput,
+  PostInstallmentPaymentInput,
   TransactionState,
   TransactionType,
   VoidTransactionInput,
@@ -16,40 +19,59 @@ import type {
   WorkspaceRole
 } from "@systems-credit/contracts";
 import {
+  allocateInstallmentPayment,
+  generateInstallmentSchedule,
+  generateManualInstallmentSchedule,
+  normalizeAccountKind,
   parseMoney,
   roundMoney,
+  simulateInstallmentPayoff,
   transferReportEffect,
   validateSplits
 } from "@systems-credit/domain";
 
 import { ApiError } from "../api-error";
+import type { AuthSession } from "../middleware/auth";
 
 export interface FinanceRepository {
   createPrivateWorkspace(
-    userId: string,
+    actor: AuthSession,
     input: CreatePrivateWorkspaceInput
   ): Promise<{ workspace: Workspace; categories: Category[] }>;
   createCategory(
-    userId: string,
+    actor: AuthSession,
     input: CreateCategoryInput
   ): Promise<Category>;
   createAccount(
-    userId: string,
+    actor: AuthSession,
     input: CreateAccountWithOpeningBalanceInput
   ): Promise<AccountCreationResult>;
   postTransaction(
-    userId: string,
+    actor: AuthSession,
     input: CreateTransactionInput
   ): Promise<PostedTransactionResponse>;
   voidTransaction(
-    userId: string,
+    actor: AuthSession,
     transactionId: string,
     input: VoidTransactionInput
   ): Promise<PostedTransactionResponse>;
   postTransfer(
-    userId: string,
+    actor: AuthSession,
     input: CreateTransferInput
   ): Promise<TransferPostResult>;
+  createInstallmentContract(
+    actor: AuthSession,
+    input: CreateInstallmentContractInput,
+    clientMutationId: string
+  ): Promise<InstallmentContractPostResult>;
+  postInstallmentPayment(
+    actor: AuthSession,
+    input: InstallmentPaymentCommand
+  ): Promise<InstallmentPaymentPostResult>;
+  postInstallmentPayoff(
+    actor: AuthSession,
+    input: InstallmentPayoffCommand
+  ): Promise<InstallmentPayoffPostResult>;
 }
 
 export type AccountCreationResult = Readonly<{
@@ -68,6 +90,94 @@ export type AccountCreationResult = Readonly<{
 
 export type TransferPostResult = Readonly<{
   response: PostedTransferResponse;
+  replayed: boolean;
+}>;
+
+export type InstallmentContractResult = Readonly<{
+  contract: Readonly<{
+    id: string;
+    workspaceId: string;
+    name: string;
+    kind: CreateInstallmentContractInput["kind"];
+    creditor?: string;
+    originalPrincipal: string;
+    downPayment: string;
+    financedPrincipal: string;
+    financedFees: string;
+    currency: string;
+    interestMethod: CreateInstallmentContractInput["interestMethod"];
+    annualRate: string;
+    periods: number;
+    firstDueDate: string;
+    fundingAccountId?: string;
+    expenseCategoryId?: string;
+    interestCategoryId?: string;
+    status: "active" | "paid_off";
+    version: number;
+  }>;
+  schedule: StoredInstallmentScheduleRow[];
+}>;
+
+export type InstallmentContractPostResult = Readonly<{
+  response: InstallmentContractResult;
+  replayed: boolean;
+}>;
+
+export type InstallmentPaymentCommand =
+  PostInstallmentPaymentInput &
+    Readonly<{ expectedVersion: number }>;
+
+export type InstallmentPaymentResponse = Readonly<{
+  paymentId: string;
+  allocation: Readonly<{
+    penalty: string;
+    fees: string;
+    interest: string;
+    principal: string;
+    total: string;
+  }>;
+  reportableExpense: string;
+  scheduleStatus: "partially_paid" | "paid";
+  contractStatus: "active" | "paid_off";
+  contractVersion: number;
+  accountBalance: Readonly<{
+    accountId: string;
+    amount: string;
+    currency: string;
+  }>;
+}>;
+
+export type InstallmentPaymentPostResult = Readonly<{
+  response: InstallmentPaymentResponse;
+  replayed: boolean;
+}>;
+
+export type InstallmentPayoffCommand =
+  PostInstallmentPayoffInput &
+    Readonly<{ expectedVersion: number }>;
+
+export type InstallmentPayoffResponse = Readonly<{
+  payoffId: string;
+  action: PostInstallmentPayoffInput["action"];
+  strategy?: NonNullable<PostInstallmentPayoffInput["strategy"]>;
+  principalPayment: string;
+  interestDue: string;
+  feesDue: string;
+  reportableExpense: string;
+  totalCashRequired: string;
+  remainingPrincipal: string;
+  interestSaved: string;
+  contractStatus: "active" | "paid_off";
+  contractVersion: number;
+  accountBalance: Readonly<{
+    accountId: string;
+    amount: string;
+    currency: string;
+  }>;
+}>;
+
+export type InstallmentPayoffPostResult = Readonly<{
+  response: InstallmentPayoffResponse;
   replayed: boolean;
 }>;
 
@@ -91,6 +201,32 @@ type StoredTransaction = {
   version: number;
   balanceDelta: string;
 };
+
+type StoredInstallmentContract =
+  InstallmentContractResult["contract"] & {
+    createdBy: string;
+  };
+
+export type StoredInstallmentScheduleRow = Readonly<{
+  sequence: number;
+  dueDate: string;
+  openingPrincipal: string;
+  principal: string;
+  interest: string;
+  fees: string;
+  total: string;
+  closingPrincipal: string;
+  scheduledPenalty: string;
+  paidPrincipal: string;
+  paidInterest: string;
+  paidFees: string;
+  paidPenalty: string;
+  status:
+    | "upcoming"
+    | "partially_paid"
+    | "paid"
+    | "cancelled";
+}>;
 
 type DefaultCategory = Readonly<{
   slug: string;
@@ -134,9 +270,30 @@ export function createMemoryFinanceRepository(): FinanceRepository {
     string,
     PostedTransferResponse
   >();
+  const installmentContracts = new Map<
+    string,
+    StoredInstallmentContract
+  >();
+  const installmentSchedules = new Map<
+    string,
+    StoredInstallmentScheduleRow[]
+  >();
+  const installmentMutationResults = new Map<
+    string,
+    InstallmentContractResult
+  >();
+  const installmentPaymentMutationResults = new Map<
+    string,
+    InstallmentPaymentResponse
+  >();
+  const installmentPayoffMutationResults = new Map<
+    string,
+    InstallmentPayoffResponse
+  >();
 
   return {
-    async createPrivateWorkspace(userId, input) {
+    async createPrivateWorkspace(actor, input) {
+      const { userId } = actor;
       const existing = [...workspaces.values()].some(
         (workspace) =>
           workspace.ownerUserId === userId && workspace.kind === "private"
@@ -190,7 +347,8 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       };
     },
 
-    async createCategory(userId, input) {
+    async createCategory(actor, input) {
+      const { userId } = actor;
       const role = memberships.get(input.workspaceId)?.get(userId);
       if (role !== "owner" && role !== "editor") {
         throw new ApiError(
@@ -246,7 +404,8 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       return category;
     },
 
-    async createAccount(userId, input) {
+    async createAccount(actor, input) {
+      const { userId } = actor;
       const role = memberships.get(input.workspaceId)?.get(userId);
       if (role !== "owner" && role !== "editor") {
         throw new ApiError(
@@ -311,7 +470,8 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       return result;
     },
 
-    async postTransaction(userId, input) {
+    async postTransaction(actor, input) {
+      const { userId } = actor;
       const mutationKey = `${userId}:${input.clientMutationId}`;
       const existing = mutationResults.get(mutationKey);
       if (existing) {
@@ -424,7 +584,8 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       return response;
     },
 
-    async voidTransaction(userId, transactionId, input) {
+    async voidTransaction(actor, transactionId, input) {
+      const { userId } = actor;
       const transaction = transactions.get(transactionId);
       if (!transaction) {
         throw new ApiError(
@@ -490,7 +651,8 @@ export function createMemoryFinanceRepository(): FinanceRepository {
       };
     },
 
-    async postTransfer(userId, input) {
+    async postTransfer(actor, input) {
+      const { userId } = actor;
       const mutationKey = `${userId}:${input.clientMutationId}`;
       const existing = transferMutationResults.get(mutationKey);
       if (existing) {
@@ -673,6 +835,571 @@ export function createMemoryFinanceRepository(): FinanceRepository {
         ]
       };
       transferMutationResults.set(mutationKey, response);
+      return { response, replayed: false };
+    },
+
+    async createInstallmentContract(
+      actor,
+      input,
+      clientMutationId
+    ) {
+      const { userId } = actor;
+      const mutationKey = `${userId}:${clientMutationId}`;
+      const existing = installmentMutationResults.get(mutationKey);
+      if (existing) {
+        return { response: existing, replayed: true };
+      }
+
+      const role = memberships.get(input.workspaceId)?.get(userId);
+      if (role !== "owner" && role !== "editor") {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์เข้าถึงพื้นที่นี้"
+        );
+      }
+      const duplicate = [...installmentContracts.values()].some(
+        (contract) =>
+          contract.workspaceId === input.workspaceId &&
+          contract.status === "active" &&
+          contract.name.trim().toLocaleLowerCase("th-TH") ===
+            input.name.trim().toLocaleLowerCase("th-TH")
+      );
+      if (duplicate) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          409,
+          "มีสัญญาที่ยังใช้งานชื่อนี้อยู่แล้ว"
+        );
+      }
+      if (input.fundingAccountId) {
+        const account = accounts.get(input.fundingAccountId);
+        if (
+          !account ||
+          account.workspaceId !== input.workspaceId ||
+          account.currency !== input.currency
+        ) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            400,
+            "บัญชีของสัญญาไม่ถูกต้อง"
+          );
+        }
+      }
+      for (const categoryId of [
+        input.expenseCategoryId,
+        input.interestCategoryId
+      ]) {
+        if (!categoryId) {
+          continue;
+        }
+        const category = categories.get(categoryId);
+        if (
+          !category ||
+          category.workspaceId !== input.workspaceId ||
+          category.kind !== "expense"
+        ) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            400,
+            "หมวดหมู่ของสัญญาไม่ถูกต้อง"
+          );
+        }
+      }
+
+      const originalPrincipal = parseMoney({
+        amount: input.originalPrincipal,
+        currency: input.currency
+      });
+      const downPayment = parseMoney({
+        amount: input.downPayment,
+        currency: input.currency
+      });
+      if (downPayment.greaterThan(originalPrincipal)) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "เงินดาวน์ต้องไม่เกินเงินต้นเดิม"
+        );
+      }
+      const financedPrincipal = roundMoney(
+        originalPrincipal.minus(downPayment),
+        input.currency
+      );
+      if (
+        !parseMoney({
+          amount: financedPrincipal,
+          currency: input.currency
+        }).greaterThan(0)
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "เงินต้นที่นำไปผ่อนต้องมากกว่าศูนย์"
+        );
+      }
+
+      const generated =
+        input.interestMethod === "manual"
+          ? generateManualInstallmentSchedule({
+              principal: financedPrincipal,
+              currency: input.currency,
+              rows: input.manualRows ?? []
+            })
+          : generateInstallmentSchedule({
+              principal: financedPrincipal,
+              financedFees: input.financedFees,
+              currency: input.currency,
+              interestMethod: input.interestMethod,
+              annualRate: input.annualRate,
+              periods: input.periods,
+              firstDueDate: input.firstDueDate
+            });
+      const schedule: StoredInstallmentScheduleRow[] =
+        generated.map((row) => ({
+          ...row,
+          scheduledPenalty: roundMoney("0", input.currency),
+          paidPrincipal: roundMoney("0", input.currency),
+          paidInterest: roundMoney("0", input.currency),
+          paidFees: roundMoney("0", input.currency),
+          paidPenalty: roundMoney("0", input.currency),
+          status: "upcoming"
+        }));
+      const id = crypto.randomUUID();
+      const contract: StoredInstallmentContract = {
+        id,
+        workspaceId: input.workspaceId,
+        name: input.name,
+        kind: input.kind,
+        ...(input.creditor ? { creditor: input.creditor } : {}),
+        originalPrincipal: roundMoney(
+          input.originalPrincipal,
+          input.currency
+        ),
+        downPayment: roundMoney(
+          input.downPayment,
+          input.currency
+        ),
+        financedPrincipal,
+        financedFees: roundMoney(
+          input.financedFees,
+          input.currency
+        ),
+        currency: input.currency,
+        interestMethod: input.interestMethod,
+        annualRate: input.annualRate,
+        periods: input.periods,
+        firstDueDate: input.firstDueDate,
+        ...(input.fundingAccountId
+          ? { fundingAccountId: input.fundingAccountId }
+          : {}),
+        ...(input.expenseCategoryId
+          ? { expenseCategoryId: input.expenseCategoryId }
+          : {}),
+        ...(input.interestCategoryId
+          ? { interestCategoryId: input.interestCategoryId }
+          : {}),
+        status: "active",
+        version: 1,
+        createdBy: userId
+      };
+      installmentContracts.set(id, contract);
+      installmentSchedules.set(id, schedule);
+      const response: InstallmentContractResult = {
+        contract,
+        schedule
+      };
+      installmentMutationResults.set(mutationKey, response);
+      return { response, replayed: false };
+    },
+
+    async postInstallmentPayment(actor, input) {
+      const { userId } = actor;
+      const mutationKey = `${userId}:${input.clientMutationId}`;
+      const existing =
+        installmentPaymentMutationResults.get(mutationKey);
+      if (existing) {
+        return { response: existing, replayed: true };
+      }
+      const role = memberships.get(input.workspaceId)?.get(userId);
+      const contract = installmentContracts.get(input.contractId);
+      const account = accounts.get(input.accountId);
+      if (
+        (role !== "owner" && role !== "editor") ||
+        !contract ||
+        contract.workspaceId !== input.workspaceId ||
+        contract.status !== "active" ||
+        !account ||
+        account.workspaceId !== input.workspaceId
+      ) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์ชำระสัญญานี้"
+        );
+      }
+      if (contract.version !== input.expectedVersion) {
+        throw new ApiError(
+          "STALE_VERSION",
+          409,
+          "สัญญาถูกแก้ไขแล้ว กรุณาโหลดข้อมูลใหม่"
+        );
+      }
+      if (
+        account.currency !== input.currency ||
+        contract.currency !== input.currency ||
+        !normalizeAccountKind(account.type).liquid
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "บัญชีหรือสกุลเงินไม่ถูกต้อง"
+        );
+      }
+      const schedule = installmentSchedules.get(contract.id) ?? [];
+      const row = schedule.find(
+        (candidate) => candidate.sequence === input.sequence
+      );
+      if (
+        !row ||
+        row.status === "paid" ||
+        row.status === "cancelled"
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "งวดนี้ไม่สามารถชำระได้"
+        );
+      }
+      const paymentAmount = parseMoney({
+        amount: input.amount,
+        currency: input.currency
+      });
+      const balance = parseMoney({
+        amount: account.balance,
+        currency: account.currency
+      });
+      if (balance.lessThan(paymentAmount)) {
+        throw new ApiError(
+          "INSUFFICIENT_BALANCE",
+          409,
+          "ยอดเงินในบัญชีไม่เพียงพอ"
+        );
+      }
+      const scheduledPenalty = roundMoney(
+        parseMoney({
+          amount: row.scheduledPenalty,
+          currency: input.currency
+        }).plus(
+          parseMoney({
+            amount: input.penaltyAmount,
+            currency: input.currency
+          })
+        ),
+        input.currency
+      );
+      const allocation = allocateInstallmentPayment({
+        currency: input.currency,
+        amount: input.amount,
+        scheduledPrincipal: row.principal,
+        scheduledInterest: row.interest,
+        scheduledFees: row.fees,
+        scheduledPenalty,
+        paidPrincipal: row.paidPrincipal,
+        paidInterest: row.paidInterest,
+        paidFees: row.paidFees,
+        paidPenalty: row.paidPenalty
+      });
+      const add = (current: string, amount: string) =>
+        roundMoney(
+          parseMoney({
+            amount: current,
+            currency: input.currency
+          }).plus(
+            parseMoney({
+              amount,
+              currency: input.currency
+            })
+          ),
+          input.currency
+        );
+      const updatedRow: StoredInstallmentScheduleRow = {
+        ...row,
+        scheduledPenalty,
+        paidPrincipal: add(
+          row.paidPrincipal,
+          allocation.allocation.principal
+        ),
+        paidInterest: add(
+          row.paidInterest,
+          allocation.allocation.interest
+        ),
+        paidFees: add(
+          row.paidFees,
+          allocation.allocation.fees
+        ),
+        paidPenalty: add(
+          row.paidPenalty,
+          allocation.allocation.penalty
+        ),
+        status: allocation.status
+      };
+      const updatedSchedule = schedule.map((candidate) =>
+        candidate.sequence === row.sequence
+          ? updatedRow
+          : candidate
+      );
+      const contractStatus = updatedSchedule.every(
+        (candidate) =>
+          candidate.status === "paid" ||
+          candidate.status === "cancelled"
+      )
+        ? "paid_off"
+        : "active";
+      const contractVersion = contract.version + 1;
+      const accountBalance = {
+        accountId: account.id,
+        amount: roundMoney(
+          balance.minus(paymentAmount),
+          account.currency
+        ),
+        currency: account.currency
+      };
+      const response: InstallmentPaymentResponse = {
+        paymentId: crypto.randomUUID(),
+        allocation: allocation.allocation,
+        reportableExpense: allocation.reportableExpense,
+        scheduleStatus: allocation.status,
+        contractStatus,
+        contractVersion,
+        accountBalance
+      };
+      accounts.set(account.id, {
+        ...account,
+        balance: accountBalance.amount
+      });
+      installmentContracts.set(contract.id, {
+        ...contract,
+        status: contractStatus,
+        version: contractVersion
+      });
+      installmentSchedules.set(contract.id, updatedSchedule);
+      installmentPaymentMutationResults.set(
+        mutationKey,
+        response
+      );
+      return { response, replayed: false };
+    },
+
+    async postInstallmentPayoff(actor, input) {
+      const { userId } = actor;
+      const mutationKey = `${userId}:${input.clientMutationId}`;
+      const existing =
+        installmentPayoffMutationResults.get(mutationKey);
+      if (existing) {
+        return { response: existing, replayed: true };
+      }
+      const role = memberships.get(input.workspaceId)?.get(userId);
+      const contract = installmentContracts.get(input.contractId);
+      const account = accounts.get(input.accountId);
+      if (
+        (role !== "owner" && role !== "editor") ||
+        !contract ||
+        contract.workspaceId !== input.workspaceId ||
+        contract.status !== "active" ||
+        !account ||
+        account.workspaceId !== input.workspaceId
+      ) {
+        throw new ApiError(
+          "FORBIDDEN_WORKSPACE",
+          403,
+          "ไม่มีสิทธิ์ปิดยอดสัญญานี้"
+        );
+      }
+      if (contract.version !== input.expectedVersion) {
+        throw new ApiError(
+          "STALE_VERSION",
+          409,
+          "สัญญาถูกแก้ไขแล้ว กรุณาโหลดข้อมูลใหม่"
+        );
+      }
+      if (
+        account.currency !== input.currency ||
+        contract.currency !== input.currency ||
+        !normalizeAccountKind(account.type).liquid
+      ) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          400,
+          "บัญชีหรือสกุลเงินไม่ถูกต้อง"
+        );
+      }
+      const schedule = installmentSchedules.get(contract.id) ?? [];
+      const payableRows = schedule.filter(
+        (row) =>
+          row.status !== "paid" && row.status !== "cancelled"
+      );
+      const remaining = (
+        scheduled: string,
+        paid: string
+      ) =>
+        roundMoney(
+          parseMoney({
+            amount: scheduled,
+            currency: input.currency
+          }).minus(
+            parseMoney({
+              amount: paid,
+              currency: input.currency
+            })
+          ),
+          input.currency
+        );
+      const unpaidRows = payableRows.map((row) => ({
+        sequence: row.sequence,
+        dueDate: row.dueDate,
+        principal: remaining(row.principal, row.paidPrincipal),
+        interest: remaining(row.interest, row.paidInterest),
+        fees: remaining(row.fees, row.paidFees),
+        penalty: remaining(
+          row.scheduledPenalty,
+          row.paidPenalty
+        )
+      }));
+      const remainingPrincipal = roundMoney(
+        unpaidRows.reduce(
+          (total, row) =>
+            total.plus(
+              parseMoney({
+                amount: row.principal,
+                currency: input.currency
+              })
+            ),
+          parseMoney({ amount: "0", currency: input.currency })
+        ),
+        input.currency
+      );
+      if (
+        remainingPrincipal !==
+        roundMoney(
+          input.expectedRemainingPrincipal,
+          input.currency
+        )
+      ) {
+        throw new ApiError(
+          "STALE_VERSION",
+          409,
+          "ยอดเงินต้นเปลี่ยนแล้ว กรุณาขอใบเสนอใหม่"
+        );
+      }
+      const simulation = simulateInstallmentPayoff({
+        action: input.action,
+        ...(input.strategy ? { strategy: input.strategy } : {}),
+        ...(input.extraPrincipal
+          ? { extraPrincipal: input.extraPrincipal }
+          : {}),
+        currency: input.currency,
+        interestMethod: contract.interestMethod,
+        annualRate: contract.annualRate,
+        paymentDate: input.financialDate,
+        remainingPrincipal,
+        quotedInterest: input.quotedInterest,
+        quotedFees: input.quotedFees,
+        unpaidRows
+      });
+      const cashRequired = parseMoney({
+        amount: simulation.totalCashRequired,
+        currency: input.currency
+      });
+      const balance = parseMoney({
+        amount: account.balance,
+        currency: account.currency
+      });
+      if (balance.lessThan(cashRequired)) {
+        throw new ApiError(
+          "INSUFFICIENT_BALANCE",
+          409,
+          "ยอดเงินในบัญชีไม่เพียงพอ"
+        );
+      }
+      const regenerated: StoredInstallmentScheduleRow[] =
+        simulation.regeneratedRows.map((row) => ({
+          ...row,
+          scheduledPenalty: roundMoney("0", input.currency),
+          paidPrincipal: roundMoney("0", input.currency),
+          paidInterest: roundMoney("0", input.currency),
+          paidFees: roundMoney("0", input.currency),
+          paidPenalty: roundMoney("0", input.currency),
+          status: "upcoming"
+        }));
+      const updatedSchedule =
+        input.action === "payoff"
+          ? schedule.map((row) =>
+              payableRows.some(
+                (payable) => payable.sequence === row.sequence
+              )
+                ? { ...row, status: "cancelled" as const }
+                : row
+            )
+          : [
+              ...schedule.filter(
+                (row) =>
+                  !payableRows.some(
+                    (payable) =>
+                      payable.sequence === row.sequence
+                  )
+              ),
+              ...regenerated
+            ].sort((left, right) => left.sequence - right.sequence);
+      const contractStatus =
+        input.action === "payoff" ? "paid_off" : "active";
+      const contractVersion = contract.version + 1;
+      const accountBalance = {
+        accountId: account.id,
+        amount: roundMoney(
+          balance.minus(cashRequired),
+          account.currency
+        ),
+        currency: account.currency
+      };
+      const reportableExpense = roundMoney(
+        parseMoney({
+          amount: simulation.interestDue,
+          currency: input.currency
+        }).plus(
+          parseMoney({
+            amount: simulation.feesDue,
+            currency: input.currency
+          })
+        ),
+        input.currency
+      );
+      const response: InstallmentPayoffResponse = {
+        payoffId: crypto.randomUUID(),
+        action: input.action,
+        ...(input.strategy ? { strategy: input.strategy } : {}),
+        principalPayment: simulation.principalPayment,
+        interestDue: simulation.interestDue,
+        feesDue: simulation.feesDue,
+        reportableExpense,
+        totalCashRequired: simulation.totalCashRequired,
+        remainingPrincipal: simulation.remainingPrincipal,
+        interestSaved: simulation.interestSaved,
+        contractStatus,
+        contractVersion,
+        accountBalance
+      };
+      accounts.set(account.id, {
+        ...account,
+        balance: accountBalance.amount
+      });
+      installmentContracts.set(contract.id, {
+        ...contract,
+        status: contractStatus,
+        version: contractVersion
+      });
+      installmentSchedules.set(contract.id, updatedSchedule);
+      installmentPayoffMutationResults.set(mutationKey, response);
       return { response, replayed: false };
     }
   };
