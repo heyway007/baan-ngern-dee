@@ -385,6 +385,60 @@ describe("cloud application flow", () => {
     });
   });
 
+  it("moves a redeemed recipient into private-workspace onboarding", async () => {
+    const user = userEvent.setup();
+    const {
+      auth,
+      dependencies,
+      publicInvitationApi
+    } = createDependencies({
+      session: null,
+      snapshot: emptySnapshot
+    });
+    const token = "c".repeat(43);
+    vi.mocked(publicInvitationApi.redeem).mockResolvedValue({
+      email: "friend@example.test"
+    });
+    vi.mocked(auth.signIn).mockResolvedValue({
+      ...session,
+      email: "friend@example.test",
+      displayName: "Friend"
+    });
+    window.history.replaceState(
+      null,
+      "",
+      `/accept-invite#token=${token}`
+    );
+    render(
+      <MemoryRouter
+        initialEntries={[`/accept-invite#token=${token}`]}
+      >
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Friend");
+    await user.type(
+      screen.getByLabelText("รหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.type(
+      screen.getByLabelText("ยืนยันรหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "สร้างบัญชีและเข้าสู่ระบบ"
+      })
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "สร้างพื้นที่ส่วนตัว"
+      })
+    ).toBeInTheDocument();
+  });
+
   it("asks an authenticated user to sign out before accepting an invitation", async () => {
     const user = userEvent.setup();
     const {

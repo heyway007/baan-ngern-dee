@@ -143,6 +143,8 @@ export function AcceptInvitePage({
     } catch (caught) {
       setError(redeemErrorMessage(caught));
     } finally {
+      setPassword("");
+      setConfirmation("");
       setSubmitting(false);
     }
   }

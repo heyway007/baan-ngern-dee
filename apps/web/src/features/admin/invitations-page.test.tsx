@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AdminInvitationApi
 } from "../../lib/invitation-api";
+import { RemoteInvitationError } from "../../lib/invitation-api";
 import { InvitationsPage } from "./invitations-page";
 
 const readyInvitation: AdminInvitation = {
@@ -153,5 +154,36 @@ describe("InvitationsPage", () => {
     expect(
       await screen.findByText(invitationUrl)
     ).toBeInTheDocument();
+  });
+
+  it("shows a Thai error when the email already has an account", async () => {
+    const user = userEvent.setup();
+    const api = createApi([]);
+    api.create.mockRejectedValue(
+      new RemoteInvitationError(
+        "EMAIL_ALREADY_REGISTERED",
+        409,
+        "อีเมลนี้มีบัญชีแล้ว"
+      )
+    );
+    render(<InvitationsPage api={api} />);
+
+    await user.type(
+      screen.getByLabelText("ชื่อผู้รับ"),
+      "Existing"
+    );
+    await user.type(
+      screen.getByLabelText("อีเมลผู้รับ"),
+      "existing@example.test"
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "สร้างลิงก์เชิญ"
+      })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "อีเมลนี้มีบัญชีแล้ว"
+    );
   });
 });

@@ -89,6 +89,38 @@ describe("AcceptInvitePage", () => {
     expect(api.redeem).not.toHaveBeenCalled();
   });
 
+  it("rejects a mismatched password confirmation", async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    render(
+      <AcceptInvitePage
+        api={api}
+        auth={{ signIn: vi.fn() }}
+        onAuthenticated={vi.fn()}
+      />
+    );
+    await screen.findByText("Friend");
+
+    await user.type(
+      screen.getByLabelText("รหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.type(
+      screen.getByLabelText("ยืนยันรหัสผ่าน"),
+      "different-password"
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "สร้างบัญชีและเข้าสู่ระบบ"
+      })
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "รหัสผ่านทั้งสองช่องไม่ตรงกัน"
+    );
+    expect(api.redeem).not.toHaveBeenCalled();
+  });
+
   it("redeems, signs in, and hands the authenticated session to the app", async () => {
     const user = userEvent.setup();
     const api = createApi();
@@ -150,5 +182,44 @@ describe("AcceptInvitePage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "ลิงก์คำเชิญหมดอายุแล้ว"
     );
+  });
+
+  it("shows a safe message when the invitation was already used", async () => {
+    const api = createApi();
+    api.inspect.mockRejectedValue(
+      new RemoteInvitationError(
+        "INVITATION_REDEEMED",
+        409,
+        "INVITATION_REDEEMED"
+      )
+    );
+    render(
+      <AcceptInvitePage
+        api={api}
+        auth={{ signIn: vi.fn() }}
+        onAuthenticated={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ลิงก์คำเชิญนี้ถูกใช้แล้ว"
+    );
+  });
+
+  it("asks the recipient to reopen a link after refreshing without its fragment", async () => {
+    const api = createApi();
+    window.history.replaceState(null, "", "/accept-invite");
+    render(
+      <AcceptInvitePage
+        api={api}
+        auth={{ signIn: vi.fn() }}
+        onAuthenticated={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ลิงก์คำเชิญไม่ถูกต้อง"
+    );
+    expect(api.inspect).not.toHaveBeenCalled();
   });
 });

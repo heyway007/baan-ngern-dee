@@ -388,7 +388,10 @@ export function FinanceRoutes({
             <AcceptInvitePage
               api={publicInvitationApi}
               auth={auth}
-              onAuthenticated={acceptAuthenticatedSession}
+              onAuthenticated={(session) => {
+                acceptAuthenticatedSession(session);
+                navigate("/onboarding", { replace: true });
+              }}
             />
           }
         />
