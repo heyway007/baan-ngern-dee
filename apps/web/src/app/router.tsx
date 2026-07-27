@@ -1,4 +1,13 @@
-import { useMemo, useState } from "react";
+import type {
+  PublicAppConfig
+} from "@systems-credit/contracts";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState
+} from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -12,54 +21,259 @@ import { AccountsPage } from "../features/accounts/accounts-page";
 import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
 import { OverviewPage } from "../features/dashboard/overview-page";
-import { OnboardingPage } from "../features/onboarding/onboarding-page";
 import { InstallmentsPage } from "../features/installments/installments-page";
+import { OnboardingPage } from "../features/onboarding/onboarding-page";
 import { TransactionsPage } from "../features/transactions/transactions-page";
 import {
-  createLocalFinanceApi,
-  type LocalFinanceSnapshot
-} from "../lib/local-finance-api";
+  createSupabaseCloudAuth,
+  type CloudAuth,
+  type CloudSession
+} from "../lib/cloud-auth";
+import { loadPublicAppConfig } from "../lib/cloud-config";
 import {
-  clearLocalSession,
-  readLocalSession,
-  writeLocalSession,
-  type LocalSession
-} from "../lib/local-session";
+  createRemoteFinanceApi,
+  type RemoteFinanceApi
+} from "../lib/remote-finance-api";
+import {
+  cloudReducer,
+  initialCloudState
+} from "./cloud-state";
 import { AppLayout } from "./layout";
 
-type FinanceRoutesProps = Readonly<{
-  storage?: Storage;
+const LEGACY_STORAGE_KEYS = [
+  "systems-credit:session:v1",
+  "systems-credit:finance:v1"
+] as const;
+
+export type CloudRouterDependencies = Readonly<{
+  storage: Pick<Storage, "removeItem">;
+  loadConfig(): Promise<PublicAppConfig>;
+  createAuth(config: PublicAppConfig): CloudAuth;
+  createApi(
+    auth: CloudAuth,
+    onUnauthenticated: () => void
+  ): RemoteFinanceApi;
 }>;
 
+const defaultDependencies: CloudRouterDependencies = {
+  storage: window.localStorage,
+  loadConfig: () => loadPublicAppConfig(),
+  createAuth: createSupabaseCloudAuth,
+  createApi: (auth, onUnauthenticated) =>
+    createRemoteFinanceApi({ auth, onUnauthenticated })
+};
+
+type FinanceRoutesProps = Readonly<{
+  dependencies?: CloudRouterDependencies;
+}>;
+
+function CloudStatusCard({
+  label,
+  detail
+}: Readonly<{ label: string; detail: string }>) {
+  return (
+    <main className="page-content">
+      <section
+        className="empty-state large"
+        role="status"
+        aria-label={label}
+      >
+        <span className="brand-mark" aria-hidden="true">฿</span>
+        <h1>{label}</h1>
+        <p>{detail}</p>
+      </section>
+    </main>
+  );
+}
+
+function CloudErrorCard({
+  message,
+  onRetry
+}: Readonly<{ message: string; onRetry(): void }>) {
+  return (
+    <main className="page-content">
+      <section className="empty-state large" role="alert">
+        <h1>ยังเชื่อมต่อข้อมูลไม่ได้</h1>
+        <p>{message}</p>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={onRetry}
+        >
+          ลองอีกครั้ง
+        </button>
+      </section>
+    </main>
+  );
+}
+
 export function FinanceRoutes({
-  storage = window.localStorage
+  dependencies = defaultDependencies
 }: FinanceRoutesProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const api = useMemo(() => createLocalFinanceApi(storage), [storage]);
-  const [snapshot, setSnapshot] = useState<LocalFinanceSnapshot>(
-    () => api.getSnapshot()
+  const [state, dispatch] = useReducer(
+    cloudReducer,
+    initialCloudState
   );
-  const [session, setSession] = useState<LocalSession | null>(
-    () => readLocalSession(storage)
+  const [bootAttempt, setBootAttempt] = useState(0);
+  const authRef = useRef<CloudAuth | null>(null);
+  const apiRef = useRef<RemoteFinanceApi | null>(null);
+  const activeRef = useRef(true);
+
+  const loadSnapshot = useCallback(
+    async (session: CloudSession, api: RemoteFinanceApi) => {
+      dispatch({ type: "SESSION_FOUND", session });
+      try {
+        const snapshot = await api.getSnapshot();
+        if (activeRef.current) {
+          dispatch({
+            type: "SNAPSHOT_LOADED",
+            session,
+            snapshot
+          });
+        }
+      } catch {
+        if (activeRef.current) {
+          dispatch({
+            type: "SNAPSHOT_FAILED",
+            session,
+            message:
+              "ตรวจสอบอินเทอร์เน็ตแล้วลองโหลดข้อมูลอีกครั้ง"
+          });
+        }
+      }
+    },
+    []
   );
+
+  useEffect(() => {
+    activeRef.current = true;
+    let unsubscribe = () => {};
+
+    async function boot() {
+      try {
+        const config = await dependencies.loadConfig();
+        if (!activeRef.current) return;
+        dispatch({ type: "CONFIG_LOADED" });
+
+        const auth = dependencies.createAuth(config);
+        const api = dependencies.createApi(auth, () => {
+          if (activeRef.current) {
+            dispatch({ type: "SIGNED_OUT" });
+          }
+        });
+        authRef.current = auth;
+        apiRef.current = api;
+
+        const handleSession = (session: CloudSession | null) => {
+          if (!activeRef.current) return;
+          if (!session) {
+            dispatch({ type: "SIGNED_OUT" });
+            return;
+          }
+          for (const key of LEGACY_STORAGE_KEYS) {
+            dependencies.storage.removeItem(key);
+          }
+          void loadSnapshot(session, api);
+        };
+
+        unsubscribe = auth.subscribe(handleSession);
+        handleSession(await auth.getSession());
+      } catch {
+        if (activeRef.current) {
+          dispatch({
+            type: "BOOT_FAILED",
+            message:
+              "โหลดการตั้งค่าระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+          });
+        }
+      }
+    }
+
+    void boot();
+    return () => {
+      activeRef.current = false;
+      unsubscribe();
+    };
+  }, [bootAttempt, dependencies, loadSnapshot]);
+
+  async function signOut() {
+    try {
+      await authRef.current?.signOut();
+    } finally {
+      dispatch({ type: "SIGNED_OUT" });
+      navigate("/sign-in", { replace: true });
+    }
+  }
 
   function refreshSnapshot() {
-    setSnapshot(api.getSnapshot());
+    if (
+      (state.status === "ready" ||
+        state.status === "recoverable-error" ||
+        state.status === "loading-finance") &&
+      state.session &&
+      apiRef.current
+    ) {
+      return loadSnapshot(state.session, apiRef.current);
+    }
+    return Promise.resolve();
   }
 
-  function signIn(displayName: string) {
-    const next = writeLocalSession(storage, displayName);
-    setSession(next);
-    navigate(snapshot.workspace ? "/overview" : "/onboarding", {
-      replace: true
-    });
+  if (state.status === "loading-config") {
+    return (
+      <CloudStatusCard
+        label="กำลังเชื่อมต่อระบบคลาวด์"
+        detail="กำลังโหลดการตั้งค่าที่ปลอดภัยสำหรับอุปกรณ์นี้"
+      />
+    );
+  }
+  if (state.status === "loading-session") {
+    return (
+      <CloudStatusCard
+        label="กำลังตรวจสอบการเข้าสู่ระบบ"
+        detail="กำลังกู้คืนเซสชัน Supabase ของคุณ"
+      />
+    );
+  }
+  if (state.status === "loading-finance") {
+    return (
+      <CloudStatusCard
+        label="กำลังโหลดข้อมูลการเงิน"
+        detail="กำลังซิงก์บัญชี รายการ และข้อมูลผ่อนจากคลาวด์"
+      />
+    );
+  }
+  if (state.status === "recoverable-error") {
+    return (
+      <CloudErrorCard
+        message={state.message}
+        onRetry={() => {
+          if (state.retry === "boot") {
+            dispatch({ type: "RETRY_BOOT" });
+            setBootAttempt((attempt) => attempt + 1);
+          } else if (state.session && apiRef.current) {
+            dispatch({ type: "RETRY_SNAPSHOT" });
+            void loadSnapshot(state.session, apiRef.current);
+          }
+        }}
+      />
+    );
   }
 
-  function signOut() {
-    clearLocalSession(storage);
-    setSession(null);
-    navigate("/sign-in", { replace: true });
+  if (state.status === "signed-out") {
+    return (
+      <Routes>
+        <Route path="/sign-in" element={<SignInPage onSignIn={() => {}} />} />
+        <Route path="*" element={<Navigate to="/sign-in" replace />} />
+      </Routes>
+    );
+  }
+
+  const { session, snapshot } = state;
+  const api = apiRef.current;
+  if (!api) {
+    return null;
   }
 
   return (
@@ -67,29 +281,24 @@ export function FinanceRoutes({
       <Route
         path="/sign-in"
         element={
-          session ? (
-            <Navigate
-              to={snapshot.workspace ? "/overview" : "/onboarding"}
-              replace
-            />
-          ) : (
-            <SignInPage onSignIn={signIn} />
-          )
+          <Navigate
+            to={snapshot.workspace ? "/overview" : "/onboarding"}
+            replace
+          />
         }
       />
       <Route
         path="/onboarding"
         element={
-          !session ? (
-            <Navigate to="/sign-in" replace />
-          ) : snapshot.workspace ? (
+          snapshot.workspace ? (
             <Navigate to="/overview" replace />
           ) : (
             <OnboardingPage
               api={api}
               onComplete={() => {
-                refreshSnapshot();
-                navigate("/overview", { replace: true });
+                void refreshSnapshot().then(() => {
+                  navigate("/overview", { replace: true });
+                });
               }}
             />
           )
@@ -106,17 +315,13 @@ export function FinanceRoutes({
       >
         <Route
           element={
-            session ? (
-              <AppLayout session={session} onSignOut={signOut} />
-            ) : null
+            <AppLayout session={session} onSignOut={signOut} />
           }
         >
           <Route
             path="/overview"
             element={
-              session ? (
-                <OverviewPage session={session} snapshot={snapshot} />
-              ) : null
+              <OverviewPage session={session} snapshot={snapshot} />
             }
           />
           <Route

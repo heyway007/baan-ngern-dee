@@ -13,13 +13,15 @@ import { useState, type ComponentType } from "react";
 
 import type { Account } from "@systems-credit/contracts";
 
-import type { LocalFinanceApi, LocalFinanceSnapshot } from "../../lib/local-finance-api";
+import type { FinanceSnapshot } from "@systems-credit/contracts";
+
+import type { FinanceApi } from "../../lib/finance-api";
 import { formatMoney } from "../../lib/money-display";
 import { AccountForm } from "./account-form";
 
 type AccountsPageProps = Readonly<{
-  api: LocalFinanceApi;
-  snapshot: LocalFinanceSnapshot;
+  api: FinanceApi;
+  snapshot: FinanceSnapshot;
   onChanged(): void;
 }>;
 

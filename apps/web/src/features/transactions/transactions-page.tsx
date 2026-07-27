@@ -2,17 +2,16 @@ import { Plus, Settings2, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import type {
-  LocalFinanceApi,
-  LocalFinanceSnapshot
-} from "../../lib/local-finance-api";
+import type { FinanceSnapshot } from "@systems-credit/contracts";
+
+import type { FinanceApi } from "../../lib/finance-api";
 import { TransactionForm } from "./transaction-form";
 import { TransactionList } from "./transaction-list";
 import { CategoryManager } from "./category-manager";
 
 type TransactionsPageProps = Readonly<{
-  api: LocalFinanceApi;
-  snapshot: LocalFinanceSnapshot;
+  api: FinanceApi;
+  snapshot: FinanceSnapshot;
   onChanged(): void;
   initiallyOpen?: boolean;
   initialType?: "income" | "expense";

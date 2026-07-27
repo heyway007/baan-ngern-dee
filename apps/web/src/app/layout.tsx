@@ -13,10 +13,10 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
-import type { LocalSession } from "../lib/local-session";
+import type { CloudSession } from "../lib/cloud-auth";
 
 type AppLayoutProps = Readonly<{
-  session: LocalSession;
+  session: CloudSession;
   onSignOut(): void;
 }>;
 
@@ -51,8 +51,8 @@ export function AppLayout({ session, onSignOut }: AppLayoutProps) {
         <div className="local-status">
           <ShieldCheck size={17} aria-hidden="true" />
           <span>
-            <strong>Local mode</strong>
-            ข้อมูลอยู่บนเครื่องนี้
+            <strong>Cloud connected</strong>
+            ข้อมูลซิงก์ผ่าน Supabase
           </span>
         </div>
 
@@ -82,7 +82,7 @@ export function AppLayout({ session, onSignOut }: AppLayoutProps) {
           </div>
           <button type="button" className="ghost-button" onClick={onSignOut}>
             <LogOut size={18} aria-hidden="true" />
-            ออกจากโหมด Local
+            ออกจากระบบ
           </button>
         </div>
       </aside>
@@ -150,7 +150,7 @@ export function ComingSoonPage({
       <section className="empty-state large">
         <CircleDollarSign size={42} aria-hidden="true" />
         <h2>เตรียมพื้นที่ไว้ให้แล้ว</h2>
-        <p>โมดูลนี้จะต่อยอดจากบัญชีที่คุณเพิ่มไว้ โดยข้อมูลยังอยู่ในเครื่องเช่นเดิม</p>
+        <p>โมดูลนี้จะต่อยอดจากบัญชีที่คุณเพิ่มไว้ และซิงก์ข้อมูลผ่านระบบคลาวด์</p>
       </section>
     </main>
   );

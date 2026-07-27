@@ -9,14 +9,15 @@ import {
 import { Link } from "react-router-dom";
 import { toFinancialDate } from "@systems-credit/domain";
 
-import type { LocalFinanceSnapshot } from "../../lib/local-finance-api";
-import type { LocalSession } from "../../lib/local-session";
+import type { FinanceSnapshot } from "@systems-credit/contracts";
+
+import type { CloudSession } from "../../lib/cloud-auth";
 import { addExactMoney, formatMoney } from "../../lib/money-display";
 import { SummaryCards } from "./summary-cards";
 
 type OverviewPageProps = Readonly<{
-  session: LocalSession;
-  snapshot: LocalFinanceSnapshot;
+  session: CloudSession;
+  snapshot: FinanceSnapshot;
 }>;
 
 export function OverviewPage({ session, snapshot }: OverviewPageProps) {

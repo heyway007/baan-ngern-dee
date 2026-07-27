@@ -1,9 +1,62 @@
-import { render, screen } from "@testing-library/react";
+import type {
+  FinanceSnapshot,
+  PublicAppConfig
+} from "@systems-credit/contracts";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { FinanceRoutes } from "./router";
+import type {
+  CloudAuth,
+  CloudSession
+} from "../lib/cloud-auth";
+import type {
+  RemoteFinanceApi
+} from "../lib/remote-finance-api";
+import {
+  FinanceRoutes,
+  type CloudRouterDependencies
+} from "./router";
+
+const config: PublicAppConfig = {
+  supabaseUrl: "https://project.supabase.co",
+  supabasePublishableKey: "sb_publishable_public"
+};
+
+const session: CloudSession = {
+  userId: "9c585235-f409-4764-b4ad-f1da4d500290",
+  email: "min@example.test",
+  displayName: "มิน",
+  accessToken: "access-token"
+};
+
+const emptySnapshot: FinanceSnapshot = {
+  version: 1,
+  workspace: null,
+  categories: [],
+  accounts: [],
+  accountBalances: {},
+  openingTransactions: [],
+  transactions: [],
+  installmentContracts: [],
+  installmentSchedules: {},
+  installmentPayments: [],
+  installmentPayoffs: []
+};
+
+const workspaceSnapshot: FinanceSnapshot = {
+  ...emptySnapshot,
+  workspace: {
+    id: "813b2d5c-0c0c-4d23-9981-b2996bbdf503",
+    name: "บ้านของมิน",
+    kind: "private",
+    baseCurrency: "THB",
+    timeZone: "Asia/Bangkok",
+    role: "owner",
+    version: 1
+  }
+};
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
@@ -27,33 +80,120 @@ class MemoryStorage implements Storage {
   }
 }
 
-describe("local application flow", () => {
-  it("continues from local sign-in through onboarding to overview", async () => {
-    const user = userEvent.setup();
+function createDependencies(options: {
+  session: CloudSession | null;
+  snapshot?: FinanceSnapshot;
+  storage?: Storage;
+}) {
+  let listener: ((next: CloudSession | null) => void) | undefined;
+  const auth: CloudAuth = {
+    getSession: vi.fn().mockResolvedValue(options.session),
+    refreshSession: vi.fn(),
+    subscribe: vi.fn((nextListener) => {
+      listener = nextListener;
+      return vi.fn();
+    }),
+    signIn: vi.fn(),
+    signUp: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    updatePassword: vi.fn(),
+    signOut: vi.fn(async () => {
+      listener?.(null);
+    })
+  };
+  const api = {
+    getSnapshot: vi.fn().mockResolvedValue(
+      options.snapshot ?? emptySnapshot
+    )
+  } as unknown as RemoteFinanceApi;
+  const dependencies: CloudRouterDependencies = {
+    storage: options.storage ?? new MemoryStorage(),
+    loadConfig: vi.fn().mockResolvedValue(config),
+    createAuth: vi.fn(() => auth),
+    createApi: vi.fn(() => api)
+  };
+  return { auth, api, dependencies };
+}
+
+describe("cloud application flow", () => {
+  it("routes a signed-out user to sign in after cloud boot", async () => {
+    const { dependencies } = createDependencies({ session: null });
     render(
       <MemoryRouter initialEntries={["/overview"]}>
-        <FinanceRoutes storage={new MemoryStorage()} />
+        <FinanceRoutes dependencies={dependencies} />
       </MemoryRouter>
     );
 
-    await user.type(screen.getByLabelText("ชื่อที่แสดง"), "มิน");
-    await user.click(
-      screen.getByRole("button", { name: "เริ่มใช้งานบนเครื่องนี้" })
-    );
     expect(
-      screen.getByRole("heading", { name: "สร้างพื้นที่ส่วนตัว" })
+      screen.getByRole("status", { name: "กำลังเชื่อมต่อระบบคลาวด์" })
     ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", {
+        name: "เริ่มพื้นที่การเงินของคุณ"
+      })
+    ).toBeInTheDocument();
+  });
 
-    const workspaceName = screen.getByLabelText("ชื่อพื้นที่ส่วนตัว");
-    await user.clear(workspaceName);
-    await user.type(workspaceName, "บ้านของมิน");
-    await user.click(
-      screen.getByRole("button", { name: "สร้างพื้นที่" })
+  it("routes a session with an empty snapshot to onboarding", async () => {
+    const { dependencies } = createDependencies({ session });
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "สร้างพื้นที่ส่วนตัว" })
+    ).toBeInTheDocument();
+  });
+
+  it("routes a session with a workspace to overview and removes only legacy keys", async () => {
+    const storage = new MemoryStorage();
+    storage.setItem("systems-credit:session:v1", "legacy-session");
+    storage.setItem("systems-credit:finance:v1", "legacy-finance");
+    storage.setItem("keep-me", "preserved");
+    const { dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      storage
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
     );
 
     expect(
       await screen.findByRole("heading", { name: /สวัสดี มิน/ })
     ).toBeInTheDocument();
     expect(screen.getByText("บ้านของมิน")).toBeInTheDocument();
+    expect(storage.getItem("systems-credit:session:v1")).toBeNull();
+    expect(storage.getItem("systems-credit:finance:v1")).toBeNull();
+    expect(storage.getItem("keep-me")).toBe("preserved");
+  });
+
+  it("signs out through Supabase and returns to sign in", async () => {
+    const user = userEvent.setup();
+    const { auth, dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot
+    });
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "ออกจากระบบ" })
+    );
+
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledOnce());
+    expect(
+      await screen.findByRole("heading", {
+        name: "เริ่มพื้นที่การเงินของคุณ"
+      })
+    ).toBeInTheDocument();
   });
 });

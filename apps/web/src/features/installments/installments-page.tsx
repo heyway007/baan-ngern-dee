@@ -14,10 +14,9 @@ import {
   roundMoney
 } from "@systems-credit/domain";
 
-import type {
-  LocalFinanceApi,
-  LocalFinanceSnapshot
-} from "../../lib/local-finance-api";
+import type { FinanceSnapshot } from "@systems-credit/contracts";
+
+import type { FinanceApi } from "../../lib/finance-api";
 import { formatMoney } from "../../lib/money-display";
 import { InstallmentForm } from "./installment-form";
 import { InstallmentPaymentForm } from "./installment-payment-form";
@@ -25,8 +24,8 @@ import { PayoffSimulator } from "./payoff-simulator";
 import { SchedulePreview } from "./schedule-preview";
 
 type InstallmentsPageProps = Readonly<{
-  api: LocalFinanceApi;
-  snapshot: LocalFinanceSnapshot;
+  api: FinanceApi;
+  snapshot: FinanceSnapshot;
   onChanged(): void;
   initiallyOpen?: boolean;
 }>;
@@ -39,7 +38,7 @@ const interestLabels = {
 } as const;
 
 function remainingForRow(
-  row: LocalFinanceSnapshot["installmentSchedules"][string][number],
+  row: FinanceSnapshot["installmentSchedules"][string][number],
   currency: string
 ) {
   const scheduled = [
