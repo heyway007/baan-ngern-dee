@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -57,22 +57,25 @@ function flatSchedule(): LocalInstallmentScheduleRow[] {
 describe("PayoffSimulator", () => {
   it("previews a creditor payoff quote and posts only after confirmation", async () => {
     const user = userEvent.setup();
-    const postInstallmentPayoff = vi.fn().mockResolvedValue({
-      payoffId: "44444444-4444-4444-8444-444444444444",
-      action: "payoff",
-      principalPayment: "12000.00",
-      interestDue: "500.00",
-      feesDue: "100.00",
-      totalCashRequired: "12600.00",
-      remainingPrincipal: "0.00",
-      interestSaved: "940.00",
-      contractStatus: "paid_off",
-      accountBalance: {
-        accountId,
-        amount: "7400.00",
-        currency: "THB"
-      }
-    });
+    const postInstallmentPayoff = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue({
+        payoffId: "44444444-4444-4444-8444-444444444444",
+        action: "payoff",
+        principalPayment: "12000.00",
+        interestDue: "500.00",
+        feesDue: "100.00",
+        totalCashRequired: "12600.00",
+        remainingPrincipal: "0.00",
+        interestSaved: "940.00",
+        contractStatus: "paid_off",
+        accountBalance: {
+          accountId,
+          amount: "7400.00",
+          currency: "THB"
+        }
+      });
     const onPosted = vi.fn();
 
     render(
@@ -131,6 +134,33 @@ describe("PayoffSimulator", () => {
         name: "ยืนยันปิดยอด ฿12,600.00"
       })
     );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ยังบันทึกรายการไม่ได้"
+    );
+    const firstMutationId =
+      postInstallmentPayoff.mock.calls[0]![0].clientMutationId;
+    await user.click(
+      screen.getByRole("button", {
+        name: "ยืนยันปิดยอด ฿12,600.00"
+      })
+    );
+    await waitFor(() =>
+      expect(postInstallmentPayoff).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      postInstallmentPayoff.mock.calls[1]![0].clientMutationId
+    ).toBe(firstMutationId);
+    await user.click(
+      screen.getByRole("button", {
+        name: "ยืนยันปิดยอด ฿12,600.00"
+      })
+    );
+    await waitFor(() =>
+      expect(postInstallmentPayoff).toHaveBeenCalledTimes(3)
+    );
+    expect(
+      postInstallmentPayoff.mock.calls[2]![0].clientMutationId
+    ).not.toBe(firstMutationId);
 
     expect(postInstallmentPayoff).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -144,6 +174,6 @@ describe("PayoffSimulator", () => {
         currency: "THB"
       })
     );
-    expect(onPosted).toHaveBeenCalledTimes(1);
+    expect(onPosted).toHaveBeenCalledTimes(2);
   });
 });

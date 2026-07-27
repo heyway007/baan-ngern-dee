@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useRef,
   useState,
   type FormEvent
 } from "react";
@@ -171,6 +172,7 @@ export function PayoffSimulator({
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const clientMutationId = useRef(crypto.randomUUID());
 
   const preview = useMemo(() => {
     if (
@@ -270,8 +272,9 @@ export function PayoffSimulator({
         currency: contract.currency,
         financialDate,
         ...(note.trim() ? { note: note.trim() } : {}),
-        clientMutationId: crypto.randomUUID()
+        clientMutationId: clientMutationId.current
       });
+      clientMutationId.current = crypto.randomUUID();
       onPosted(result);
     } catch {
       setError(

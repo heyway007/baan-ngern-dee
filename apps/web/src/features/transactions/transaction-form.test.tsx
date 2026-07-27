@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,12 +28,15 @@ const food: Category = {
 describe("TransactionForm", () => {
   it("submits the original decimal string and never a JavaScript float", async () => {
     const user = userEvent.setup();
-    const postTransaction = vi.fn().mockResolvedValue({
-      transactionId: crypto.randomUUID(),
-      version: 1,
-      state: "posted",
-      accountBalances: []
-    });
+    const postTransaction = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue({
+        transactionId: crypto.randomUUID(),
+        version: 1,
+        state: "posted",
+        accountBalances: []
+      });
     render(
       <TransactionForm
         api={{ postTransaction }}
@@ -52,6 +55,31 @@ describe("TransactionForm", () => {
     await user.click(
       screen.getByRole("button", { name: "บันทึกรายจ่าย" })
     );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    const firstMutationId =
+      postTransaction.mock.calls[0]![0].clientMutationId;
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกรายจ่าย" })
+    );
+    await waitFor(() =>
+      expect(postTransaction).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      postTransaction.mock.calls[1]![0].clientMutationId
+    ).toBe(firstMutationId);
+    await waitFor(() =>
+      expect(screen.getByLabelText("จำนวนเงิน")).toHaveValue("")
+    );
+    await user.type(screen.getByLabelText("จำนวนเงิน"), "1.00");
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกรายจ่าย" })
+    );
+    await waitFor(() =>
+      expect(postTransaction).toHaveBeenCalledTimes(3)
+    );
+    expect(
+      postTransaction.mock.calls[2]![0].clientMutationId
+    ).not.toBe(firstMutationId);
 
     expect(postTransaction).toHaveBeenCalledWith(
       expect.objectContaining({

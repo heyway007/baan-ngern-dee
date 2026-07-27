@@ -1,4 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  within
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,15 +12,18 @@ import { InstallmentForm } from "./installment-form";
 describe("InstallmentForm", () => {
   it("submits original strings and exact financed principal for a flat-rate purchase", async () => {
     const user = userEvent.setup();
-    const createInstallmentContract = vi.fn().mockResolvedValue({
-      contract: {
-        id: crypto.randomUUID(),
-        name: "โทรศัพท์",
-        financedPrincipal: "10000.00",
-        status: "active"
-      },
-      schedule: []
-    });
+    const createInstallmentContract = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue({
+        contract: {
+          id: crypto.randomUUID(),
+          name: "โทรศัพท์",
+          financedPrincipal: "10000.00",
+          status: "active"
+        },
+        schedule: []
+      });
     render(
       <InstallmentForm
         api={{ createInstallmentContract }}
@@ -39,6 +47,27 @@ describe("InstallmentForm", () => {
     await user.clear(screen.getByLabelText("วันครบกำหนดงวดแรก"));
     await user.type(screen.getByLabelText("วันครบกำหนดงวดแรก"), "2026-08-15");
     await user.click(screen.getByRole("button", { name: "สร้างตารางผ่อน" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    const firstMutationId =
+      createInstallmentContract.mock.calls[0]![1];
+    await user.click(
+      screen.getByRole("button", { name: "สร้างตารางผ่อน" })
+    );
+    await waitFor(() =>
+      expect(createInstallmentContract).toHaveBeenCalledTimes(2)
+    );
+    expect(createInstallmentContract.mock.calls[1]![1]).toBe(
+      firstMutationId
+    );
+    await user.click(
+      screen.getByRole("button", { name: "สร้างตารางผ่อน" })
+    );
+    await waitFor(() =>
+      expect(createInstallmentContract).toHaveBeenCalledTimes(3)
+    );
+    expect(createInstallmentContract.mock.calls[2]![1]).not.toBe(
+      firstMutationId
+    );
 
     expect(createInstallmentContract).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -49,7 +78,8 @@ describe("InstallmentForm", () => {
         annualRate: "12",
         periods: 10,
         firstDueDate: "2026-08-15"
-      })
+      }),
+      expect.any(String)
     );
     expect(
       within(screen.getByRole("status")).getByText("฿10,000.00")
@@ -131,7 +161,8 @@ describe("InstallmentForm", () => {
             fees: "0.00"
           }
         ]
-      })
+      }),
+      expect.any(String)
     );
   });
 });

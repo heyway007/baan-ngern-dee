@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent
+} from "react";
 import { ArrowDownLeft, ArrowUpRight, Layers3, Save } from "lucide-react";
 
 import type {
@@ -45,6 +51,7 @@ export function TransactionForm({
     useState<TransactionSplitInput[] | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const clientMutationId = useRef(crypto.randomUUID());
 
   const visibleCategories = useMemo(
     () => categories.filter((category) => category.kind === type),
@@ -121,8 +128,9 @@ export function TransactionForm({
         ...(splits ? { splits } : { categoryId }),
         ...(note.trim() ? { note: note.trim() } : {}),
         tagIds: [],
-        clientMutationId: crypto.randomUUID()
+        clientMutationId: clientMutationId.current
       });
+      clientMutationId.current = crypto.randomUUID();
       setAmount("");
       setNote("");
       setSplits(null);

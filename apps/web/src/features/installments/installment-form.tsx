@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useRef,
   useState,
   type FormEvent
 } from "react";
@@ -68,6 +69,7 @@ export function InstallmentForm({
   >([]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const clientMutationId = useRef(crypto.randomUUID());
 
   const expenseCategories = categories.filter(
     (category) => category.kind === "expense"
@@ -170,27 +172,31 @@ export function InstallmentForm({
     setSubmitting(true);
     setError("");
     try {
-      const result = await api.createInstallmentContract({
-        workspaceId,
-        name: name.trim(),
-        kind,
-        ...(creditor.trim() ? { creditor: creditor.trim() } : {}),
-        originalPrincipal,
-        downPayment,
-        financedFees,
-        currency: "THB",
-        interestMethod,
-        annualRate: interestMethod === "manual" ? "0" : annualRate,
-        periods: parsedPeriods,
-        firstDueDate:
-          interestMethod === "manual"
-            ? manualRows[0]!.dueDate
-            : firstDueDate,
-        ...(interestMethod === "manual" ? { manualRows } : {}),
-        ...(fundingAccountId ? { fundingAccountId } : {}),
-        ...(expenseCategoryId ? { expenseCategoryId } : {}),
-        ...(interestCategoryId ? { interestCategoryId } : {})
-      });
+      const result = await api.createInstallmentContract(
+        {
+          workspaceId,
+          name: name.trim(),
+          kind,
+          ...(creditor.trim() ? { creditor: creditor.trim() } : {}),
+          originalPrincipal,
+          downPayment,
+          financedFees,
+          currency: "THB",
+          interestMethod,
+          annualRate: interestMethod === "manual" ? "0" : annualRate,
+          periods: parsedPeriods,
+          firstDueDate:
+            interestMethod === "manual"
+              ? manualRows[0]!.dueDate
+              : firstDueDate,
+          ...(interestMethod === "manual" ? { manualRows } : {}),
+          ...(fundingAccountId ? { fundingAccountId } : {}),
+          ...(expenseCategoryId ? { expenseCategoryId } : {}),
+          ...(interestCategoryId ? { interestCategoryId } : {})
+        },
+        clientMutationId.current
+      );
+      clientMutationId.current = crypto.randomUUID();
       onCreated(result);
     } catch {
       setError("ยังสร้างตารางผ่อนไม่ได้ กรุณาตรวจข้อมูลแล้วลองอีกครั้ง");

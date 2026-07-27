@@ -1,4 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  within
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -59,25 +64,28 @@ const row = {
 describe("InstallmentPaymentForm", () => {
   it("previews exact allocation and posts only after explicit confirmation", async () => {
     const user = userEvent.setup();
-    const postInstallmentPayment = vi.fn().mockResolvedValue({
-      paymentId: crypto.randomUUID(),
-      allocation: {
-        penalty: "10.00",
-        fees: "5.00",
-        interest: "20.00",
-        principal: "0.00",
-        total: "35.00"
-      },
-      reportableExpense: "35.00",
-      scheduleStatus: "partially_paid",
-      contractStatus: "active",
-      accountBalance: {
-        accountId,
-        amount: "965.00",
-        currency: "THB"
-      },
-      expenseTransactionId: crypto.randomUUID()
-    });
+    const postInstallmentPayment = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue({
+        paymentId: crypto.randomUUID(),
+        allocation: {
+          penalty: "10.00",
+          fees: "5.00",
+          interest: "20.00",
+          principal: "0.00",
+          total: "35.00"
+        },
+        reportableExpense: "35.00",
+        scheduleStatus: "partially_paid",
+        contractStatus: "active",
+        accountBalance: {
+          accountId,
+          amount: "965.00",
+          currency: "THB"
+        },
+        expenseTransactionId: crypto.randomUUID()
+      });
     const onPosted = vi.fn();
     render(
       <InstallmentPaymentForm
@@ -120,6 +128,29 @@ describe("InstallmentPaymentForm", () => {
     await user.click(
       screen.getByRole("button", { name: "บันทึกการชำระ" })
     );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ยังบันทึกการชำระไม่ได้"
+    );
+    const firstMutationId =
+      postInstallmentPayment.mock.calls[0]![0].clientMutationId;
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกการชำระ" })
+    );
+    await waitFor(() =>
+      expect(postInstallmentPayment).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      postInstallmentPayment.mock.calls[1]![0].clientMutationId
+    ).toBe(firstMutationId);
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกการชำระ" })
+    );
+    await waitFor(() =>
+      expect(postInstallmentPayment).toHaveBeenCalledTimes(3)
+    );
+    expect(
+      postInstallmentPayment.mock.calls[2]![0].clientMutationId
+    ).not.toBe(firstMutationId);
 
     expect(postInstallmentPayment).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -132,6 +163,6 @@ describe("InstallmentPaymentForm", () => {
         currency: "THB"
       })
     );
-    expect(onPosted).toHaveBeenCalledOnce();
+    expect(onPosted).toHaveBeenCalledTimes(2);
   });
 });
