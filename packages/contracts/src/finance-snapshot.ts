@@ -129,7 +129,7 @@ export const financeInstallmentContractSchema = z
     expenseCategoryId: uuidSchema.optional(),
     interestCategoryId: uuidSchema.optional(),
     status: installmentContractStatusSchema,
-    version: z.literal(1)
+    version: versionSchema
   })
   .strict();
 
