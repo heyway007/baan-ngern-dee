@@ -1,7 +1,7 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "baan-ngern-dee-api",
-  "main": "src/index.ts",
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "baan-ngern-dee",
+  "main": "workers/api/src/index.ts",
   "compatibility_date": "2026-07-27",
   "workers_dev": true,
   "observability": {

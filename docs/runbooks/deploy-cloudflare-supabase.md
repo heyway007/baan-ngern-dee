@@ -36,10 +36,10 @@ npx supabase test db
 คัดลอกไฟล์ตัวอย่าง:
 
 ```powershell
-Copy-Item workers/api/.dev.vars.example workers/api/.dev.vars
+Copy-Item .dev.vars.example .dev.vars
 ```
 
-แก้ `workers/api/.dev.vars`:
+แก้ `.dev.vars`:
 
 ```dotenv
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
@@ -61,9 +61,9 @@ npm run dev:api
 
 ```powershell
 npx wrangler login
-npx wrangler secret put SUPABASE_URL -c workers/api/wrangler.jsonc
-npx wrangler secret put SUPABASE_ANON_KEY -c workers/api/wrangler.jsonc
-npx wrangler secret put ALLOWED_ORIGIN -c workers/api/wrangler.jsonc
+npx wrangler secret put SUPABASE_URL -c wrangler.jsonc
+npx wrangler secret put SUPABASE_ANON_KEY -c wrangler.jsonc
+npx wrangler secret put ALLOWED_ORIGIN -c wrangler.jsonc
 ```
 
 `ALLOWED_ORIGIN` ต้องเป็น origin ของเว็บจริง เช่น
@@ -78,8 +78,17 @@ npm test -- --run
 npm run test:db
 npm run typecheck
 npm run build
-npx wrangler deploy -c workers/api/wrangler.jsonc
+npm run deploy:worker
 ```
+
+หากเชื่อม GitHub ผ่าน Cloudflare Builds ให้ตั้งค่า:
+
+- Root directory: `/`
+- Build command: `npm run build`
+- Deploy command: `npx wrangler deploy`
+
+ไฟล์ `wrangler.jsonc` อยู่ที่ root ของ repository เพื่อรองรับคำสั่ง deploy
+ของ Cloudflare CI โดยตรง ส่วน source ของ Worker ยังอยู่ใน `workers/api`
 
 บันทึก URL `workers.dev` ที่ Wrangler แสดง แล้วตรวจ:
 

@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "deploy:worker": "wrangler deploy -c wrangler.jsonc",
     "dev:api": "npm run dev -w @systems-credit/api",
     "dev:web": "npm run dev -w @systems-credit/web",
     "test": "vitest",
