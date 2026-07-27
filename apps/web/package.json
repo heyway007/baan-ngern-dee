@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
     "@systems-credit/contracts": "*",
     "@systems-credit/domain": "*",
     "@tanstack/react-query": "^5.101.4",
