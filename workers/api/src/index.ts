@@ -40,7 +40,11 @@ export default {
     };
     const app = createApp({
       authVerifier: createSupabaseAuthVerifier(config),
-      financeRepository: createSupabaseFinanceRepository(config)
+      financeRepository: createSupabaseFinanceRepository(config),
+      publicConfig: {
+        supabaseUrl: env.SUPABASE_URL,
+        supabasePublishableKey: env.SUPABASE_ANON_KEY
+      }
     });
     const response = await app.fetch(
       request,

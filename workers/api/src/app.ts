@@ -1,4 +1,8 @@
-import type { HealthResponse } from "@systems-credit/contracts";
+import {
+  publicAppConfigSchema,
+  type HealthResponse,
+  type PublicAppConfig
+} from "@systems-credit/contracts";
 import { Hono } from "hono";
 
 import { errorHandler } from "./middleware/error-handler";
@@ -23,6 +27,7 @@ import type { AppEnv } from "./types";
 export type AppDependencies = Readonly<{
   authVerifier: AuthVerifier;
   financeRepository: FinanceRepository;
+  publicConfig: PublicAppConfig;
 }>;
 
 export function createApp(
@@ -43,6 +48,11 @@ export function createApp(
     };
     return context.json(body);
   });
+  app.get("/config", (context) =>
+    context.json(
+      publicAppConfigSchema.parse(dependencies.publicConfig)
+    )
+  );
   app.use("/v1/*", requireAuth(authVerifier));
   app.route("/v1/accounts", accountRoutes(financeRepository));
   app.route("/v1/workspaces", workspaceRoutes(financeRepository));
