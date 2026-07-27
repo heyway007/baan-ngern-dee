@@ -25,6 +25,7 @@ import { SignInPage } from "../features/auth/sign-in-page";
 import { OverviewPage } from "../features/dashboard/overview-page";
 import { InstallmentsPage } from "../features/installments/installments-page";
 import { OnboardingPage } from "../features/onboarding/onboarding-page";
+import { RecurringPage } from "../features/recurring/recurring-page";
 import { TransactionsPage } from "../features/transactions/transactions-page";
 import {
   createSupabaseCloudAuth,
@@ -436,6 +437,16 @@ export function FinanceRoutes({
                 snapshot={snapshot}
                 onChanged={refreshSnapshot}
                 initiallyOpen
+              />
+            }
+          />
+          <Route
+            path="/recurring"
+            element={
+              <RecurringPage
+                api={api}
+                snapshot={snapshot}
+                onChanged={refreshSnapshot}
               />
             }
           />

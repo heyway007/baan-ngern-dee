@@ -306,6 +306,29 @@ describe("cloud application flow", () => {
     expect(getSnapshot).toHaveBeenCalledOnce();
   });
 
+  it("opens the recurring workspace and exposes its navigation link", async () => {
+    const { dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/recurring"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "รายการประจำ" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "รายการประจำ" })
+    ).toHaveAttribute("href", "/recurring");
+    expect(
+      screen.getByRole("link", { name: "ประจำ" })
+    ).toHaveAttribute("href", "/recurring");
+  });
+
   it("signs out through Supabase and returns to sign in", async () => {
     const user = userEvent.setup();
     const { auth, dependencies } = createDependencies({

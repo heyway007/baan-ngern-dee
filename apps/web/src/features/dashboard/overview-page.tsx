@@ -13,6 +13,7 @@ import type { FinanceSnapshot } from "@systems-credit/contracts";
 
 import type { CloudSession } from "../../lib/cloud-auth";
 import { addExactMoney, formatMoney } from "../../lib/money-display";
+import { RecurringOverviewCard } from "./recurring-overview-card";
 import { SummaryCards } from "./summary-cards";
 
 type OverviewPageProps = Readonly<{
@@ -81,6 +82,10 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
       <SummaryCards
         month={currentMonth}
         transactions={snapshot.transactions}
+      />
+
+      <RecurringOverviewCard
+        occurrences={snapshot.recurringOccurrences}
       />
 
       <div className="dashboard-grid">

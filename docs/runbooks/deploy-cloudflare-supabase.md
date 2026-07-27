@@ -30,6 +30,17 @@ npx supabase db push
 npx supabase test db
 ```
 
+สำหรับโมดูลรายการประจำ ต้องยืนยันว่า production ใช้ migration
+ตามลำดับนี้ก่อน deploy Worker:
+
+```text
+202607270011_recurring_items.sql
+202607270012_recurring_snapshot.sql
+```
+
+โมดูลนี้สร้างรายการของเดือนปัจจุบันตอนผู้ใช้เปิดแอป จึงไม่ต้องเพิ่ม
+Cloudflare Cron Trigger และไม่ต้องเพิ่ม Worker secret ใหม่
+
 ลำดับที่ปลอดภัยคือ tests → link/ตรวจ migration → `db push` → deploy Worker
 
 ## 2. ตั้ง Supabase Auth URL

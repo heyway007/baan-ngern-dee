@@ -109,6 +109,7 @@ strong,
 
 .primary-button,
 .secondary-button,
+.danger-button,
 .ghost-button,
 .icon-button {
   border: 0;
@@ -169,6 +170,35 @@ strong,
 .secondary-button:hover {
   border-color: var(--forest);
   background: white;
+}
+
+.danger-button {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid #b84e3b;
+  border-radius: 0.8rem;
+  background: #b84e3b;
+  color: white;
+  font-weight: 600;
+}
+
+.danger-button.compact {
+  min-height: 2.7rem;
+  padding: 0.62rem 0.9rem;
+}
+
+.danger-button:hover {
+  background: #963a2b;
+}
+
+.danger-button:disabled,
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .icon-button {
@@ -2168,6 +2198,253 @@ select:focus {
   gap: 0.4rem;
 }
 
+/* Recurring income and expenses */
+.recurring-overview-card {
+  margin-top: 1.2rem;
+  padding: 1.25rem;
+}
+
+.recurring-overview-icon {
+  display: grid;
+  width: 2.7rem;
+  height: 2.7rem;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: var(--mint);
+  color: var(--forest);
+}
+
+.recurring-overview-currencies {
+  display: grid;
+  margin: 1rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.recurring-overview-currency {
+  display: grid;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  grid-template-columns: auto 1fr 1fr;
+}
+
+.recurring-overview-currency > strong {
+  color: var(--forest);
+}
+
+.recurring-overview-currency > span {
+  display: grid;
+}
+
+.recurring-overview-currency small,
+.recurring-template-card p,
+.recurring-occurrence-heading p,
+.empty-copy {
+  color: var(--muted);
+}
+
+.recurring-overview-card > .text-link {
+  margin-top: 0.4rem;
+}
+
+.month-selector {
+  width: 10.5rem;
+  margin: 0;
+}
+
+.month-selector span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+}
+
+.month-selector input {
+  min-height: 2.7rem;
+}
+
+.recurring-summary-grid {
+  display: grid;
+  margin-bottom: 1.2rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.2rem;
+}
+
+.recurring-summary-card,
+.recurring-summary-empty {
+  padding: 1.2rem;
+}
+
+.recurring-summary-heading,
+.section-heading,
+.recurring-occurrence-heading,
+.recurring-template-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.recurring-summary-heading h2,
+.section-heading h2,
+.recurring-occurrence-heading h3,
+.recurring-template-card h3 {
+  margin: 0;
+}
+
+.recurring-summary-card dl {
+  display: grid;
+  margin: 1rem 0 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.recurring-summary-card dl > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  padding: 0.8rem;
+  border-radius: 0.7rem;
+  background: #f5f5ef;
+}
+
+.recurring-summary-card dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.recurring-summary-card dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.recurring-summary-card .remaining {
+  background: var(--mint);
+  color: var(--forest-deep);
+}
+
+.status-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #edf1eb;
+  color: var(--forest);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.recurring-occurrence-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+}
+
+.recurring-occurrence-group {
+  min-width: 0;
+  padding: 1.2rem;
+}
+
+.recurring-occurrence-group:last-child {
+  grid-column: 1 / -1;
+}
+
+.section-heading {
+  margin-bottom: 1rem;
+}
+
+.section-heading > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.recurring-occurrence-items,
+.recurring-template-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.recurring-occurrence-card,
+.recurring-template-card {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: white;
+}
+
+.recurring-occurrence-card.skipped,
+.recurring-template-card.cancelled {
+  opacity: 0.7;
+}
+
+.recurring-occurrence-heading p,
+.recurring-template-card p {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+
+.recurring-occurrence-edit,
+.recurring-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.recurring-occurrence-edit {
+  margin-top: 0.9rem;
+}
+
+.recurring-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.recurring-template-card {
+  align-items: center;
+}
+
+.recurring-history {
+  margin-top: 1.2rem;
+  padding: 1.2rem;
+}
+
+.recurring-confirm-dialog {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  padding: 1rem;
+  background: rgba(21, 56, 45, 0.48);
+  inset: 0;
+  place-items: center;
+  backdrop-filter: blur(3px);
+}
+
+.recurring-confirm-dialog .dialog-card {
+  width: min(30rem, 100%);
+  padding: 1.4rem;
+  border-radius: 1rem;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.recurring-confirm-dialog h2 {
+  margin-bottom: 0.5rem;
+}
+
+.recurring-confirm-dialog p {
+  color: var(--muted);
+}
+
 .menu-backdrop {
   display: none;
 }
@@ -2310,7 +2587,8 @@ select:focus {
 
   .bottom-nav a {
     display: flex;
-    min-width: 4rem;
+    min-width: 0;
+    flex: 1 1 0;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -2433,6 +2711,43 @@ select:focus {
 
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .recurring-summary-grid,
+  .recurring-occurrence-list,
+  .recurring-template-grid,
+  .recurring-occurrence-edit {
+    grid-template-columns: 1fr;
+  }
+
+  .recurring-overview-currency {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .recurring-overview-currency > strong {
+    grid-column: 1 / -1;
+  }
+
+  .recurring-summary-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .recurring-template-card {
+    display: grid;
+  }
+
+  .recurring-action-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .recurring-action-row button {
+    min-height: 2.75rem;
+    width: 100%;
+  }
+
+  .month-selector {
+    width: 8.4rem;
   }
 
   .transaction-type-switch {

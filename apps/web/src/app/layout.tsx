@@ -5,6 +5,7 @@ import {
   LogOut,
   Menu,
   ReceiptText,
+  Repeat2,
   Settings,
   ShieldCheck,
   WalletCards,
@@ -21,10 +22,36 @@ type AppLayoutProps = Readonly<{
 }>;
 
 const navigation = [
-  { to: "/overview", label: "ภาพรวม", icon: LayoutDashboard },
-  { to: "/accounts", label: "บัญชี", icon: WalletCards },
-  { to: "/transactions", label: "รายการ", icon: ReceiptText },
-  { to: "/installments", label: "ผ่อนและหนี้", icon: CreditCard }
+  {
+    to: "/overview",
+    label: "ภาพรวม",
+    mobileLabel: "ภาพรวม",
+    icon: LayoutDashboard
+  },
+  {
+    to: "/accounts",
+    label: "บัญชี",
+    mobileLabel: "บัญชี",
+    icon: WalletCards
+  },
+  {
+    to: "/transactions",
+    label: "รายการ",
+    mobileLabel: "รายการ",
+    icon: ReceiptText
+  },
+  {
+    to: "/recurring",
+    label: "รายการประจำ",
+    mobileLabel: "ประจำ",
+    icon: Repeat2
+  },
+  {
+    to: "/installments",
+    label: "ผ่อนและหนี้",
+    mobileLabel: "ผ่อน",
+    icon: CreditCard
+  }
 ] as const;
 
 export function AppLayout({ session, onSignOut }: AppLayoutProps) {
@@ -118,14 +145,14 @@ export function AppLayout({ session, onSignOut }: AppLayoutProps) {
         <Outlet />
 
         <nav className="bottom-nav" aria-label="เมนูมือถือ">
-          {navigation.slice(0, 4).map(({ to, label, icon: Icon }) => (
+          {navigation.map(({ to, mobileLabel, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) => isActive ? "active" : ""}
             >
               <Icon size={20} aria-hidden="true" />
-              <span>{label === "ผ่อนและหนี้" ? "ผ่อน" : label}</span>
+              <span>{mobileLabel}</span>
             </NavLink>
           ))}
         </nav>
