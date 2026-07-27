@@ -8,6 +8,7 @@ import {
   Repeat2,
   Settings,
   ShieldCheck,
+  UserRoundPlus,
   WalletCards,
   X
 } from "lucide-react";
@@ -18,6 +19,7 @@ import type { CloudSession } from "../lib/cloud-auth";
 
 type AppLayoutProps = Readonly<{
   session: CloudSession;
+  canManageInvitations?: boolean;
   onSignOut(): void;
 }>;
 
@@ -54,7 +56,11 @@ const navigation = [
   }
 ] as const;
 
-export function AppLayout({ session, onSignOut }: AppLayoutProps) {
+export function AppLayout({
+  session,
+  canManageInvitations = false,
+  onSignOut
+}: AppLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -95,6 +101,16 @@ export function AppLayout({ session, onSignOut }: AppLayoutProps) {
               <span>{label}</span>
             </NavLink>
           ))}
+          {canManageInvitations ? (
+            <NavLink
+              to="/admin/invitations"
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) => isActive ? "active" : ""}
+            >
+              <UserRoundPlus size={20} aria-hidden="true" />
+              <span>คำเชิญผู้ใช้</span>
+            </NavLink>
+          ) : null}
         </nav>
 
         <div className="sidebar-footer">

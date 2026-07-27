@@ -12,6 +12,7 @@ import type {
   CloudAuth,
   CloudSession
 } from "../lib/cloud-auth";
+import type { AdminInvitationApi } from "../lib/invitation-api";
 import type {
   RemoteFinanceApi
 } from "../lib/remote-finance-api";
@@ -92,6 +93,7 @@ function createDependencies(options: {
     existingCount: number;
   }>;
   storage?: Storage;
+  canManageInvitations?: boolean;
 }) {
   let listener: ((next: CloudSession | null) => void) | undefined;
   const auth: CloudAuth = {
@@ -125,15 +127,27 @@ function createDependencies(options: {
     getSnapshot,
     materializeRecurringPeriod
   } as unknown as RemoteFinanceApi;
+  const adminApi = {
+    capabilities: vi.fn().mockResolvedValue({
+      canManageInvitations:
+        options.canManageInvitations ?? false
+    }),
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    replace: vi.fn(),
+    revoke: vi.fn()
+  } satisfies AdminInvitationApi;
   const dependencies: CloudRouterDependencies = {
     storage: options.storage ?? new MemoryStorage(),
     loadConfig: vi.fn().mockResolvedValue(config),
     createAuth: vi.fn(() => auth),
-    createApi: vi.fn(() => api)
+    createApi: vi.fn(() => api),
+    createAdminApi: vi.fn(() => adminApi)
   };
   return {
     auth,
     api,
+    adminApi,
     dependencies,
     getSnapshot,
     materializeRecurringPeriod
@@ -327,6 +341,28 @@ describe("cloud application flow", () => {
     expect(
       screen.getByRole("link", { name: "ประจำ" })
     ).toHaveAttribute("href", "/recurring");
+  });
+
+  it("opens invitation management only after the server grants the capability", async () => {
+    const { adminApi, dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      canManageInvitations: true
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/invitations"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "คำเชิญผู้ใช้" })
+    ).toBeInTheDocument();
+    expect(adminApi.capabilities).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("link", { name: "คำเชิญผู้ใช้" })
+    ).toHaveAttribute("href", "/admin/invitations");
   });
 
   it("signs out through Supabase and returns to sign in", async () => {

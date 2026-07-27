@@ -1,0 +1,51 @@
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+
+import type { CloudSession } from "../lib/cloud-auth";
+import { AppLayout } from "./layout";
+
+const session: CloudSession = {
+  userId: "11111111-1111-4111-8111-111111111111",
+  email: "admin@example.test",
+  displayName: "Admin",
+  accessToken: "access-token"
+};
+
+describe("AppLayout invitation navigation", () => {
+  it("hides invitation management without the server capability", () => {
+    render(
+      <MemoryRouter>
+        <AppLayout
+          session={session}
+          canManageInvitations={false}
+          onSignOut={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.queryByRole("link", {
+        name: "คำเชิญผู้ใช้"
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows invitation management with the server capability", () => {
+    render(
+      <MemoryRouter>
+        <AppLayout
+          session={session}
+          canManageInvitations
+          onSignOut={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("link", {
+        name: "คำเชิญผู้ใช้"
+      })
+    ).toHaveAttribute("href", "/admin/invitations");
+  });
+});

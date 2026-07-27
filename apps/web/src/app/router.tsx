@@ -19,6 +19,7 @@ import {
 } from "react-router-dom";
 
 import { AccountsPage } from "../features/accounts/accounts-page";
+import { InvitationsPage } from "../features/admin/invitations-page";
 import { ResetPasswordPage } from "../features/auth/reset-password-page";
 import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
@@ -33,6 +34,10 @@ import {
   type CloudSession
 } from "../lib/cloud-auth";
 import { loadPublicAppConfig } from "../lib/cloud-config";
+import {
+  createAdminInvitationApi,
+  type AdminInvitationApi
+} from "../lib/invitation-api";
 import {
   createRemoteFinanceApi,
   type RemoteFinanceApi
@@ -56,6 +61,10 @@ export type CloudRouterDependencies = Readonly<{
     auth: CloudAuth,
     onUnauthenticated: () => void
   ): RemoteFinanceApi;
+  createAdminApi(
+    auth: CloudAuth,
+    onUnauthenticated: () => void
+  ): AdminInvitationApi;
 }>;
 
 const defaultDependencies: CloudRouterDependencies = {
@@ -63,7 +72,9 @@ const defaultDependencies: CloudRouterDependencies = {
   loadConfig: () => loadPublicAppConfig(),
   createAuth: createSupabaseCloudAuth,
   createApi: (auth, onUnauthenticated) =>
-    createRemoteFinanceApi({ auth, onUnauthenticated })
+    createRemoteFinanceApi({ auth, onUnauthenticated }),
+  createAdminApi: (auth, onUnauthenticated) =>
+    createAdminInvitationApi({ auth, onUnauthenticated })
 };
 
 type FinanceRoutesProps = Readonly<{
@@ -120,8 +131,11 @@ export function FinanceRoutes({
     initialCloudState
   );
   const [bootAttempt, setBootAttempt] = useState(0);
+  const [canManageInvitations, setCanManageInvitations] =
+    useState<boolean | null>(null);
   const authRef = useRef<CloudAuth | null>(null);
   const apiRef = useRef<RemoteFinanceApi | null>(null);
+  const adminApiRef = useRef<AdminInvitationApi | null>(null);
   const activeRef = useRef(true);
 
   const loadSnapshot = useCallback(
@@ -176,23 +190,49 @@ export function FinanceRoutes({
         dispatch({ type: "CONFIG_LOADED" });
 
         const auth = dependencies.createAuth(config);
-        const api = dependencies.createApi(auth, () => {
+        const onUnauthenticated = () => {
           if (activeRef.current) {
+            setCanManageInvitations(null);
             dispatch({ type: "SIGNED_OUT" });
           }
-        });
+        };
+        const api = dependencies.createApi(
+          auth,
+          onUnauthenticated
+        );
+        const adminApi = dependencies.createAdminApi(
+          auth,
+          onUnauthenticated
+        );
         authRef.current = auth;
         apiRef.current = api;
+        adminApiRef.current = adminApi;
 
         const handleSession = (session: CloudSession | null) => {
           if (!activeRef.current) return;
           if (!session) {
+            setCanManageInvitations(null);
             dispatch({ type: "SIGNED_OUT" });
             return;
           }
           for (const key of LEGACY_STORAGE_KEYS) {
             dependencies.storage.removeItem(key);
           }
+          setCanManageInvitations(null);
+          void adminApi
+            .capabilities()
+            .then((capabilities) => {
+              if (activeRef.current) {
+                setCanManageInvitations(
+                  capabilities.canManageInvitations
+                );
+              }
+            })
+            .catch(() => {
+              if (activeRef.current) {
+                setCanManageInvitations(false);
+              }
+            });
           void loadSnapshot(session, api);
         };
 
@@ -220,6 +260,7 @@ export function FinanceRoutes({
     try {
       await authRef.current?.signOut();
     } finally {
+      setCanManageInvitations(null);
       dispatch({ type: "SIGNED_OUT" });
       navigate("/sign-in", { replace: true });
     }
@@ -320,7 +361,8 @@ export function FinanceRoutes({
 
   const { session, snapshot } = state;
   const api = apiRef.current;
-  if (!api) {
+  const adminApi = adminApiRef.current;
+  if (!api || !adminApi) {
     return null;
   }
 
@@ -374,7 +416,13 @@ export function FinanceRoutes({
       >
         <Route
           element={
-            <AppLayout session={session} onSignOut={signOut} />
+            <AppLayout
+              session={session}
+              canManageInvitations={
+                canManageInvitations === true
+              }
+              onSignOut={signOut}
+            />
           }
         >
           <Route
@@ -448,6 +496,21 @@ export function FinanceRoutes({
                 snapshot={snapshot}
                 onChanged={refreshSnapshot}
               />
+            }
+          />
+          <Route
+            path="/admin/invitations"
+            element={
+              canManageInvitations === null ? (
+                <CloudStatusCard
+                  label="กำลังตรวจสอบสิทธิ์"
+                  detail="กำลังยืนยันสิทธิ์ Super Admin กับระบบ"
+                />
+              ) : canManageInvitations ? (
+                <InvitationsPage api={adminApi} />
+              ) : (
+                <Navigate to="/overview" replace />
+              )
             }
           />
         </Route>
