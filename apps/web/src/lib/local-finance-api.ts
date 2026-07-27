@@ -12,10 +12,10 @@ import {
   type Workspace
 } from "@systems-credit/contracts";
 import {
+  generateManualInstallmentSchedule,
   parseMoney,
   generateInstallmentSchedule,
   roundMoney,
-  validateManualSchedule,
   validateSplits,
   type CurrencyCode
 } from "@systems-credit/domain";
@@ -66,7 +66,14 @@ export type LocalInstallmentScheduleRow =
       paidInterest: string;
       paidFees: string;
       paidPenalty: string;
-      status: "upcoming";
+      status:
+        | "upcoming"
+        | "due"
+        | "partially_paid"
+        | "paid"
+        | "overdue"
+        | "waived"
+        | "cancelled";
     }>;
 
 export type LocalFinanceSnapshot = Readonly<{
@@ -346,56 +353,10 @@ export function createLocalFinanceApi(
       );
       let generatedRows: InstallmentScheduleRow[];
       if (parsed.interestMethod === "manual") {
-        const manualRows = parsed.manualRows!;
-        validateManualSchedule({
+        generatedRows = generateManualInstallmentSchedule({
           principal: financedPrincipal,
           currency: parsed.currency,
-          rows: manualRows
-        });
-        let opening = parseMoney({
-          amount: financedPrincipal,
-          currency: parsed.currency
-        });
-        generatedRows = manualRows.map((row, index) => {
-          const principal = roundMoney(row.principal, parsed.currency);
-          const interest = roundMoney(row.interest, parsed.currency);
-          const fees = roundMoney(row.fees, parsed.currency);
-          const closing = opening.minus(
-            parseMoney({
-              amount: principal,
-              currency: parsed.currency
-            })
-          );
-          const scheduleRow: InstallmentScheduleRow = {
-            sequence: index + 1,
-            dueDate: row.dueDate,
-            openingPrincipal: roundMoney(opening, parsed.currency),
-            principal,
-            interest,
-            fees,
-            total: roundMoney(
-              parseMoney({
-                amount: principal,
-                currency: parsed.currency
-              })
-                .plus(
-                  parseMoney({
-                    amount: interest,
-                    currency: parsed.currency
-                  })
-                )
-                .plus(
-                  parseMoney({
-                    amount: fees,
-                    currency: parsed.currency
-                  })
-                ),
-              parsed.currency
-            ),
-            closingPrincipal: roundMoney(closing, parsed.currency)
-          };
-          opening = closing;
-          return scheduleRow;
+          rows: parsed.manualRows!
         });
       } else {
         generatedRows = generateInstallmentSchedule({

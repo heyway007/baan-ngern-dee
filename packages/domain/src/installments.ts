@@ -299,3 +299,38 @@ export function validateManualSchedule(
     throw new Error("INSTALLMENT_PRINCIPAL_MISMATCH");
   }
 }
+
+export function generateManualInstallmentSchedule(
+  input: ManualScheduleInput
+): InstallmentScheduleRow[] {
+  validateManualSchedule(input);
+
+  let opening = money(input.principal, input.currency);
+  return input.rows.map((row, index) => {
+    const principal = roundMoney(
+      money(row.principal, input.currency),
+      input.currency
+    );
+    const interest = roundMoney(
+      money(row.interest, input.currency),
+      input.currency
+    );
+    const fees = roundMoney(
+      money(row.fees, input.currency),
+      input.currency
+    );
+    const closing = opening.minus(money(principal, input.currency));
+    const scheduleRow: InstallmentScheduleRow = {
+      sequence: index + 1,
+      dueDate: row.dueDate,
+      openingPrincipal: roundMoney(opening, input.currency),
+      principal,
+      interest,
+      fees,
+      total: totalOf(principal, interest, fees, input.currency),
+      closingPrincipal: roundMoney(closing, input.currency)
+    };
+    opening = closing;
+    return scheduleRow;
+  });
+}

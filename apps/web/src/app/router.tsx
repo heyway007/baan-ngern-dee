@@ -13,6 +13,7 @@ import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
 import { OverviewPage } from "../features/dashboard/overview-page";
 import { OnboardingPage } from "../features/onboarding/onboarding-page";
+import { InstallmentsPage } from "../features/installments/installments-page";
 import { TransactionsPage } from "../features/transactions/transactions-page";
 import {
   createLocalFinanceApi,
@@ -24,7 +25,7 @@ import {
   writeLocalSession,
   type LocalSession
 } from "../lib/local-session";
-import { AppLayout, ComingSoonPage } from "./layout";
+import { AppLayout } from "./layout";
 
 type FinanceRoutesProps = Readonly<{
   storage?: Storage;
@@ -157,9 +158,21 @@ export function FinanceRoutes({
           <Route
             path="/installments"
             element={
-              <ComingSoonPage
-                title="ผ่อนและหนี้"
-                description="รองรับเงินต้น ดอกเบี้ย ค่างวด และตารางชำระตามโครงสร้างที่อนุมัติ"
+              <InstallmentsPage
+                api={api}
+                snapshot={snapshot}
+                onChanged={refreshSnapshot}
+              />
+            }
+          />
+          <Route
+            path="/installments/new"
+            element={
+              <InstallmentsPage
+                api={api}
+                snapshot={snapshot}
+                onChanged={refreshSnapshot}
+                initiallyOpen
               />
             }
           />

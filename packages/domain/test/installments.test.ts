@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   generateInstallmentSchedule,
+  generateManualInstallmentSchedule,
   validateManualSchedule,
   type InstallmentScheduleRow
 } from "../src/installments";
@@ -121,5 +122,49 @@ describe("installment schedules", () => {
         ]
       })
     ).toThrow("INSTALLMENT_PRINCIPAL_MISMATCH");
+  });
+
+  it("materializes a reconciled manual schedule with exact balances", () => {
+    const rows = generateManualInstallmentSchedule({
+      principal: "1000.00",
+      currency: "THB",
+      rows: [
+        {
+          dueDate: "2026-08-15",
+          principal: "400.00",
+          interest: "25.00",
+          fees: "5.00"
+        },
+        {
+          dueDate: "2026-09-15",
+          principal: "600.00",
+          interest: "10.00",
+          fees: "0.00"
+        }
+      ]
+    });
+
+    expect(rows).toEqual([
+      {
+        sequence: 1,
+        dueDate: "2026-08-15",
+        openingPrincipal: "1000.00",
+        principal: "400.00",
+        interest: "25.00",
+        fees: "5.00",
+        total: "430.00",
+        closingPrincipal: "600.00"
+      },
+      {
+        sequence: 2,
+        dueDate: "2026-09-15",
+        openingPrincipal: "600.00",
+        principal: "600.00",
+        interest: "10.00",
+        fees: "0.00",
+        total: "610.00",
+        closingPrincipal: "0.00"
+      }
+    ]);
   });
 });

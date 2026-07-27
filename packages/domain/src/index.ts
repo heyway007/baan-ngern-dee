@@ -4,6 +4,7 @@ export { minorDigits, type CurrencyCode } from "./currency";
 export { toFinancialDate } from "./financial-date";
 export {
   generateInstallmentSchedule,
+  generateManualInstallmentSchedule,
   validateManualSchedule,
   type InstallmentScheduleInput,
   type ManualScheduleInput

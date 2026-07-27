@@ -66,9 +66,6 @@ export function AppLayout({ session, onSignOut }: AppLayoutProps) {
             >
               <Icon size={20} aria-hidden="true" />
               <span>{label}</span>
-              {to === "/installments" ? (
-                <small className="coming-badge">เร็ว ๆ นี้</small>
-              ) : null}
             </NavLink>
           ))}
         </nav>
