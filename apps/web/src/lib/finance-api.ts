@@ -115,7 +115,8 @@ export interface FinanceApi {
   ): Promise<AccountCreationResult>;
   createCategory(input: CreateCategoryInput): Promise<Category>;
   createInstallmentContract(
-    input: CreateInstallmentContractInput
+    input: CreateInstallmentContractInput,
+    clientMutationId?: string
   ): Promise<InstallmentContractCreationResult>;
   postInstallmentPayment(
     input: PostInstallmentPaymentInput
