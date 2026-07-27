@@ -26,6 +26,11 @@ export {
   sumMoney,
   type Money
 } from "./money";
+export {
+  resolveRecurringDate,
+  summarizeRecurringOccurrences,
+  type RecurringCurrencySummary
+} from "./recurring";
 export type {
   PostingEffect,
   TransactionState,
