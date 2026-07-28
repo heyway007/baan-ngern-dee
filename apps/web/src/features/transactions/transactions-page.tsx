@@ -2,11 +2,18 @@ import { Plus, Settings2, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import type { FinanceSnapshot } from "@systems-credit/contracts";
+import type {
+  FinanceSnapshot,
+  FinanceTransaction
+} from "@systems-credit/contracts";
 
 import type { FinanceApi } from "../../lib/finance-api";
 import { TransactionForm } from "./transaction-form";
-import { TransactionList } from "./transaction-list";
+import {
+  TransactionList,
+  type TransactionListFilter
+} from "./transaction-list";
+import { TransactionVoidDialog } from "./transaction-void-dialog";
 import { CategoryManager } from "./category-manager";
 
 type TransactionsPageProps = Readonly<{
@@ -26,6 +33,10 @@ export function TransactionsPage({
 }: TransactionsPageProps) {
   const [showForm, setShowForm] = useState(initiallyOpen);
   const [showCategories, setShowCategories] = useState(false);
+  const [transactionFilter, setTransactionFilter] =
+    useState<TransactionListFilter>("current");
+  const [transactionToVoid, setTransactionToVoid] =
+    useState<FinanceTransaction | null>(null);
 
   if (!snapshot.workspace) {
     return null;
@@ -113,7 +124,38 @@ export function TransactionsPage({
         transactions={snapshot.transactions}
         accounts={snapshot.accounts}
         categories={snapshot.categories}
+        filter={transactionFilter}
+        onFilterChange={setTransactionFilter}
+        onDeleteRequested={setTransactionToVoid}
       />
+
+      {transactionToVoid ? (
+        <TransactionVoidDialog
+          transaction={transactionToVoid}
+          accountName={
+            snapshot.accounts.find(
+              (account) => account.id === transactionToVoid.accountId
+            )?.name ?? "ไม่พบบัญชี"
+          }
+          categoryName={
+            snapshot.categories.find(
+              (category) =>
+                category.id ===
+                (transactionToVoid.categoryId ??
+                  transactionToVoid.splits?.[0]?.categoryId)
+            )?.name ?? "แบ่งหมวดหมู่"
+          }
+          onCancel={() => setTransactionToVoid(null)}
+          onConfirm={async (reason) => {
+            await api.voidTransaction(transactionToVoid.id, {
+              version: transactionToVoid.version,
+              reason
+            });
+            setTransactionToVoid(null);
+            onChanged();
+          }}
+        />
+      ) : null}
     </main>
   );
 }
