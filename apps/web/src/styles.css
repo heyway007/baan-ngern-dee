@@ -1006,6 +1006,206 @@ select:focus {
   text-overflow: ellipsis;
 }
 
+.monthly-transaction-table-card {
+  min-width: 0;
+  margin-top: 1.2rem;
+  padding: clamp(1.2rem, 3vw, 1.6rem);
+}
+
+.monthly-transaction-table-heading {
+  align-items: center;
+}
+
+.monthly-transaction-month-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.monthly-transaction-month-controls .icon-button,
+.monthly-transaction-month-picker {
+  height: 2.75rem;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.monthly-transaction-month-controls .icon-button {
+  width: 2.75rem;
+  flex: 0 0 2.75rem;
+}
+
+.monthly-transaction-month-picker {
+  display: flex;
+  min-width: 10.5rem;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0 0.75rem;
+  border-radius: 0.8rem;
+  color: var(--forest);
+}
+
+.monthly-transaction-month-picker input {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.monthly-transaction-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-top: 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--paper);
+}
+
+.monthly-transaction-table {
+  width: 100%;
+  min-width: 58rem;
+  border-spacing: 0;
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.monthly-transaction-table th,
+.monthly-transaction-table td {
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid rgba(33, 76, 60, 0.09);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.monthly-transaction-table thead th {
+  background: rgba(219, 233, 220, 0.45);
+  color: var(--forest-deep);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.monthly-transaction-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.monthly-transaction-table tbody tr:hover td {
+  background-color: rgba(219, 233, 220, 0.18);
+}
+
+.monthly-transaction-table tbody td:nth-child(2) {
+  min-width: 12rem;
+  font-weight: 500;
+}
+
+.monthly-transaction-table tbody td:nth-child(3) {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  width: 1%;
+  color: var(--forest);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.monthly-transaction-table tbody td:nth-child(3)::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0.62rem 0.45rem;
+  border: 1px solid rgba(33, 76, 60, 0.1);
+  border-radius: 999px;
+  background: var(--mint);
+  content: "";
+}
+
+.monthly-transaction-table th:nth-child(n + 5),
+.monthly-transaction-table td:nth-child(n + 5) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.monthly-transaction-table .income {
+  color: var(--forest);
+  font-weight: 600;
+}
+
+.monthly-transaction-table .expense {
+  color: #a84f3d;
+  font-weight: 600;
+}
+
+.monthly-transaction-table .net {
+  color: var(--forest-deep);
+  font-weight: 700;
+}
+
+.monthly-transaction-table .empty-copy {
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.monthly-transaction-table tfoot {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  background: var(--paper);
+  box-shadow: 0 -0.45rem 1rem rgba(32, 52, 43, 0.06);
+}
+
+.monthly-transaction-table tfoot th,
+.monthly-transaction-table tfoot td {
+  border-top: 1px solid rgba(33, 76, 60, 0.16);
+  border-bottom: 0;
+  background: rgba(244, 242, 235, 0.92);
+}
+
+.monthly-transaction-table tfoot th {
+  color: var(--forest-deep);
+  font-size: 0.92rem;
+}
+
+.monthly-transaction-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.monthly-transaction-pagination .ghost-button {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--forest);
+}
+
+.monthly-transaction-pagination .ghost-button:hover:not(:disabled) {
+  border-color: rgba(33, 76, 60, 0.35);
+  background: var(--mint);
+  color: var(--forest-deep);
+}
+
+.monthly-transaction-pagination .ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.monthly-transaction-table-card > .text-link {
+  margin-top: 0.9rem;
+}
+
 .quick-actions,
 .next-step-card {
   padding: 1.4rem;
@@ -3304,6 +3504,159 @@ select:focus {
 
   .page-content {
     padding: 1.5rem 1rem;
+  }
+
+  .monthly-transaction-table-card {
+    overflow: hidden;
+    max-width: 100%;
+    padding: 1.1rem;
+  }
+
+  .monthly-transaction-table-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .monthly-transaction-month-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .monthly-transaction-month-picker {
+    min-width: 0;
+    flex: 1 1 10rem;
+  }
+
+  .monthly-transaction-table-wrap {
+    overflow: visible;
+  }
+
+  .monthly-transaction-table thead {
+    display: none;
+  }
+
+  .monthly-transaction-table,
+  .monthly-transaction-table tbody,
+  .monthly-transaction-table tr,
+  .monthly-transaction-table td {
+    display: block;
+  }
+
+  .monthly-transaction-table {
+    min-width: 0;
+  }
+
+  .monthly-transaction-table tbody tr {
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .monthly-transaction-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .monthly-transaction-table tbody td {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(7rem, 0.42fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.42rem 0.8rem;
+    border: 0;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .monthly-transaction-table td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 400;
+    text-align: left;
+  }
+
+  .monthly-transaction-table tbody td:nth-child(2),
+  .monthly-transaction-table tbody td:nth-child(3) {
+    width: auto;
+    min-width: 0;
+    font-size: 0.86rem;
+    white-space: normal;
+  }
+
+  .monthly-transaction-table tbody td:nth-child(3)::after {
+    display: none;
+  }
+
+  .monthly-transaction-table tbody .empty-copy {
+    grid-template-columns: 1fr;
+    padding: 2rem 1rem;
+    text-align: center;
+  }
+
+  .monthly-transaction-table tbody .empty-copy::before {
+    display: none;
+  }
+
+  .monthly-transaction-table tfoot {
+    display: block;
+    position: static;
+    padding: 0.5rem 0;
+    background: rgba(244, 242, 235, 0.92);
+    box-shadow: 0 -0.35rem 0.9rem rgba(32, 52, 43, 0.06);
+  }
+
+  .monthly-transaction-table tfoot tr {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-transaction-table tfoot th,
+  .monthly-transaction-table tfoot td {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0.8rem;
+    border: 0;
+    background: transparent;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .monthly-transaction-table tfoot th {
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid rgba(33, 76, 60, 0.14);
+  }
+
+  .monthly-transaction-table tfoot td[colspan] {
+    display: none;
+  }
+
+  .monthly-transaction-table tfoot .income::before {
+    color: var(--muted);
+    content: "รายรับ";
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
+  .monthly-transaction-table tfoot .expense::before {
+    color: var(--muted);
+    content: "รายจ่าย";
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
+  .monthly-transaction-table tfoot .net::before {
+    color: var(--muted);
+    content: "ยอดสุทธิ";
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
+  .monthly-transaction-pagination {
+    flex-wrap: wrap;
   }
 }
 
