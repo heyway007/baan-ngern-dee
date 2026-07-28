@@ -250,29 +250,6 @@ export function SignInPage({
                 maxLength={80}
                 disabled={submitting}
               />
-              {mode === "sign-up" ? (
-                <>
-                  <label htmlFor="confirm-password">
-                    ยืนยันรหัสผ่าน
-                  </label>
-                  <input
-                    id="confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) =>
-                      setConfirmPassword(event.target.value)
-                    }
-                    autoComplete="new-password"
-                    minLength={8}
-                    disabled={submitting}
-                  />
-                  <TurnstileWidget
-                    siteKey={turnstileSiteKey}
-                    onToken={setCaptchaToken}
-                    resetKey={turnstileResetKey}
-                  />
-                </>
-              ) : null}
             </>
           ) : null}
 
@@ -304,6 +281,30 @@ export function SignInPage({
                 }
                 minLength={8}
                 disabled={submitting}
+              />
+            </>
+          ) : null}
+
+          {mode === "sign-up" ? (
+            <>
+              <label htmlFor="confirm-password">
+                ยืนยันรหัสผ่าน
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) =>
+                  setConfirmPassword(event.target.value)
+                }
+                autoComplete="new-password"
+                minLength={8}
+                disabled={submitting}
+              />
+              <TurnstileWidget
+                siteKey={turnstileSiteKey}
+                onToken={setCaptchaToken}
+                resetKey={turnstileResetKey}
               />
             </>
           ) : null}

@@ -140,6 +140,44 @@ describe("SignInPage", () => {
     expect(screen.getByLabelText("ยืนยันรหัสผ่าน")).toHaveValue("");
   });
 
+  it("orders sign-up fields for visual and keyboard navigation", async () => {
+    const user = userEvent.setup();
+    render(
+      <SignInPage
+        auth={authActions()}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={vi.fn()}
+      />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "สมัครสมาชิก" })
+    );
+
+    const controls = [
+      screen.getByLabelText("ชื่อที่แสดง"),
+      screen.getByLabelText("อีเมล"),
+      screen.getByLabelText("รหัสผ่าน"),
+      screen.getByLabelText("ยืนยันรหัสผ่าน"),
+      screen.getByRole("button", {
+        name: "ผ่านการตรวจสอบความปลอดภัย"
+      }),
+      screen.getByRole("button", { name: "สร้างบัญชี" })
+    ];
+
+    for (
+      let index = 0;
+      index < controls.length - 1;
+      index += 1
+    ) {
+      expect(
+        controls[index]!.compareDocumentPosition(
+          controls[index + 1]!
+        ) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    }
+  });
+
   it("rejects mismatched password confirmation before signup", async () => {
     const user = userEvent.setup();
     const auth = authActions();
