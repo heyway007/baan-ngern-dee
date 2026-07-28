@@ -1,5 +1,8 @@
 import {
+  type ConfirmSlipBatchInput,
+  type ConfirmSlipBatchResult,
   type ConfirmSlipInput,
+  type CreateTransactionInput,
   type FinanceSnapshot,
   type PostedTransactionResponse,
   type SlipAiExtraction,
@@ -40,11 +43,46 @@ export interface SlipImportService {
     actor: AuthSession,
     input: ConfirmSlipInput
   ): Promise<PostedTransactionResponse>;
+  confirmBatch(
+    actor: AuthSession,
+    input: ConfirmSlipBatchInput
+  ): Promise<ConfirmSlipBatchResult>;
 }
 
 function normalize(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase("th-TH")
     .replace(/\s+/g, "");
+}
+
+function canonicalTransaction(
+  transaction: CreateTransactionInput
+): CreateTransactionInput {
+  return {
+    workspaceId: transaction.workspaceId,
+    accountId: transaction.accountId,
+    type: transaction.type,
+    amount: transaction.amount,
+    currency: transaction.currency,
+    financialDate: transaction.financialDate,
+    ...(transaction.categoryId
+      ? { categoryId: transaction.categoryId }
+      : {}),
+    ...(transaction.merchantId
+      ? { merchantId: transaction.merchantId }
+      : {}),
+    ...(transaction.note ? { note: transaction.note } : {}),
+    tagIds: [...transaction.tagIds],
+    ...(transaction.splits
+      ? {
+          splits: transaction.splits.map((split) => ({
+            categoryId: split.categoryId,
+            amount: split.amount,
+            ...(split.note ? { note: split.note } : {})
+          }))
+        }
+      : {}),
+    clientMutationId: transaction.clientMutationId
+  };
 }
 
 function draftFrom(
@@ -233,6 +271,67 @@ export function createSlipImportService(dependencies: {
         );
       }
       return result.transaction;
+    },
+    async confirmBatch(actor, input) {
+      const verified: Array<{
+        item: ConfirmSlipBatchInput["items"][number];
+        claims: Awaited<ReturnType<SlipAnalysisTokenCodec["verify"]>>;
+      }> = [];
+      const issues: Extract<
+        ConfirmSlipBatchResult,
+        { status: "blocked" }
+      >["issues"] = [];
+
+      for (const item of input.items) {
+        try {
+          const claims = await dependencies.tokenCodec.verify(
+            item.analysisToken,
+            { userId: actor.userId, workspaceId: input.workspaceId }
+          );
+          verified.push({ item, claims });
+        } catch (error) {
+          issues.push({
+            itemId: item.itemId,
+            code: error instanceof Error &&
+              error.message === "TOKEN_EXPIRED"
+              ? "expired_analysis"
+              : "invalid_analysis"
+          });
+        }
+      }
+      if (issues.length > 0) return { status: "blocked", issues };
+
+      const imageHashes = new Set<string>();
+      const documentIdentities = new Set<string>();
+      for (const entry of verified) {
+        const repeatedImage = imageHashes.has(entry.claims.imageSha256);
+        const identity = entry.claims.documentIdentitySha256;
+        const repeatedIdentity = identity !== null &&
+          documentIdentities.has(identity);
+        if (repeatedImage || repeatedIdentity) {
+          issues.push({ itemId: entry.item.itemId, code: "duplicate" });
+        }
+        imageHashes.add(entry.claims.imageSha256);
+        if (identity !== null) documentIdentities.add(identity);
+      }
+      if (issues.length > 0) return { status: "blocked", issues };
+
+      const items = verified.map(({ item, claims }) => ({
+        itemId: item.itemId,
+        imageSha256: claims.imageSha256,
+        documentIdentitySha256: claims.documentIdentitySha256,
+        documentKind: claims.documentKind,
+        transaction: canonicalTransaction(item.transaction)
+      }));
+      const requestSha256 = await sha256Hex(
+        new TextEncoder().encode(JSON.stringify(items))
+      );
+      return dependencies.repository.confirmBatch(actor, {
+        workspaceId: input.workspaceId,
+        batchMutationId: input.batchMutationId,
+        requestSha256,
+        items
+      });
     }
   };
 }

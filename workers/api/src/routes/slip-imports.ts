@@ -1,4 +1,6 @@
 import {
+  confirmSlipBatchInputSchema,
+  confirmSlipBatchResultSchema,
   confirmSlipInputSchema,
   postedTransactionResponseSchema,
   slipQuotaStateSchema
@@ -81,6 +83,26 @@ export function slipImportRoutes(service: SlipImportService) {
       await service.confirm(context.get("auth"), parsed.data)
     );
     return context.json(result, 201);
+  });
+
+  routes.post("/confirm-batch", async (context) => {
+    const parsed = confirmSlipBatchInputSchema.safeParse(
+      await context.req.json().catch(() => null)
+    );
+    if (!parsed.success) {
+      throw new ApiError(
+        "VALIDATION_FAILED",
+        400,
+        "ข้อมูลยืนยันชุดรายการไม่ถูกต้อง"
+      );
+    }
+    const result = confirmSlipBatchResultSchema.parse(
+      await service.confirmBatch(context.get("auth"), parsed.data)
+    );
+    if (result.status === "posted") {
+      return context.json(result, 201);
+    }
+    return context.json(result, 200);
   });
   return routes;
 }
