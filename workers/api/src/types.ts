@@ -6,6 +6,7 @@ export type AppEnv = {
     SUPABASE_ANON_KEY: string;
     SUPABASE_SERVICE_ROLE_KEY: string;
     SUPER_ADMIN_USER_ID: string;
+    TURNSTILE_SITE_KEY: string;
     ALLOWED_ORIGIN?: string;
   };
   Variables: {

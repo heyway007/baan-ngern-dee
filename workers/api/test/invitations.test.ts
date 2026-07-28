@@ -33,7 +33,8 @@ function createInvitationRouteApp() {
   };
   const invitationService: InvitationService = {
     capabilities: vi.fn((actor) => ({
-      canManageInvitations: actor.userId === adminId
+      canManageInvitations: actor.userId === adminId,
+      canManageUsers: actor.userId === adminId
     })),
     list: vi.fn(async (actor) => {
       if (actor.userId !== adminId) {
@@ -74,7 +75,8 @@ function createInvitationRouteApp() {
     invitationService,
     publicConfig: {
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "1x00000000000000000000AA"
     }
   });
   return { app, invitationService };
@@ -130,7 +132,8 @@ describe("invitation Worker routes", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      canManageInvitations: false
+      canManageInvitations: false,
+      canManageUsers: false
     });
   });
 

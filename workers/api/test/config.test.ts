@@ -7,7 +7,8 @@ describe("GET /config", () => {
     const app = createApp({
       publicConfig: {
         supabaseUrl: "https://project.supabase.co",
-        supabasePublishableKey: "sb_publishable_public"
+        supabasePublishableKey: "sb_publishable_public",
+        turnstileSiteKey: "1x00000000000000000000AA"
       }
     });
 
@@ -16,7 +17,8 @@ describe("GET /config", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "1x00000000000000000000AA"
     });
   });
 
@@ -24,7 +26,8 @@ describe("GET /config", () => {
     const app = createApp({
       publicConfig: {
         supabaseUrl: "https://project.supabase.co",
-        supabasePublishableKey: "sb_secret_private"
+        supabasePublishableKey: "sb_secret_private",
+        turnstileSiteKey: "1x00000000000000000000AA"
       }
     });
 

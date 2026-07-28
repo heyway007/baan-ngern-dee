@@ -173,9 +173,11 @@ export function createInvitationService(options: {
 
   return {
     capabilities(actor) {
+      const isSuperAdmin =
+        actor.userId === options.superAdminUserId;
       return {
-        canManageInvitations:
-          actor.userId === options.superAdminUserId
+        canManageInvitations: isSuperAdmin,
+        canManageUsers: isSuperAdmin
       };
     },
 

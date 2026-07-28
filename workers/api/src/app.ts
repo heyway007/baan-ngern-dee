@@ -28,6 +28,7 @@ import { snapshotRoutes } from "./routes/snapshot";
 import { transactionRoutes } from "./routes/transactions";
 import { transferRoutes } from "./routes/transfers";
 import { workspaceRoutes } from "./routes/workspaces";
+import { adminUserRoutes } from "./routes/users";
 import {
   createMemoryFinanceRepository,
   type FinanceRepository
@@ -35,12 +36,14 @@ import {
 import type {
   InvitationService
 } from "./services/invitation-service";
+import type { UserManagementService } from "./services/user-management-service";
 import type { AppEnv } from "./types";
 
 export type AppDependencies = Readonly<{
   authVerifier: AuthVerifier;
   financeRepository: FinanceRepository;
   invitationService: InvitationService;
+  userManagementService: UserManagementService;
   publicConfig: PublicAppConfig;
 }>;
 
@@ -78,6 +81,12 @@ export function createApp(
     app.route(
       "/v1/admin",
       adminInvitationRoutes(dependencies.invitationService)
+    );
+  }
+  if (dependencies.userManagementService) {
+    app.route(
+      "/v1/admin",
+      adminUserRoutes(dependencies.userManagementService)
     );
   }
   app.route("/v1/snapshot", snapshotRoutes(financeRepository));
