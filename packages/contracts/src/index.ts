@@ -160,19 +160,26 @@ export type {
 } from "./transfers";
 export { createTransferSchema } from "./transfers";
 export type {
+  ConfirmSlipBatchInput,
+  ConfirmSlipBatchResult,
   ConfirmSlipInput,
   DuplicateTransaction,
   SlipAiExtraction,
   SlipAnalysisResponse,
   SlipDocumentKind,
+  SlipQuotaState,
   SlipTransactionDraft
 } from "./slip-imports";
 export {
   analyzeSlipResponseSchema,
+  confirmSlipBatchInputSchema,
+  confirmSlipBatchIssueCodeSchema,
+  confirmSlipBatchResultSchema,
   confirmSlipInputSchema,
   duplicateTransactionSchema,
   slipAiExtractionSchema,
   slipDocumentKindSchema,
+  slipQuotaStateSchema,
   slipReviewFieldSchema,
   slipTransactionDraftSchema
 } from "./slip-imports";

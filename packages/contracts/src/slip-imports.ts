@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { createTransactionSchema } from "./transactions";
+import {
+  createTransactionSchema,
+  postedTransactionResponseSchema
+} from "./transactions";
 
 const moneySchema = z
   .string()
@@ -76,6 +79,7 @@ export const analyzeSlipResponseSchema = z.discriminatedUnion("status", [
     .object({
       status: z.literal("success"),
       analysisToken: z.string().min(40).max(4096),
+      analysisExpiresAt: z.string().datetime(),
       documentKind: slipDocumentKindSchema,
       draft: slipTransactionDraftSchema
     })
@@ -96,6 +100,97 @@ export const confirmSlipInputSchema = z
   })
   .strict();
 
+export const slipQuotaStateSchema = z
+  .object({
+    used: z.number().int().min(0).max(30),
+    limit: z.literal(30)
+  })
+  .strict();
+
+const confirmSlipBatchItemSchema = z
+  .object({
+    itemId: z.string().uuid(),
+    analysisToken: z.string().min(40).max(4096),
+    transaction: createTransactionSchema
+  })
+  .strict();
+
+export const confirmSlipBatchInputSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    batchMutationId: z.string().uuid(),
+    items: z.array(confirmSlipBatchItemSchema).min(1).max(10)
+  })
+  .strict()
+  .superRefine((input, context) => {
+    const itemIds = new Set<string>();
+    const mutationIds = new Set<string>();
+    input.items.forEach((item, index) => {
+      if (item.transaction.workspaceId !== input.workspaceId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["items", index, "transaction", "workspaceId"],
+          message: "BATCH_WORKSPACE_MISMATCH"
+        });
+      }
+      if (itemIds.has(item.itemId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["items", index, "itemId"],
+          message: "BATCH_ITEM_DUPLICATE"
+        });
+      }
+      if (mutationIds.has(item.transaction.clientMutationId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["items", index, "transaction", "clientMutationId"],
+          message: "BATCH_MUTATION_DUPLICATE"
+        });
+      }
+      itemIds.add(item.itemId);
+      mutationIds.add(item.transaction.clientMutationId);
+    });
+  });
+
+export const confirmSlipBatchIssueCodeSchema = z.enum([
+  "duplicate",
+  "invalid_account",
+  "invalid_category",
+  "currency_mismatch",
+  "expired_analysis",
+  "invalid_analysis",
+  "mutation_conflict"
+]);
+
+export const confirmSlipBatchResultSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("posted"),
+      items: z.array(
+        z
+          .object({
+            itemId: z.string().uuid(),
+            transaction: postedTransactionResponseSchema
+          })
+          .strict()
+      ).min(1).max(10)
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("blocked"),
+      issues: z.array(
+        z
+          .object({
+            itemId: z.string().uuid(),
+            code: confirmSlipBatchIssueCodeSchema
+          })
+          .strict()
+      ).min(1).max(10)
+    })
+    .strict()
+]);
+
 export type SlipDocumentKind = z.infer<typeof slipDocumentKindSchema>;
 export type SlipAiExtraction = z.infer<typeof slipAiExtractionSchema>;
 export type SlipTransactionDraft = z.infer<
@@ -108,3 +203,10 @@ export type SlipAnalysisResponse = z.infer<
   typeof analyzeSlipResponseSchema
 >;
 export type ConfirmSlipInput = z.infer<typeof confirmSlipInputSchema>;
+export type SlipQuotaState = z.infer<typeof slipQuotaStateSchema>;
+export type ConfirmSlipBatchInput = z.infer<
+  typeof confirmSlipBatchInputSchema
+>;
+export type ConfirmSlipBatchResult = z.infer<
+  typeof confirmSlipBatchResultSchema
+>;

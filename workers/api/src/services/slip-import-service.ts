@@ -184,7 +184,7 @@ export function createSlipImportService(dependencies: {
           };
         }
       }
-      const analysisToken = await dependencies.tokenCodec.issue({
+      const issued = await dependencies.tokenCodec.issue({
         userId: actor.userId,
         workspaceId: command.workspaceId,
         imageSha256: serverHash,
@@ -193,7 +193,8 @@ export function createSlipImportService(dependencies: {
       });
       return {
         status: "success",
-        analysisToken,
+        analysisToken: issued.token,
+        analysisExpiresAt: issued.expiresAt,
         documentKind: extraction.documentKind,
         draft: draftFrom(extraction, snapshot)
       };

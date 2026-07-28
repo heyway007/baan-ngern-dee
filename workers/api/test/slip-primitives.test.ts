@@ -52,24 +52,37 @@ describe("slip primitives", () => {
   });
 
   it("signs, scopes, and expires analysis tokens", async () => {
-    const now = 1_000_000;
+    const now = 1_800_000_000;
     const codec = createSlipAnalysisTokenCodec("x".repeat(32), () => now);
-    const token = await codec.issue({
+    const issued = await codec.issue({
       userId: "11111111-1111-4111-8111-111111111111",
       workspaceId: "22222222-2222-4222-8222-222222222222",
       imageSha256: "a".repeat(64),
       documentIdentitySha256: null,
       documentKind: "receipt"
     });
-    await expect(codec.verify(token, {
+    expect(issued.expiresAt).toBe("2027-01-15T08:30:00.000Z");
+    expect(issued.token).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    const [payload] = issued.token.split(".");
+    const decoded = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(
+          atob(payload.replaceAll("-", "+").replaceAll("_", "/")
+            .padEnd(Math.ceil(payload.length / 4) * 4, "=")),
+          (char) => char.charCodeAt(0)
+        )
+      )
+    );
+    expect(decoded.exp).toBe(1_800_001_800);
+    await expect(codec.verify(issued.token, {
       userId: "11111111-1111-4111-8111-111111111111",
       workspaceId: "22222222-2222-4222-8222-222222222222"
-    })).resolves.toMatchObject({ exp: now + 900 });
+    })).resolves.toMatchObject({ exp: now + 1800 });
     const expired = createSlipAnalysisTokenCodec(
       "x".repeat(32),
-      () => now + 901
+      () => now + 1801
     );
-    await expect(expired.verify(token, {
+    await expect(expired.verify(issued.token, {
       userId: "11111111-1111-4111-8111-111111111111",
       workspaceId: "22222222-2222-4222-8222-222222222222"
     })).rejects.toThrow("TOKEN_EXPIRED");

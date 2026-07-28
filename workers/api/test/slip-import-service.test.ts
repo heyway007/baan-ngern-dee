@@ -58,7 +58,10 @@ function dependencies() {
       })
     },
     tokenCodec: {
-      issue: vi.fn().mockResolvedValue("a".repeat(40)),
+      issue: vi.fn().mockResolvedValue({
+        token: "a".repeat(40),
+        expiresAt: "2026-07-29T03:30:00.000Z"
+      }),
       verify: vi.fn()
     }
   };
@@ -78,6 +81,8 @@ describe("SlipImportService", () => {
     });
     expect(result.status).toBe("success");
     if (result.status === "success") {
+      expect(result.analysisToken).toBe("a".repeat(40));
+      expect(result.analysisExpiresAt).toBe("2026-07-29T03:30:00.000Z");
       expect(result.draft).toMatchObject({
         type: "expense",
         amount: "100.00",

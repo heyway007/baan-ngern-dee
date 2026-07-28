@@ -16,6 +16,10 @@ const claimsSchema = z
 
 export type SlipAnalysisClaims = z.infer<typeof claimsSchema>;
 type NewClaims = Omit<SlipAnalysisClaims, "exp">;
+export type IssuedSlipAnalysisToken = Readonly<{
+  token: string;
+  expiresAt: string;
+}>;
 
 function base64Url(bytes: Uint8Array) {
   let binary = "";
@@ -33,7 +37,7 @@ function decodeBase64Url(value: string) {
 }
 
 export type SlipAnalysisTokenCodec = Readonly<{
-  issue(claims: NewClaims): Promise<string>;
+  issue(claims: NewClaims): Promise<IssuedSlipAnalysisToken>;
   verify(
     token: string,
     expected: Readonly<{ userId: string; workspaceId: string }>
@@ -56,15 +60,19 @@ export function createSlipAnalysisTokenCodec(
 
   return {
     async issue(input) {
+      const expiresAtSeconds = now() + 1800;
       const payload = base64Url(
-        encoder.encode(JSON.stringify({ ...input, exp: now() + 900 }))
+        encoder.encode(JSON.stringify({ ...input, exp: expiresAtSeconds }))
       );
       const signature = await crypto.subtle.sign(
         "HMAC",
         await keyPromise,
         encoder.encode(payload)
       );
-      return `${payload}.${base64Url(new Uint8Array(signature))}`;
+      return {
+        token: `${payload}.${base64Url(new Uint8Array(signature))}`,
+        expiresAt: new Date(expiresAtSeconds * 1000).toISOString()
+      };
     },
     async verify(token, expected) {
       const [payload, signature, extra] = token.split(".");
