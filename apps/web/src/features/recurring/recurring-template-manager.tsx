@@ -22,6 +22,22 @@ const statusLabels: Record<RecurringTemplate["status"], string> = {
   cancelled: "ยกเลิกแล้ว"
 };
 
+const recurringMonthFormatter = new Intl.DateTimeFormat(
+  "th-TH-u-ca-gregory-nu-latn",
+  {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC"
+  }
+);
+
+function formatRecurringMonth(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return recurringMonthFormatter.format(
+    new Date(Date.UTC(year!, monthNumber! - 1, 1))
+  );
+}
+
 export function RecurringTemplateManager({
   api,
   templates,
@@ -90,6 +106,12 @@ export function RecurringTemplateManager({
                 <p>
                   {template.amount} {template.currency} · วันที่{" "}
                   {template.dayOfMonth}
+                </p>
+                <p className="recurring-template-period">
+                  เริ่ม {formatRecurringMonth(template.startMonth)}{" · "}
+                  {template.endMonth
+                    ? `สิ้นสุด ${formatRecurringMonth(template.endMonth)}`
+                    : "ไม่มีกำหนดสิ้นสุด"}
                 </p>
                 <span className="status-pill">
                   {statusLabels[template.status]}

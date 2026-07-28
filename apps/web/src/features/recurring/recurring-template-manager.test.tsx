@@ -11,7 +11,8 @@ function template(
   id: string,
   name: string,
   status: RecurringTemplate["status"],
-  version: number
+  version: number,
+  endMonth?: string
 ): RecurringTemplate {
   return {
     id,
@@ -24,6 +25,7 @@ function template(
     categoryId: "33333333-3333-4333-8333-333333333333",
     dayOfMonth: 1,
     startMonth: "2026-01",
+    ...(endMonth ? { endMonth } : {}),
     status,
     version
   };
@@ -82,6 +84,31 @@ function renderManager(options: {
 }
 
 describe("RecurringTemplateManager", () => {
+  it("shows the localized inclusive period for every template", () => {
+    const finite = template(
+      "77777777-7777-4777-8777-777777777777",
+      "ประกัน",
+      "active",
+      1,
+      "2026-12"
+    );
+    const openEnded = template(
+      "88888888-8888-4888-8888-888888888888",
+      "เงินเดือน",
+      "cancelled",
+      1
+    );
+
+    renderManager({ templates: [finite, openEnded] });
+
+    expect(
+      screen.getByText("เริ่ม ม.ค. 2026 · สิ้นสุด ธ.ค. 2026")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("เริ่ม ม.ค. 2026 · ไม่มีกำหนดสิ้นสุด")
+    ).toBeInTheDocument();
+  });
+
   it("pauses and resumes templates with their current versions", async () => {
     const user = userEvent.setup();
     const {
