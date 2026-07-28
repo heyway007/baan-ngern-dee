@@ -113,7 +113,7 @@ describe("SlipImportDialog", () => {
     const user = userEvent.setup();
     let used = 0;
     const financeApi = api({
-      getSlipQuota: vi.fn(async () => ({ used, limit: 30 })),
+      getSlipQuota: vi.fn(async () => ({ used, limit: 30 as const })),
       analyzeSlip: vi.fn(async () => {
         used = 1;
         return success();
