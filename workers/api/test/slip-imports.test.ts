@@ -21,7 +21,8 @@ describe("slip import routes", () => {
       authVerifier: createStaticAuthVerifier({ token: userId }),
       slipImportService: {
         analyze,
-        confirm: vi.fn()
+        confirm: vi.fn(),
+        getQuota: vi.fn()
       },
       publicConfig: {
         supabaseUrl: "https://example.supabase.co",
@@ -45,7 +46,8 @@ describe("slip import routes", () => {
     const response = await createApp({
       slipImportService: {
         analyze: vi.fn(),
-        confirm: vi.fn()
+        confirm: vi.fn(),
+        getQuota: vi.fn()
       },
       publicConfig: {
         supabaseUrl: "https://example.supabase.co",
@@ -54,5 +56,53 @@ describe("slip import routes", () => {
       }
     }).request("/v1/slip-imports/analyze", { method: "POST" });
     expect(response.status).toBe(401);
+  });
+
+  it("returns quota state for an authenticated workspace", async () => {
+    const getQuota = vi.fn().mockResolvedValue({ used: 7, limit: 30 });
+    const response = await createApp({
+      authVerifier: createStaticAuthVerifier({ token: userId }),
+      slipImportService: {
+        analyze: vi.fn(),
+        confirm: vi.fn(),
+        getQuota
+      },
+      publicConfig: {
+        supabaseUrl: "https://example.supabase.co",
+        supabasePublishableKey: "sb_publishable_example_example",
+        turnstileSiteKey: "test"
+      }
+    }).request(
+      `/v1/slip-imports/quota?workspaceId=${encodeURIComponent(workspaceId)}`,
+      { headers: { authorization: "Bearer token" } }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ used: 7, limit: 30 });
+    expect(getQuota).toHaveBeenCalledWith(
+      expect.objectContaining({ userId }),
+      workspaceId
+    );
+  });
+
+  it("rejects unknown quota query keys", async () => {
+    const response = await createApp({
+      authVerifier: createStaticAuthVerifier({ token: userId }),
+      slipImportService: {
+        analyze: vi.fn(),
+        confirm: vi.fn(),
+        getQuota: vi.fn()
+      },
+      publicConfig: {
+        supabaseUrl: "https://example.supabase.co",
+        supabasePublishableKey: "sb_publishable_example_example",
+        turnstileSiteKey: "test"
+      }
+    }).request(
+      `/v1/slip-imports/quota?workspaceId=${workspaceId}&extra=true`,
+      { headers: { authorization: "Bearer token" } }
+    );
+
+    expect(response.status).toBe(400);
   });
 });

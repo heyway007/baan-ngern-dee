@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(11);
 select has_table('public', 'financial_document_imports');
 select has_table('public', 'slip_analysis_attempts');
 select has_function(
@@ -8,6 +8,43 @@ select has_function(
 );
 select has_function(
   'public', 'consume_slip_analysis_quota', array['uuid']
+);
+select has_function(
+  'public', 'get_slip_analysis_quota', array['uuid']
+);
+select function_privs_are(
+  'public',
+  'get_slip_analysis_quota',
+  array['uuid'],
+  'authenticated',
+  array['EXECUTE']
+);
+select function_privs_are(
+  'public',
+  'get_slip_analysis_quota',
+  array['uuid'],
+  'anon',
+  array[]::text[]
+);
+select function_privs_are(
+  'public',
+  'consume_slip_analysis_quota',
+  array['uuid'],
+  'authenticated',
+  array['EXECUTE']
+);
+select function_privs_are(
+  'public',
+  'consume_slip_analysis_quota',
+  array['uuid'],
+  'anon',
+  array[]::text[]
+);
+select table_privs_are(
+  'public',
+  'slip_analysis_attempts',
+  'authenticated',
+  array[]::text[]
 );
 select has_function(
   'public', 'confirm_financial_document_import', array['jsonb']

@@ -1,6 +1,7 @@
 import {
   duplicateTransactionSchema,
-  postedTransactionResponseSchema
+  postedTransactionResponseSchema,
+  slipQuotaStateSchema
 } from "@systems-credit/contracts";
 import { z } from "zod";
 
@@ -11,11 +12,19 @@ import {
 } from "./supabase-client";
 
 const quotaSchema = z.discriminatedUnion("allowed", [
-  z.object({ allowed: z.literal(true) }).strict(),
+  z
+    .object({
+      allowed: z.literal(true),
+      used: z.number().int().min(1).max(30),
+      limit: z.literal(30)
+    })
+    .strict(),
   z
     .object({
       allowed: z.literal(false),
-      reason: z.enum(["user_hour", "workspace_day"])
+      reason: z.literal("workspace_day"),
+      used: z.literal(30),
+      limit: z.literal(30)
     })
     .strict()
 ]);
@@ -39,6 +48,13 @@ export function createSupabaseSlipImportRepository(
 ): SlipImportRepository {
   const client = new SupabaseRestClient(config);
   return {
+    async getQuota(actor, workspaceId) {
+      return slipQuotaStateSchema.parse(
+        await client.rpc(actor, "get_slip_analysis_quota", {
+          p_workspace_id: workspaceId
+        })
+      );
+    },
     async findDuplicate(
       actor,
       workspaceId,

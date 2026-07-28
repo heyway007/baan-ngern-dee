@@ -13,8 +13,13 @@ const actor = { userId, accessToken: "token" };
 function dependencies() {
   return {
     repository: {
+      getQuota: vi.fn().mockResolvedValue({ used: 0, limit: 30 }),
       findDuplicate: vi.fn().mockResolvedValue(null),
-      consumeQuota: vi.fn().mockResolvedValue({ allowed: true }),
+      consumeQuota: vi.fn().mockResolvedValue({
+        allowed: true,
+        used: 1,
+        limit: 30
+      }),
       confirm: vi.fn()
     },
     financeRepository: {
@@ -133,5 +138,20 @@ describe("SlipImportService", () => {
       logContext: { slipVisionCategory: "invalid_json" },
       status: 503
     });
+  });
+
+  it("returns the current workspace quota without consuming it", async () => {
+    const deps = dependencies();
+    deps.repository.getQuota.mockResolvedValue({
+      used: 7,
+      limit: 30
+    });
+    const service = createSlipImportService(deps as never);
+
+    await expect(service.getQuota(actor, workspaceId)).resolves.toEqual({
+      used: 7,
+      limit: 30
+    });
+    expect(deps.repository.consumeQuota).not.toHaveBeenCalled();
   });
 });

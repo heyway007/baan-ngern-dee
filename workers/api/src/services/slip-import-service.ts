@@ -4,6 +4,7 @@ import {
   type PostedTransactionResponse,
   type SlipAiExtraction,
   type SlipAnalysisResponse,
+  type SlipQuotaState,
   type SlipTransactionDraft
 } from "@systems-credit/contracts";
 
@@ -27,6 +28,10 @@ export type AnalyzeSlipCommand = Readonly<{
 }>;
 
 export interface SlipImportService {
+  getQuota(
+    actor: AuthSession,
+    workspaceId: string
+  ): Promise<SlipQuotaState>;
   analyze(
     actor: AuthSession,
     command: AnalyzeSlipCommand
@@ -114,6 +119,9 @@ export function createSlipImportService(dependencies: {
   tokenCodec: SlipAnalysisTokenCodec;
 }): SlipImportService {
   return {
+    getQuota(actor, workspaceId) {
+      return dependencies.repository.getQuota(actor, workspaceId);
+    },
     async analyze(actor, command) {
       let image;
       try {

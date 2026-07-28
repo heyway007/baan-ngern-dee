@@ -2,7 +2,8 @@ import type {
   CreateTransactionInput,
   DuplicateTransaction,
   PostedTransactionResponse,
-  SlipDocumentKind
+  SlipDocumentKind,
+  SlipQuotaState
 } from "@systems-credit/contracts";
 
 import type { AuthSession } from "../middleware/auth";
@@ -16,6 +17,10 @@ export type ConfirmSlipCommand = Readonly<{
 }>;
 
 export interface SlipImportRepository {
+  getQuota(
+    actor: AuthSession,
+    workspaceId: string
+  ): Promise<SlipQuotaState>;
   findDuplicate(
     actor: AuthSession,
     workspaceId: string,
@@ -26,8 +31,13 @@ export interface SlipImportRepository {
     actor: AuthSession,
     workspaceId: string
   ): Promise<
-    | { allowed: true }
-    | { allowed: false; reason: "user_hour" | "workspace_day" }
+    | { allowed: true; used: number; limit: 30 }
+    | {
+        allowed: false;
+        reason: "workspace_day";
+        used: 30;
+        limit: 30;
+      }
   >;
   confirm(
     actor: AuthSession,
