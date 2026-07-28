@@ -271,6 +271,31 @@ describe("createRemoteFinanceApi", () => {
     ]);
   });
 
+  it("sends slip analysis as authenticated multipart data", async () => {
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ status: "unsupported" }));
+    const api = createRemoteFinanceApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+    await expect(api.analyzeSlip({
+      workspaceId,
+      clientMutationId: mutationId,
+      imageSha256: "a".repeat(64),
+      image: new Blob([new Uint8Array([0xff, 0xd8, 0xff])], {
+        type: "image/jpeg"
+      })
+    })).resolves.toEqual({ status: "unsupported" });
+    const [, init] = requestFetch.mock.calls[0]!;
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect(new Headers(init?.headers).has("content-type")).toBe(false);
+    expect(new Headers(init?.headers).get("authorization")).toBe(
+      "Bearer access-token"
+    );
+  });
+
   it("voids a transaction with its current version and reason", async () => {
     const response = {
       transactionId: mutationId,

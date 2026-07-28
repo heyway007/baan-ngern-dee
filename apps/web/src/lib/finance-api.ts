@@ -21,7 +21,9 @@ import type {
   UpdateRecurringOccurrenceInput,
   UpdateRecurringTemplateInput,
   VoidTransactionInput,
-  Workspace
+  Workspace,
+  SlipAnalysisResponse,
+  ConfirmSlipInput
 } from "@systems-credit/contracts";
 
 export type WorkspaceCreationResult = Readonly<{
@@ -119,6 +121,15 @@ export type InstallmentPayoffResult = Readonly<{
 }>;
 
 export interface FinanceApi {
+  analyzeSlip(input: Readonly<{
+    workspaceId: string;
+    clientMutationId: string;
+    imageSha256: string;
+    image: Blob;
+  }>): Promise<SlipAnalysisResponse>;
+  confirmSlip(
+    input: ConfirmSlipInput
+  ): Promise<PostedTransactionResponse>;
   createPrivateWorkspace(
     input: CreatePrivateWorkspaceInput
   ): Promise<WorkspaceCreationResult>;

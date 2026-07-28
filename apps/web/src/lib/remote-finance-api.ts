@@ -8,6 +8,8 @@ import {
   recurringOccurrenceSchema,
   recurringPeriodSchema,
   recurringTemplateSchema,
+  analyzeSlipResponseSchema,
+  confirmSlipInputSchema,
   type ApiErrorCode,
   type FinanceSnapshot
 } from "@systems-credit/contracts";
@@ -254,7 +256,9 @@ export function createRemoteFinanceApi(options: {
         ...init,
         headers: {
           accept: "application/json",
-          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...(typeof init.body === "string"
+            ? { "content-type": "application/json" }
+            : {}),
           authorization: `Bearer ${accessToken}`,
           ...init.headers
         }
@@ -313,6 +317,27 @@ export function createRemoteFinanceApi(options: {
   }
 
   return {
+    analyzeSlip(input) {
+      const form = new FormData();
+      form.set("workspaceId", input.workspaceId);
+      form.set("clientMutationId", input.clientMutationId);
+      form.set("imageSha256", input.imageSha256);
+      form.set("image", input.image, "slip");
+      return request(
+        "/v1/slip-imports/analyze",
+        { method: "POST", body: form },
+        analyzeSlipResponseSchema
+      );
+    },
+
+    confirmSlip(input) {
+      return post(
+        "/v1/slip-imports/confirm",
+        confirmSlipInputSchema.parse(input),
+        postedTransactionResponseSchema
+      );
+    },
+
     async getSnapshot() {
       const snapshot = await request(
         "/v1/snapshot",
