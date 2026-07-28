@@ -120,9 +120,10 @@ an unrelated screenshot based on one hallucinated value.
   object returns the existing retryable AI error.
 
 The Worker logs only a bounded failure category such as `provider`,
-`empty_answer`, `invalid_json`, or `no_financial_fields`, together with the
-request ID. It never logs image bytes, raw answers, names, references, account
-numbers, amounts, or dates.
+`empty_answer`, `invalid_json`, or `invalid_shape`, together with the request
+ID. A valid but unsupported document is a normal response and is not logged as
+an error. Logs never contain image bytes, raw answers, names, references,
+account numbers, amounts, or dates.
 
 ## Privacy and Persistence
 
