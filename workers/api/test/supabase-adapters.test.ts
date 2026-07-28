@@ -89,6 +89,41 @@ describe("Supabase Worker adapters", () => {
     );
   });
 
+  it("maps transaction voids to the exact SQL RPC parameter names", async () => {
+    const transactionId =
+      "22222222-2222-4222-8222-222222222222";
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        transactionId,
+        state: "void",
+        version: 4,
+        accountBalances: []
+      })
+    );
+    const repository = createSupabaseFinanceRepository({
+      url: "https://project.supabase.co",
+      anonKey: "anon-key",
+      fetch: requestFetch
+    });
+
+    await repository.voidTransaction(actor, transactionId, {
+      version: 3,
+      reason: "บันทึกรายการผิด"
+    });
+
+    expect(requestFetch).toHaveBeenCalledWith(
+      "https://project.supabase.co/rest/v1/rpc/void_transaction",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          p_transaction_id: transactionId,
+          p_version: 3,
+          p_reason: "บันทึกรายการผิด"
+        })
+      })
+    );
+  });
+
   it("maps recurring commands to exact Supabase RPC payloads", async () => {
     const workspaceId = "22222222-2222-4222-8222-222222222222";
     const templateId = "33333333-3333-4333-8333-333333333333";

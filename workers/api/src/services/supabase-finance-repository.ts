@@ -196,7 +196,7 @@ export function createSupabaseFinanceRepository(
     voidTransaction(actor, transactionId, input) {
       return client.rpc(actor, "void_transaction", {
         p_transaction_id: transactionId,
-        p_expected_version: input.version,
+        p_version: input.version,
         p_reason: input.reason
       });
     },
