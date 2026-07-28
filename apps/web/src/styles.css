@@ -3983,8 +3983,14 @@ select:focus {
   color: #36564b;
 }
 
+.slip-file-picker-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .slip-file-picker {
-  min-height: 150px;
+  min-height: 132px;
   display: grid;
   place-items: center;
   gap: 6px;
@@ -3995,11 +4001,22 @@ select:focus {
   text-align: center;
 }
 
+.slip-file-picker:hover {
+  border-color: var(--primary, #1f5c4b);
+  background: #f7faf7;
+}
+
 .slip-file-picker input {
   position: absolute;
   width: 1px;
   height: 1px;
   opacity: 0;
+}
+
+.slip-file-help {
+  margin: 10px 0 0;
+  color: var(--muted, #6e7c76);
+  text-align: center;
 }
 
 .slip-preview {
@@ -4075,5 +4092,9 @@ select:focus {
 
   .slip-dialog-actions button {
     width: 100%;
+  }
+
+  .slip-file-picker-options {
+    grid-template-columns: 1fr;
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Camera, LoaderCircle, X } from "lucide-react";
+import { AlertTriangle, Camera, Images, LoaderCircle, X } from "lucide-react";
 
 import type {
   Account,
@@ -134,18 +134,36 @@ export function SlipImportDialog({
 
         {!result ? (
           <>
-            <label className="slip-file-picker">
-              <Camera size={24} aria-hidden="true" />
-              <strong>เลือกรูปหรือถ่ายภาพ</strong>
-              <span>รองรับ JPG, PNG, WebP ไม่เกิน 5 MB</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                capture="environment"
-                onChange={(event) => void selectFile(event.target.files?.[0])}
-                disabled={status === "analyzing"}
-              />
-            </label>
+            <div className="slip-file-picker-options">
+              <label className="slip-file-picker">
+                <Images size={24} aria-hidden="true" />
+                <strong>เลือกจากคลังภาพ</strong>
+                <span>เลือกรูปสลิปหรือใบเสร็จที่มีอยู่</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-label="เลือกจากคลังภาพ"
+                  onChange={(event) => void selectFile(event.target.files?.[0])}
+                  disabled={status === "analyzing"}
+                />
+              </label>
+              <label className="slip-file-picker">
+                <Camera size={24} aria-hidden="true" />
+                <strong>ถ่ายรูปใหม่</strong>
+                <span>เปิดกล้องหลังเพื่อถ่ายเอกสาร</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  aria-label="ถ่ายรูปใหม่"
+                  onChange={(event) => void selectFile(event.target.files?.[0])}
+                  disabled={status === "analyzing"}
+                />
+              </label>
+            </div>
+            <p className="slip-file-help">
+              รองรับ JPG, PNG, WebP ไม่เกิน 5 MB
+            </p>
             {image ? (
               <img
                 className="slip-preview"
