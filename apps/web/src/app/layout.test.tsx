@@ -31,6 +31,38 @@ describe("AppLayout invitation navigation", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("hides user management without the server capability", () => {
+    render(
+      <MemoryRouter>
+        <AppLayout
+          session={session}
+          canManageUsers={false}
+          onSignOut={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "จัดการผู้ใช้" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows user management with the server capability", () => {
+    render(
+      <MemoryRouter>
+        <AppLayout
+          session={session}
+          canManageUsers
+          onSignOut={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("link", { name: "จัดการผู้ใช้" })
+    ).toHaveAttribute("href", "/admin/users");
+  });
+
   it("shows invitation management with the server capability", () => {
     render(
       <MemoryRouter>

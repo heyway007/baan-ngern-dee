@@ -2641,6 +2641,271 @@ select:focus {
   font-family: "Kanit", sans-serif;
 }
 
+/* Super Admin user management */
+.turnstile-slot {
+  min-height: 70px;
+  width: 100%;
+}
+
+.admin-users-page {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-users-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-users-search {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: flex;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.admin-users-search:focus-within {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px rgba(30, 91, 72, 0.12);
+}
+
+.admin-users-search input {
+  border: 0;
+  box-shadow: none;
+  flex: 1;
+  min-width: 0;
+  padding-inline: 0;
+}
+
+.admin-users-list-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.admin-users-list-card > .empty-copy,
+.admin-users-list-card > [role="status"] {
+  padding: 28px;
+}
+
+.admin-users-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-users-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 15px 18px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-users-table th {
+  background: rgba(30, 91, 72, 0.05);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.admin-users-row td:first-child strong,
+.admin-users-row td:first-child small {
+  display: block;
+}
+
+.admin-users-row td:first-child small {
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.user-status {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-family: "Kanit", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.user-status-active {
+  background: #e2f4e9;
+  color: #17633f;
+}
+
+.user-status-unconfirmed {
+  background: #fff3d4;
+  color: #8b5b00;
+}
+
+.user-status-suspended {
+  background: #f2ece8;
+  color: #765647;
+}
+
+.user-status-deletion_pending {
+  background: #fde8e4;
+  color: #a13f31;
+}
+
+.admin-users-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.admin-users-actions .icon-button {
+  border: 1px solid var(--line);
+  height: 38px;
+  width: 38px;
+}
+
+.admin-users-actions .danger-icon-button {
+  color: var(--coral);
+}
+
+.admin-users-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.admin-users-pagination {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.admin-users-pagination .ghost-button {
+  min-height: 42px;
+}
+
+.admin-users-notice {
+  margin: 0;
+}
+
+.danger-confirm-overlay {
+  align-items: center;
+  background: rgba(14, 31, 25, 0.58);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 100;
+}
+
+.danger-confirm-card {
+  background: var(--paper);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(14, 31, 25, 0.25);
+  display: grid;
+  gap: 14px;
+  max-height: calc(100vh - 40px);
+  max-width: 520px;
+  overflow-y: auto;
+  padding: 28px;
+  position: relative;
+  width: 100%;
+}
+
+.danger-confirm-card h2,
+.danger-confirm-card p {
+  margin: 0;
+}
+
+.danger-confirm-close {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+}
+
+.danger-confirm-target {
+  background: #fff6f3;
+  border: 1px solid #f1cbc2;
+  border-radius: 14px;
+  display: grid;
+  gap: 3px;
+  padding: 14px;
+}
+
+.danger-confirm-target span {
+  color: var(--muted);
+}
+
+.danger-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.danger-confirm-actions button {
+  min-height: 44px;
+}
+
+@media (max-width: 760px) {
+  .admin-users-table thead {
+    display: none;
+  }
+
+  .admin-users-table,
+  .admin-users-table tbody {
+    display: block;
+  }
+
+  .admin-users-row {
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .admin-users-row td {
+    align-items: start;
+    border: 0;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(110px, 0.42fr) 1fr;
+    padding: 0;
+  }
+
+  .admin-users-row td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 0.82rem;
+  }
+
+  .admin-users-actions {
+    justify-content: flex-start;
+  }
+
+  .admin-users-actions .icon-button,
+  .admin-users-pagination button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .admin-users-pagination {
+    gap: 8px;
+  }
+
+  .admin-users-pagination .ghost-button {
+    padding-inline: 10px;
+  }
+
+  .danger-confirm-actions {
+    flex-direction: column-reverse;
+  }
+}
+
 .invitation-recipient small {
   overflow-wrap: anywhere;
   color: var(--muted);

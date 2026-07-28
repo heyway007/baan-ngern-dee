@@ -21,6 +21,7 @@ import {
 
 import { AccountsPage } from "../features/accounts/accounts-page";
 import { InvitationsPage } from "../features/admin/invitations-page";
+import { UsersPage } from "../features/admin/users-page";
 import { AcceptInvitePage } from "../features/auth/accept-invite-page";
 import { ResetPasswordPage } from "../features/auth/reset-password-page";
 import { SessionGuard } from "../features/auth/session-guard";
@@ -47,6 +48,10 @@ import {
   type RemoteFinanceApi
 } from "../lib/remote-finance-api";
 import {
+  createUserManagementApi,
+  type UserManagementApi
+} from "../lib/user-management-api";
+import {
   cloudReducer,
   initialCloudState
 } from "./cloud-state";
@@ -69,6 +74,10 @@ export type CloudRouterDependencies = Readonly<{
     auth: CloudAuth,
     onUnauthenticated: () => void
   ): AdminInvitationApi;
+  createUserManagementApi(
+    auth: CloudAuth,
+    onUnauthenticated: () => void
+  ): UserManagementApi;
   createPublicInvitationApi(): PublicInvitationApi;
 }>;
 
@@ -80,6 +89,8 @@ const defaultDependencies: CloudRouterDependencies = {
     createRemoteFinanceApi({ auth, onUnauthenticated }),
   createAdminApi: (auth, onUnauthenticated) =>
     createAdminInvitationApi({ auth, onUnauthenticated }),
+  createUserManagementApi: (auth, onUnauthenticated) =>
+    createUserManagementApi({ auth, onUnauthenticated }),
   createPublicInvitationApi: () =>
     createPublicInvitationApi()
 };
@@ -176,11 +187,17 @@ export function FinanceRoutes({
     initialCloudState
   );
   const [bootAttempt, setBootAttempt] = useState(0);
+  const [publicConfig, setPublicConfig] =
+    useState<PublicAppConfig | null>(null);
   const [canManageInvitations, setCanManageInvitations] =
+    useState<boolean | null>(null);
+  const [canManageUsers, setCanManageUsers] =
     useState<boolean | null>(null);
   const authRef = useRef<CloudAuth | null>(null);
   const apiRef = useRef<RemoteFinanceApi | null>(null);
   const adminApiRef = useRef<AdminInvitationApi | null>(null);
+  const userManagementApiRef =
+    useRef<UserManagementApi | null>(null);
   const publicInvitationApiRef =
     useRef<PublicInvitationApi | null>(null);
   const activeRef = useRef(true);
@@ -234,6 +251,7 @@ export function FinanceRoutes({
       try {
         const config = await dependencies.loadConfig();
         if (!activeRef.current) return;
+        setPublicConfig(config);
         dispatch({ type: "CONFIG_LOADED" });
 
         const auth = dependencies.createAuth(config);
@@ -242,6 +260,7 @@ export function FinanceRoutes({
         const onUnauthenticated = () => {
           if (activeRef.current) {
             setCanManageInvitations(null);
+            setCanManageUsers(null);
             dispatch({ type: "SIGNED_OUT" });
           }
         };
@@ -253,15 +272,22 @@ export function FinanceRoutes({
           auth,
           onUnauthenticated
         );
+        const userManagementApi =
+          dependencies.createUserManagementApi(
+            auth,
+            onUnauthenticated
+          );
         authRef.current = auth;
         apiRef.current = api;
         adminApiRef.current = adminApi;
+        userManagementApiRef.current = userManagementApi;
         publicInvitationApiRef.current = publicInvitationApi;
 
         const handleSession = (session: CloudSession | null) => {
           if (!activeRef.current) return;
           if (!session) {
             setCanManageInvitations(null);
+            setCanManageUsers(null);
             dispatch({ type: "SIGNED_OUT" });
             return;
           }
@@ -269,6 +295,7 @@ export function FinanceRoutes({
             dependencies.storage.removeItem(key);
           }
           setCanManageInvitations(null);
+          setCanManageUsers(null);
           void adminApi
             .capabilities()
             .then((capabilities) => {
@@ -276,11 +303,15 @@ export function FinanceRoutes({
                 setCanManageInvitations(
                   capabilities.canManageInvitations
                 );
+                setCanManageUsers(
+                  capabilities.canManageUsers
+                );
               }
             })
             .catch(() => {
               if (activeRef.current) {
                 setCanManageInvitations(false);
+                setCanManageUsers(false);
               }
             });
           void loadSnapshot(session, api);
@@ -311,6 +342,7 @@ export function FinanceRoutes({
       await authRef.current?.signOut();
     } finally {
       setCanManageInvitations(null);
+      setCanManageUsers(null);
       dispatch({ type: "SIGNED_OUT" });
       navigate("/sign-in", { replace: true });
     }
@@ -323,6 +355,7 @@ export function FinanceRoutes({
       await authRef.current?.signOut();
     } finally {
       setCanManageInvitations(null);
+      setCanManageUsers(null);
       dispatch({ type: "SIGNED_OUT" });
       navigate(invitationLocation, { replace: true });
     }
@@ -416,6 +449,9 @@ export function FinanceRoutes({
           element={
             <SignInPage
               auth={auth}
+              turnstileSiteKey={
+                publicConfig!.turnstileSiteKey
+              }
               onAuthenticated={acceptAuthenticatedSession}
             />
           }
@@ -439,7 +475,8 @@ export function FinanceRoutes({
   const { session, snapshot } = state;
   const api = apiRef.current;
   const adminApi = adminApiRef.current;
-  if (!api || !adminApi) {
+  const userManagementApi = userManagementApiRef.current;
+  if (!api || !adminApi || !userManagementApi) {
     return null;
   }
 
@@ -506,6 +543,7 @@ export function FinanceRoutes({
               canManageInvitations={
                 canManageInvitations === true
               }
+              canManageUsers={canManageUsers === true}
               onSignOut={signOut}
             />
           }
@@ -593,6 +631,25 @@ export function FinanceRoutes({
                 />
               ) : canManageInvitations ? (
                 <InvitationsPage api={adminApi} />
+              ) : (
+                <Navigate to="/overview" replace />
+              )
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              canManageUsers === null ? (
+                <CloudStatusCard
+                  label="กำลังตรวจสอบสิทธิ์"
+                  detail="กำลังยืนยันสิทธิ์จัดการผู้ใช้กับระบบ"
+                />
+              ) : canManageUsers ? (
+                <UsersPage
+                  api={userManagementApi}
+                  signedInUserId={session.userId}
+                  protectedUserId={session.userId}
+                />
               ) : (
                 <Navigate to="/overview" replace />
               )

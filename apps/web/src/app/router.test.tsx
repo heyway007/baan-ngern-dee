@@ -19,6 +19,7 @@ import type {
 import type {
   RemoteFinanceApi
 } from "../lib/remote-finance-api";
+import type { UserManagementApi } from "../lib/user-management-api";
 import {
   FinanceRoutes,
   type CloudRouterDependencies
@@ -26,7 +27,8 @@ import {
 
 const config: PublicAppConfig = {
   supabaseUrl: "https://project.supabase.co",
-  supabasePublishableKey: "sb_publishable_public"
+  supabasePublishableKey: "sb_publishable_public",
+  turnstileSiteKey: "1x00000000000000000000AA"
 };
 
 const session: CloudSession = {
@@ -97,6 +99,7 @@ function createDependencies(options: {
   }>;
   storage?: Storage;
   canManageInvitations?: boolean;
+  canManageUsers?: boolean;
 }) {
   let listener: ((next: CloudSession | null) => void) | undefined;
   const auth: CloudAuth = {
@@ -133,7 +136,8 @@ function createDependencies(options: {
   const adminApi = {
     capabilities: vi.fn().mockResolvedValue({
       canManageInvitations:
-        options.canManageInvitations ?? false
+        options.canManageInvitations ?? false,
+      canManageUsers: options.canManageUsers ?? false
     }),
     list: vi.fn().mockResolvedValue([]),
     create: vi.fn(),
@@ -148,12 +152,26 @@ function createDependencies(options: {
     }),
     redeem: vi.fn()
   } satisfies PublicInvitationApi;
+  const userManagementApi = {
+    list: vi.fn().mockResolvedValue({
+      users: [],
+      nextCursor: null
+    }),
+    confirm: vi.fn(),
+    suspend: vi.fn(),
+    resume: vi.fn(),
+    sendPasswordReset: vi.fn(),
+    delete: vi.fn()
+  } satisfies UserManagementApi;
   const dependencies: CloudRouterDependencies = {
     storage: options.storage ?? new MemoryStorage(),
     loadConfig: vi.fn().mockResolvedValue(config),
     createAuth: vi.fn(() => auth),
     createApi: vi.fn(() => api),
     createAdminApi: vi.fn(() => adminApi),
+    createUserManagementApi: vi.fn(
+      () => userManagementApi
+    ),
     createPublicInvitationApi: vi.fn(
       () => publicInvitationApi
     )
@@ -163,6 +181,7 @@ function createDependencies(options: {
     api,
     adminApi,
     publicInvitationApi,
+    userManagementApi,
     dependencies,
     getSnapshot,
     materializeRecurringPeriod
@@ -499,6 +518,89 @@ describe("cloud application flow", () => {
     expect(
       screen.getByRole("link", { name: "คำเชิญผู้ใช้" })
     ).toHaveAttribute("href", "/admin/invitations");
+  });
+
+  it("opens user management only after the server grants its capability", async () => {
+    const { adminApi, userManagementApi, dependencies } =
+      createDependencies({
+        session,
+        snapshot: workspaceSnapshot,
+        canManageUsers: true
+      });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/users"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "จัดการผู้ใช้"
+      })
+    ).toBeInTheDocument();
+    expect(adminApi.capabilities).toHaveBeenCalledOnce();
+    expect(userManagementApi.list).toHaveBeenCalled();
+    expect(
+      screen.getByRole("link", { name: "จัดการผู้ใช้" })
+    ).toHaveAttribute("href", "/admin/users");
+  });
+
+  it("redirects an unauthorized user-management visit to overview", async () => {
+    const { dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      canManageUsers: false
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/users"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /สวัสดี/
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "จัดการผู้ใช้" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("passes the public Turnstile site key into sign-up", async () => {
+    const renderTurnstile = vi.fn(() => "widget-1");
+    window.turnstile = {
+      render: renderTurnstile,
+      remove: vi.fn(),
+      reset: vi.fn()
+    };
+    const event = userEvent.setup();
+    const { dependencies } = createDependencies({
+      session: null
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/sign-in"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+    await event.click(
+      await screen.findByRole("button", {
+        name: "สมัครสมาชิก"
+      })
+    );
+
+    await waitFor(() => {
+      expect(renderTurnstile).toHaveBeenCalledWith(
+        expect.any(HTMLElement),
+        expect.objectContaining({
+          sitekey: config.turnstileSiteKey
+        })
+      );
+    });
+    delete window.turnstile;
   });
 
   it("signs out through Supabase and returns to sign in", async () => {

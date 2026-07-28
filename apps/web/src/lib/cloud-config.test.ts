@@ -10,7 +10,8 @@ describe("loadPublicAppConfig", () => {
       .mockResolvedValue(
         Response.json({
           supabaseUrl: "https://project.supabase.co",
-          supabasePublishableKey: "sb_publishable_public"
+          supabasePublishableKey: "sb_publishable_public",
+          turnstileSiteKey: "1x00000000000000000000AA"
         })
       );
 
@@ -18,7 +19,8 @@ describe("loadPublicAppConfig", () => {
       loadPublicAppConfig(requestFetch)
     ).resolves.toEqual({
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "1x00000000000000000000AA"
     });
     expect(requestFetch).toHaveBeenCalledWith("/config", {
       headers: { accept: "application/json" }
@@ -31,7 +33,23 @@ describe("loadPublicAppConfig", () => {
       .mockResolvedValue(
         Response.json({
           supabaseUrl: "https://project.supabase.co",
-          supabasePublishableKey: "sb_secret_private"
+          supabasePublishableKey: "sb_secret_private",
+          turnstileSiteKey: "1x00000000000000000000AA"
+        })
+      );
+
+    await expect(
+      loadPublicAppConfig(requestFetch)
+    ).rejects.toBeInstanceOf(z.ZodError);
+  });
+
+  it("rejects configuration without a Turnstile site key", async () => {
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({
+          supabaseUrl: "https://project.supabase.co",
+          supabasePublishableKey: "sb_publishable_public"
         })
       );
 

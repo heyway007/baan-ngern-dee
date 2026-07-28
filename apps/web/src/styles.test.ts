@@ -88,4 +88,48 @@ describe("global typography", () => {
       ).display
     ).toBe("inline-flex");
   });
+
+  it("provides responsive user-management and Turnstile selectors", () => {
+    document.body.innerHTML = `
+      <div class="admin-users-page">
+        <div class="admin-users-table"></div>
+        <div class="admin-users-actions"><button>ทำรายการ</button></div>
+      </div>
+      <span class="user-status-active">ใช้งานอยู่</span>
+      <div class="turnstile-slot"></div>
+      <div class="danger-confirm-overlay">
+        <div class="danger-confirm-card"></div>
+      </div>
+    `;
+
+    expect(
+      getComputedStyle(
+        document.querySelector(".admin-users-table")!
+      ).width
+    ).toBe("100%");
+    expect(
+      getComputedStyle(
+        document.querySelector(".turnstile-slot")!
+      ).minHeight
+    ).not.toBe("");
+    expect(
+      getComputedStyle(
+        document.querySelector(".danger-confirm-overlay")!
+      ).position
+    ).toBe("fixed");
+
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+    expect(css).toContain("@media");
+    expect(css).toContain("max-width: 760px");
+    expect(css).toContain(".admin-users-row");
+    expect(css).toContain("min-height: 44px");
+  });
 });

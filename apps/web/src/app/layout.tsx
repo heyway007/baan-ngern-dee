@@ -9,6 +9,7 @@ import {
   Settings,
   ShieldCheck,
   UserRoundPlus,
+  UsersRound,
   WalletCards,
   X
 } from "lucide-react";
@@ -20,6 +21,7 @@ import type { CloudSession } from "../lib/cloud-auth";
 type AppLayoutProps = Readonly<{
   session: CloudSession;
   canManageInvitations?: boolean;
+  canManageUsers?: boolean;
   onSignOut(): void;
 }>;
 
@@ -59,6 +61,7 @@ const navigation = [
 export function AppLayout({
   session,
   canManageInvitations = false,
+  canManageUsers = false,
   onSignOut
 }: AppLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -109,6 +112,18 @@ export function AppLayout({
             >
               <UserRoundPlus size={20} aria-hidden="true" />
               <span>คำเชิญผู้ใช้</span>
+            </NavLink>
+          ) : null}
+          {canManageUsers ? (
+            <NavLink
+              to="/admin/users"
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) =>
+                isActive ? "active" : ""
+              }
+            >
+              <UsersRound size={20} aria-hidden="true" />
+              <span>จัดการผู้ใช้</span>
             </NavLink>
           ) : null}
         </nav>
