@@ -9,6 +9,18 @@ const workspaceId = "22222222-2222-4222-8222-222222222222";
 const accountId = "33333333-3333-4333-8333-333333333333";
 const categoryId = "44444444-4444-4444-8444-444444444444";
 const actor = { userId, accessToken: "token" };
+const imageSha256 =
+  "6e568e1f67fba258184c78181539e5e8fdee447e49bb706fc0ea34fbf12336a5";
+
+function analyzeCommand() {
+  return {
+    workspaceId,
+    requestId: "request-slip-1",
+    bytes: new Uint8Array([0xff, 0xd8, 0xff]),
+    claimedMime: "image/jpeg",
+    imageSha256
+  };
+}
 
 function dependencies() {
   return {
@@ -69,7 +81,9 @@ function dependencies() {
         expiresAt: "2026-07-29T03:30:00.000Z"
       }),
       verify: vi.fn()
-    }
+    },
+    sleep: vi.fn().mockResolvedValue(undefined),
+    logVisionRetry: vi.fn()
   };
 }
 
@@ -77,14 +91,7 @@ describe("SlipImportService", () => {
   it("returns a review draft and checks duplicates before inference", async () => {
     const deps = dependencies();
     const service = createSlipImportService(deps as never);
-    const bytes = new Uint8Array([0xff, 0xd8, 0xff]);
-    const result = await service.analyze(actor, {
-      workspaceId,
-      bytes,
-      claimedMime: "image/jpeg",
-      imageSha256:
-        "6e568e1f67fba258184c78181539e5e8fdee447e49bb706fc0ea34fbf12336a5"
-    });
+    const result = await service.analyze(actor, analyzeCommand());
     expect(result.status).toBe("success");
     if (result.status === "success") {
       expect(result.analysisToken).toBe("a".repeat(40));
@@ -109,13 +116,7 @@ describe("SlipImportService", () => {
       financialDate: "2026-07-28"
     });
     const service = createSlipImportService(deps as never);
-    const result = await service.analyze(actor, {
-      workspaceId,
-      bytes: new Uint8Array([0xff, 0xd8, 0xff]),
-      claimedMime: "image/jpeg",
-      imageSha256:
-        "6e568e1f67fba258184c78181539e5e8fdee447e49bb706fc0ea34fbf12336a5"
-    });
+    const result = await service.analyze(actor, analyzeCommand());
     expect(result.status).toBe("duplicate");
     expect(deps.repository.consumeQuota).not.toHaveBeenCalled();
     expect(deps.extractor.extract).not.toHaveBeenCalled();
@@ -123,22 +124,115 @@ describe("SlipImportService", () => {
 
   it("preserves a bounded vision failure category for internal logging", async () => {
     const deps = dependencies();
-    deps.extractor.extract.mockRejectedValueOnce(
+    deps.extractor.extract.mockRejectedValue(
       new SlipVisionUnavailableError("invalid_json")
     );
     const service = createSlipImportService(deps as never);
 
-    await expect(service.analyze(actor, {
-      workspaceId,
-      bytes: new Uint8Array([0xff, 0xd8, 0xff]),
-      claimedMime: "image/jpeg",
-      imageSha256:
-        "6e568e1f67fba258184c78181539e5e8fdee447e49bb706fc0ea34fbf12336a5"
-    })).rejects.toMatchObject({
+    await expect(service.analyze(
+      actor,
+      analyzeCommand()
+    )).rejects.toMatchObject({
       code: "AI_UNAVAILABLE",
       logContext: { slipVisionCategory: "invalid_json" },
       status: 503
     });
+    expect(deps.extractor.extract).toHaveBeenCalledTimes(3);
+    expect(deps.repository.consumeQuota).not.toHaveBeenCalled();
+  });
+
+  it("checks quota before inference and consumes once after success", async () => {
+    const deps = dependencies();
+    const service = createSlipImportService(deps as never);
+
+    await expect(
+      service.analyze(actor, analyzeCommand())
+    ).resolves.toMatchObject({ status: "success" });
+
+    expect(deps.repository.getQuota).toHaveBeenCalledBefore(
+      deps.extractor.extract
+    );
+    expect(deps.extractor.extract).toHaveBeenCalledBefore(
+      deps.repository.consumeQuota
+    );
+    expect(deps.repository.consumeQuota).toHaveBeenCalledTimes(1);
+  });
+
+  it("short-circuits before inference when daily quota is full", async () => {
+    const deps = dependencies();
+    deps.repository.getQuota.mockResolvedValue({
+      used: 30,
+      limit: 30
+    });
+    const service = createSlipImportService(deps as never);
+
+    await expect(
+      service.analyze(actor, analyzeCommand())
+    ).rejects.toMatchObject({
+      code: "RATE_LIMITED",
+      status: 429
+    });
+
+    expect(deps.extractor.extract).not.toHaveBeenCalled();
+    expect(deps.repository.consumeQuota).not.toHaveBeenCalled();
+  });
+
+  it("counts an unsupported classification exactly once", async () => {
+    const deps = dependencies();
+    deps.extractor.extract.mockResolvedValue({
+      documentKind: "unsupported",
+      suggestedType: null,
+      amount: null,
+      currency: null,
+      financialDate: null,
+      reference: null,
+      merchant: null,
+      sender: null,
+      recipient: null,
+      institution: null,
+      confidence: {
+        documentKind: 1,
+        suggestedType: 0,
+        amount: 0,
+        financialDate: 0,
+        reference: 0
+      }
+    });
+    const service = createSlipImportService(deps as never);
+
+    await expect(
+      service.analyze(actor, analyzeCommand())
+    ).resolves.toEqual({ status: "unsupported" });
+
+    expect(deps.repository.consumeQuota).toHaveBeenCalledTimes(1);
+    expect(deps.extractor.extract).toHaveBeenCalledBefore(
+      deps.repository.consumeQuota
+    );
+  });
+
+  it("rejects an AI result when a concurrent request takes the final slot", async () => {
+    const deps = dependencies();
+    deps.repository.getQuota.mockResolvedValue({
+      used: 29,
+      limit: 30
+    });
+    deps.repository.consumeQuota.mockResolvedValue({
+      allowed: false,
+      reason: "workspace_day",
+      used: 30,
+      limit: 30
+    });
+    const service = createSlipImportService(deps as never);
+
+    await expect(
+      service.analyze(actor, analyzeCommand())
+    ).rejects.toMatchObject({
+      code: "RATE_LIMITED",
+      status: 429
+    });
+
+    expect(deps.extractor.extract).toHaveBeenCalledTimes(1);
+    expect(deps.tokenCodec.issue).not.toHaveBeenCalled();
   });
 
   it("returns the current workspace quota without consuming it", async () => {

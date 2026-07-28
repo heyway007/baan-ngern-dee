@@ -62,6 +62,7 @@ export function slipImportRoutes(service: SlipImportService) {
     }
     const result = await service.analyze(context.get("auth"), {
       ...parsed.data,
+      requestId: context.get("requestId"),
       bytes: new Uint8Array(await image.arrayBuffer()),
       claimedMime: image.type
     });

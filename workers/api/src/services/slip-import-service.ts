@@ -22,9 +22,14 @@ import {
   SlipVisionUnavailableError,
   type SlipVisionExtractor
 } from "./slip-vision-extractor";
+import {
+  extractSlipWithRetry,
+  type SlipVisionRetryEvent
+} from "./slip-vision-retry";
 
 export type AnalyzeSlipCommand = Readonly<{
   workspaceId: string;
+  requestId: string;
   bytes: Uint8Array;
   claimedMime: string;
   imageSha256: string;
@@ -52,6 +57,14 @@ export interface SlipImportService {
 function normalize(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase("th-TH")
     .replace(/\s+/g, "");
+}
+
+function quotaExceededError() {
+  return new ApiError(
+    "RATE_LIMITED",
+    429,
+    "ใช้การอ่านสลิปครบ 30 รูปของวันนี้แล้ว กรุณาลองใหม่วันถัดไป"
+  );
 }
 
 function canonicalTransaction(
@@ -155,6 +168,8 @@ export function createSlipImportService(dependencies: {
   financeRepository: Pick<FinanceRepository, "getSnapshot">;
   extractor: SlipVisionExtractor;
   tokenCodec: SlipAnalysisTokenCodec;
+  sleep?: (milliseconds: number) => Promise<void>;
+  logVisionRetry?: (event: SlipVisionRetryEvent) => void;
 }): SlipImportService {
   return {
     getQuota(actor, workspaceId) {
@@ -187,11 +202,11 @@ export function createSlipImportService(dependencies: {
       );
       if (duplicate) return { status: "duplicate", existingTransaction: duplicate };
 
-      const quota = await dependencies.repository.consumeQuota(
+      const quotaBefore = await dependencies.repository.getQuota(
         actor,
         command.workspaceId
       );
-      if (!quota.allowed) {
+      if (quotaBefore.used >= quotaBefore.limit) {
         throw new ApiError(
           "RATE_LIMITED",
           429,
@@ -200,7 +215,15 @@ export function createSlipImportService(dependencies: {
       }
       let extraction;
       try {
-        extraction = await dependencies.extractor.extract(image);
+        extraction = await extractSlipWithRetry({
+          extractor: dependencies.extractor,
+          input: image,
+          requestId: command.requestId,
+          ...(dependencies.sleep ? { sleep: dependencies.sleep } : {}),
+          ...(dependencies.logVisionRetry
+            ? { log: dependencies.logVisionRetry }
+            : {})
+        });
       } catch (error) {
         if (error instanceof SlipVisionUnavailableError) {
           throw new ApiError(
@@ -212,6 +235,13 @@ export function createSlipImportService(dependencies: {
         }
         throw error;
       }
+
+      const quota = await dependencies.repository.consumeQuota(
+        actor,
+        command.workspaceId
+      );
+      if (!quota.allowed) throw quotaExceededError();
+
       if (extraction.documentKind === "unsupported") {
         return { status: "unsupported" };
       }

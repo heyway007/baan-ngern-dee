@@ -65,7 +65,11 @@ describe("slip import routes", () => {
     expect(await response.json()).toEqual({ status: "unsupported" });
     expect(analyze).toHaveBeenCalledWith(
       expect.objectContaining({ userId }),
-      expect.objectContaining({ workspaceId, imageSha256 })
+      expect.objectContaining({
+        workspaceId,
+        imageSha256,
+        requestId: expect.any(String)
+      })
     );
   });
 
