@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   WalletCards
 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toFinancialDate } from "@systems-credit/domain";
 
@@ -13,6 +14,7 @@ import type { FinanceSnapshot } from "@systems-credit/contracts";
 
 import type { CloudSession } from "../../lib/cloud-auth";
 import { addExactMoney, formatMoney } from "../../lib/money-display";
+import { MonthlyTransactionTable } from "./monthly-transaction-table";
 import { RecurringOverviewCard } from "./recurring-overview-card";
 import { SummaryCards } from "./summary-cards";
 
@@ -31,10 +33,11 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
     .map((account) => snapshot.accountBalances[account.id]?.amount ?? "0.00");
   const available = addExactMoney(liquidBalances);
   const accountCount = snapshot.accounts.length;
-  const currentMonth = toFinancialDate(
+  const initialMonth = toFinancialDate(
     new Date().toISOString(),
     snapshot.workspace?.timeZone ?? "Asia/Bangkok"
   ).slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
 
   return (
     <main className="page-content overview-page">
@@ -80,8 +83,16 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
       </section>
 
       <SummaryCards
-        month={currentMonth}
+        month={selectedMonth}
         transactions={snapshot.transactions}
+      />
+
+      <MonthlyTransactionTable
+        month={selectedMonth}
+        transactions={snapshot.transactions}
+        accounts={snapshot.accounts}
+        categories={snapshot.categories}
+        onMonthChange={setSelectedMonth}
       />
 
       <RecurringOverviewCard
