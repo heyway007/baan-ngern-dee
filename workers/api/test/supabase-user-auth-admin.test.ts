@@ -22,6 +22,29 @@ const rawUser = {
 };
 
 describe("Supabase user Auth Admin adapter", () => {
+  it("accepts Admin Auth users that omit optional timestamp fields", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        id: userId,
+        email: "friend@example.test",
+        user_metadata: { display_name: "Friend" },
+        app_metadata: { provider: "email" },
+        created_at: "2026-07-28T10:00:00.000Z",
+        email_confirmed_at: "2026-07-28T10:01:00.000Z"
+      })
+    );
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(authAdmin.getUser(userId)).resolves.toMatchObject({
+      userId,
+      status: "active",
+      deletionPending: false
+    });
+  });
+
   it("gets and confirms a legacy unconfirmed user", async () => {
     const confirmed = {
       ...rawUser,

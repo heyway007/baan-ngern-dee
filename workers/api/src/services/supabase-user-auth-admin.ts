@@ -18,15 +18,18 @@ const rawAuthUserSchema = z
     last_sign_in_at: z
       .string()
       .datetime({ offset: true })
-      .nullable(),
+      .nullable()
+      .optional(),
     email_confirmed_at: z
       .string()
       .datetime({ offset: true })
-      .nullable(),
+      .nullable()
+      .optional(),
     banned_until: z
       .string()
       .datetime({ offset: true })
       .nullable()
+      .optional()
   })
   .passthrough();
 
@@ -62,7 +65,7 @@ function normalizeUser(
   const deletionPending =
     raw.app_metadata.baan_ngern_dee_deletion_pending === true;
   const isBanned =
-    raw.banned_until !== null &&
+    typeof raw.banned_until === "string" &&
     Date.parse(raw.banned_until) > Date.now();
   const metadataName = raw.user_metadata.display_name;
   const displayName =
