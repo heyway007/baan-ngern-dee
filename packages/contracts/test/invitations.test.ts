@@ -46,9 +46,13 @@ describe("invitation contracts", () => {
   it("parses sanitized capability and invitation responses", () => {
     expect(
       adminCapabilitiesSchema.parse({
-        canManageInvitations: true
+        canManageInvitations: true,
+        canManageUsers: true
       })
-    ).toEqual({ canManageInvitations: true });
+    ).toEqual({
+      canManageInvitations: true,
+      canManageUsers: true
+    });
 
     expect(
       adminInvitationSchema.parse({

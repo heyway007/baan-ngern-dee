@@ -50,7 +50,8 @@ export type AdminInvitation = z.infer<
 
 export const adminCapabilitiesSchema = z
   .object({
-    canManageInvitations: z.boolean()
+    canManageInvitations: z.boolean(),
+    canManageUsers: z.boolean()
   })
   .strict();
 export type AdminCapabilities = z.infer<

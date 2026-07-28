@@ -6,7 +6,8 @@ export const publicAppConfigSchema = z
       .string()
       .url()
       .refine((value) => value.endsWith(".supabase.co")),
-    supabasePublishableKey: z.string().startsWith("sb_publishable_")
+    supabasePublishableKey: z.string().startsWith("sb_publishable_"),
+    turnstileSiteKey: z.string().min(1)
   })
   .strict();
 
