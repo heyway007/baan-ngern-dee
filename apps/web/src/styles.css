@@ -2463,6 +2463,10 @@ select:focus {
   margin-top: 0.4rem;
 }
 
+.recurring-page .page-actions {
+  align-items: flex-end;
+}
+
 .month-selector {
   width: 10.5rem;
   margin: 0;

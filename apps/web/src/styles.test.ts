@@ -132,4 +132,26 @@ describe("global typography", () => {
     expect(css).toContain(".admin-users-row");
     expect(css).toContain("min-height: 44px");
   });
+
+  it("aligns recurring month and action controls on the same baseline", () => {
+    document.body.innerHTML = `
+      <main class="recurring-page">
+        <div class="page-actions">
+          <label class="month-selector">
+            <span>เดือนที่แสดง</span>
+            <input type="month" />
+          </label>
+          <button class="primary-button compact">
+            เพิ่มรายการประจำ
+          </button>
+        </div>
+      </main>
+    `;
+
+    expect(
+      getComputedStyle(
+        document.querySelector(".page-actions")!
+      ).alignItems
+    ).toBe("flex-end");
+  });
 });
