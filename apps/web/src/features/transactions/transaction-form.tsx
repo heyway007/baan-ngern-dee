@@ -11,7 +11,8 @@ import type {
   Account,
   Category,
   CreateTransactionInput,
-  TransactionSplitInput
+  TransactionSplitInput,
+  SlipTransactionDraft
 } from "@systems-credit/contracts";
 import { toFinancialDate, validateSplits } from "@systems-credit/domain";
 
@@ -19,11 +20,14 @@ import type { FinanceApi } from "../../lib/finance-api";
 import { SplitEditor } from "./split-editor";
 
 type TransactionFormProps = Readonly<{
-  api: Pick<FinanceApi, "postTransaction">;
+  api: Pick<FinanceApi, "postTransaction"> &
+    Partial<Pick<FinanceApi, "confirmSlip">>;
   workspaceId: string;
   accounts: Account[];
   categories: Category[];
   initialType?: CreateTransactionInput["type"];
+  initialDraft?: SlipTransactionDraft;
+  analysisToken?: string;
   onPosted(): void;
 }>;
 
@@ -36,17 +40,26 @@ export function TransactionForm({
   accounts,
   categories,
   initialType = "expense",
+  initialDraft,
+  analysisToken,
   onPosted
 }: TransactionFormProps) {
   const [type, setType] =
-    useState<CreateTransactionInput["type"]>(initialType);
-  const [amount, setAmount] = useState("");
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
-  const [categoryId, setCategoryId] = useState("");
-  const [financialDate, setFinancialDate] = useState(
-    toFinancialDate(new Date().toISOString(), "Asia/Bangkok")
+    useState<CreateTransactionInput["type"]>(
+      initialDraft?.type ?? initialType
+    );
+  const [amount, setAmount] = useState(initialDraft?.amount ?? "");
+  const [accountId, setAccountId] = useState(
+    initialDraft?.accountId ?? accounts[0]?.id ?? ""
   );
-  const [note, setNote] = useState("");
+  const [categoryId, setCategoryId] = useState(
+    initialDraft?.categoryId ?? ""
+  );
+  const [financialDate, setFinancialDate] = useState(
+    initialDraft?.financialDate ??
+      toFinancialDate(new Date().toISOString(), "Asia/Bangkok")
+  );
+  const [note, setNote] = useState(initialDraft?.note ?? "");
   const [splits, setSplits] =
     useState<TransactionSplitInput[] | null>(null);
   const [error, setError] = useState("");
@@ -60,6 +73,14 @@ export function TransactionForm({
   const selectedAccount = accounts.find(
     (account) => account.id === accountId
   );
+  const needsReview = (
+    field: SlipTransactionDraft["fieldsNeedingReview"][number]
+  ) => initialDraft?.fieldsNeedingReview.includes(field) ?? false;
+  const reviewWarning = (
+    field: SlipTransactionDraft["fieldsNeedingReview"][number]
+  ) => needsReview(field) ? (
+    <span className="slip-review-warning">โปรดตรวจสอบ</span>
+  ) : null;
 
   useEffect(() => {
     if (!visibleCategories.some((category) => category.id === categoryId)) {
@@ -118,7 +139,7 @@ export function TransactionForm({
     setSubmitting(true);
     setError("");
     try {
-      await api.postTransaction({
+      const transaction: CreateTransactionInput = {
         workspaceId,
         accountId: selectedAccount.id,
         type,
@@ -129,7 +150,15 @@ export function TransactionForm({
         ...(note.trim() ? { note: note.trim() } : {}),
         tagIds: [],
         clientMutationId: clientMutationId.current
-      });
+      };
+      if (analysisToken) {
+        if (!api.confirmSlip) {
+          throw new Error("SLIP_CONFIRM_UNAVAILABLE");
+        }
+        await api.confirmSlip({ analysisToken, transaction });
+      } else {
+        await api.postTransaction(transaction);
+      }
       clientMutationId.current = crypto.randomUUID();
       setAmount("");
       setNote("");
@@ -164,9 +193,12 @@ export function TransactionForm({
           รายรับ
         </button>
       </div>
+      {reviewWarning("type")}
 
       <div className="amount-field full-field">
-        <label htmlFor="transaction-amount">จำนวนเงิน</label>
+        <label htmlFor="transaction-amount">
+          จำนวนเงิน {reviewWarning("amount")}
+        </label>
         <div className="amount-input">
           <span aria-hidden="true">
             {selectedAccount?.currency === "THB"
@@ -185,7 +217,9 @@ export function TransactionForm({
       </div>
 
       <div className="field">
-        <label htmlFor="transaction-account">บัญชี</label>
+        <label htmlFor="transaction-account">
+          บัญชี {reviewWarning("account")}
+        </label>
         <select
           id="transaction-account"
           value={accountId}
@@ -210,7 +244,9 @@ export function TransactionForm({
         />
       ) : (
         <div className="field category-field">
-          <label htmlFor="transaction-category">หมวดหมู่</label>
+          <label htmlFor="transaction-category">
+            หมวดหมู่ {reviewWarning("category")}
+          </label>
           <select
             id="transaction-category"
             value={categoryId}
@@ -234,7 +270,9 @@ export function TransactionForm({
       )}
 
       <div className="field">
-        <label htmlFor="transaction-date">วันที่รายการ</label>
+        <label htmlFor="transaction-date">
+          วันที่รายการ {reviewWarning("financialDate")}
+        </label>
         <input
           id="transaction-date"
           type="date"

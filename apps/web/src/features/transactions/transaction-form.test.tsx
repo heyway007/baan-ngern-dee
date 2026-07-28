@@ -26,6 +26,53 @@ const food: Category = {
 };
 
 describe("TransactionForm", () => {
+  it("reviews a slip draft and confirms it instead of posting manually", async () => {
+    const user = userEvent.setup();
+    const confirmSlip = vi.fn().mockResolvedValue({
+      transactionId: crypto.randomUUID(),
+      version: 1,
+      state: "posted",
+      accountBalances: []
+    });
+    const postTransaction = vi.fn();
+    render(
+      <TransactionForm
+        api={{ postTransaction, confirmSlip }}
+        workspaceId={account.workspaceId}
+        accounts={[account]}
+        categories={[food]}
+        initialDraft={{
+          type: "expense",
+          amount: "1250.50",
+          currency: "THB",
+          financialDate: "2026-07-28",
+          accountId: account.id,
+          categoryId: food.id,
+          note: "ร้านค้า: ร้านทดสอบ",
+          fieldsNeedingReview: ["category"]
+        }}
+        analysisToken={"a".repeat(40)}
+        onPosted={vi.fn()}
+      />
+    );
+    expect(screen.getByLabelText(/จำนวนเงิน/)).toHaveValue("1250.50");
+    expect(screen.getByText("โปรดตรวจสอบ")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกรายจ่าย" })
+    );
+    await waitFor(() => expect(confirmSlip).toHaveBeenCalledOnce());
+    expect(confirmSlip).toHaveBeenCalledWith({
+      analysisToken: "a".repeat(40),
+      transaction: expect.objectContaining({
+        amount: "1250.50",
+        financialDate: "2026-07-28",
+        accountId: account.id,
+        categoryId: food.id
+      })
+    });
+    expect(postTransaction).not.toHaveBeenCalled();
+  });
+
   it("submits the original decimal string and never a JavaScript float", async () => {
     const user = userEvent.setup();
     const postTransaction = vi
