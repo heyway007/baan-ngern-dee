@@ -1,5 +1,5 @@
-import { Plus, Settings2, X } from "lucide-react";
-import { useState } from "react";
+import { Plus, ScanLine, Settings2, X } from "lucide-react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type {
@@ -15,6 +15,7 @@ import {
 } from "./transaction-list";
 import { TransactionVoidDialog } from "./transaction-void-dialog";
 import { CategoryManager } from "./category-manager";
+import { SlipImportDialog } from "./slip-import-dialog";
 
 type TransactionsPageProps = Readonly<{
   api: FinanceApi;
@@ -33,6 +34,8 @@ export function TransactionsPage({
 }: TransactionsPageProps) {
   const [showForm, setShowForm] = useState(initiallyOpen);
   const [showCategories, setShowCategories] = useState(false);
+  const [showSlipImport, setShowSlipImport] = useState(false);
+  const slipButtonRef = useRef<HTMLButtonElement>(null);
   const [transactionFilter, setTransactionFilter] =
     useState<TransactionListFilter>("current");
   const [transactionToVoid, setTransactionToVoid] =
@@ -51,6 +54,20 @@ export function TransactionsPage({
           <p>บันทึกตามวันที่เกิดรายการจริง เพื่อให้ยอดและรายงานตรงกัน</p>
         </div>
         <div className="page-actions">
+          {snapshot.accounts.length ? (
+            <button
+              ref={slipButtonRef}
+              type="button"
+              className="secondary-button compact"
+              onClick={() => {
+                setShowForm(false);
+                setShowSlipImport(true);
+              }}
+            >
+              <ScanLine size={18} aria-hidden="true" />
+              อ่านสลิป
+            </button>
+          ) : null}
           <button
             type="button"
             className="secondary-button compact"
@@ -152,6 +169,26 @@ export function TransactionsPage({
               reason
             });
             setTransactionToVoid(null);
+            onChanged();
+          }}
+        />
+      ) : null}
+      {showSlipImport ? (
+        <SlipImportDialog
+          api={api}
+          workspaceId={snapshot.workspace.id}
+          accounts={snapshot.accounts}
+          categories={snapshot.categories}
+          onClose={() => {
+            setShowSlipImport(false);
+            setTimeout(() => slipButtonRef.current?.focus(), 0);
+          }}
+          onManual={() => {
+            setShowSlipImport(false);
+            setShowForm(true);
+          }}
+          onPosted={() => {
+            setShowSlipImport(false);
             onChanged();
           }}
         />

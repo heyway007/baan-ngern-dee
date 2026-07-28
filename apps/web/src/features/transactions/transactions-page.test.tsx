@@ -106,6 +106,16 @@ function renderPage(
 }
 
 describe("TransactionsPage", () => {
+  it("opens the separate slip import dialog", async () => {
+    const user = userEvent.setup();
+    renderPage(createApi());
+    await user.click(screen.getByRole("button", { name: "อ่านสลิป" }));
+    expect(
+      screen.getByRole("dialog", { name: "อ่านสลิปหรือใบเสร็จ" })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Cloudflare AI/)).toBeInTheDocument();
+  });
+
   it("voids a mistaken manual transaction and refreshes the snapshot", async () => {
     const user = userEvent.setup();
     const voidTransaction = vi.fn().mockResolvedValue({
