@@ -296,6 +296,84 @@ describe("createRemoteFinanceApi", () => {
     );
   });
 
+  it("reads the current slip quota without consuming it", async () => {
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ used: 7, limit: 30 }));
+    const api = createRemoteFinanceApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+
+    await expect(api.getSlipQuota(workspaceId)).resolves.toEqual({
+      used: 7,
+      limit: 30
+    });
+    expect(requestFetch).toHaveBeenCalledWith(
+      `/v1/slip-imports/quota?workspaceId=${encodeURIComponent(workspaceId)}`,
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("confirms and strictly validates a slip batch", async () => {
+    const itemId = "99999999-9999-4999-8999-999999999999";
+    const input = {
+      workspaceId,
+      batchMutationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      items: [{
+        itemId,
+        analysisToken: "a".repeat(40),
+        transaction: {
+          workspaceId,
+          accountId,
+          categoryId,
+          type: "expense" as const,
+          amount: "60.00",
+          currency: "THB",
+          financialDate: "2026-07-27",
+          tagIds: [],
+          clientMutationId: mutationId
+        }
+      }]
+    };
+    const posted = {
+      status: "posted",
+      items: [{
+        itemId,
+        transaction: {
+          transactionId: occurrenceId,
+          version: 1,
+          state: "posted",
+          accountBalances: [{
+            accountId,
+            amount: "-60.00",
+            currency: "THB"
+          }]
+        }
+      }]
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(posted))
+      .mockResolvedValueOnce(Response.json({
+        status: "blocked",
+        issues: [{ itemId, code: "database_details" }]
+      }));
+    const api = createRemoteFinanceApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+
+    await expect(api.confirmSlipBatch(input)).resolves.toEqual(posted);
+    const [url, init] = requestFetch.mock.calls[0]!;
+    expect(url).toBe("/v1/slip-imports/confirm-batch");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual(input);
+    await expect(api.confirmSlipBatch(input)).rejects.toThrow();
+  });
+
   it("voids a transaction with its current version and reason", async () => {
     const response = {
       transactionId: mutationId,

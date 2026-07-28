@@ -19,52 +19,83 @@ import { toFinancialDate, validateSplits } from "@systems-credit/domain";
 import type { FinanceApi } from "../../lib/finance-api";
 import { SplitEditor } from "./split-editor";
 
-type TransactionFormProps = Readonly<{
-  api: Pick<FinanceApi, "postTransaction"> &
-    Partial<Pick<FinanceApi, "confirmSlip">>;
+type CommonTransactionFormProps = Readonly<{
   workspaceId: string;
   accounts: Account[];
   categories: Category[];
+}>;
+
+type PostModeProps = CommonTransactionFormProps & Readonly<{
+  mode?: "post";
+  api: Pick<FinanceApi, "postTransaction"> &
+    Partial<Pick<FinanceApi, "confirmSlip">>;
   initialType?: CreateTransactionInput["type"];
   initialDraft?: SlipTransactionDraft;
   analysisToken?: string;
   onPosted(): void;
 }>;
 
+type ReviewModeProps = CommonTransactionFormProps & Readonly<{
+  mode: "review";
+  initialDraft: SlipTransactionDraft;
+  initialTransaction?: CreateTransactionInput;
+  clientMutationId: string;
+  onReviewed(transaction: CreateTransactionInput): void;
+  onCancel(): void;
+}>;
+
+type TransactionFormProps = PostModeProps | ReviewModeProps;
+
 const positiveMoneyPattern =
   /^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/;
 
-export function TransactionForm({
-  api,
-  workspaceId,
-  accounts,
-  categories,
-  initialType = "expense",
-  initialDraft,
-  analysisToken,
-  onPosted
-}: TransactionFormProps) {
+export function TransactionForm(props: TransactionFormProps) {
+  const {
+    workspaceId,
+    accounts,
+    categories
+  } = props;
+  const reviewMode = props.mode === "review";
+  const initialDraft = props.initialDraft;
+  const initialTransaction = reviewMode
+    ? props.initialTransaction
+    : undefined;
+  const initialType = props.mode === "review"
+    ? props.initialTransaction?.type ?? props.initialDraft.type
+    : props.initialType ?? "expense";
   const [type, setType] =
     useState<CreateTransactionInput["type"]>(
-      initialDraft?.type ?? initialType
+      initialTransaction?.type ?? initialDraft?.type ?? initialType
     );
-  const [amount, setAmount] = useState(initialDraft?.amount ?? "");
+  const [amount, setAmount] = useState(
+    initialTransaction?.amount ?? initialDraft?.amount ?? ""
+  );
   const [accountId, setAccountId] = useState(
-    initialDraft?.accountId ?? accounts[0]?.id ?? ""
+    initialTransaction?.accountId ??
+      initialDraft?.accountId ??
+      accounts[0]?.id ??
+      ""
   );
   const [categoryId, setCategoryId] = useState(
-    initialDraft?.categoryId ?? ""
+    initialTransaction?.categoryId ?? initialDraft?.categoryId ?? ""
   );
   const [financialDate, setFinancialDate] = useState(
-    initialDraft?.financialDate ??
+    initialTransaction?.financialDate ??
+      initialDraft?.financialDate ??
       toFinancialDate(new Date().toISOString(), "Asia/Bangkok")
   );
-  const [note, setNote] = useState(initialDraft?.note ?? "");
+  const [note, setNote] = useState(
+    initialTransaction?.note ?? initialDraft?.note ?? ""
+  );
   const [splits, setSplits] =
-    useState<TransactionSplitInput[] | null>(null);
+    useState<TransactionSplitInput[] | null>(
+      initialTransaction?.splits ? [...initialTransaction.splits] : null
+    );
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const clientMutationId = useRef(crypto.randomUUID());
+  const clientMutationId = useRef(
+    reviewMode ? props.clientMutationId : crypto.randomUUID()
+  );
 
   const visibleCategories = useMemo(
     () => categories.filter((category) => category.kind === type),
@@ -151,19 +182,26 @@ export function TransactionForm({
         tagIds: [],
         clientMutationId: clientMutationId.current
       };
-      if (analysisToken) {
-        if (!api.confirmSlip) {
+      if (reviewMode) {
+        props.onReviewed(transaction);
+        return;
+      }
+      if (props.analysisToken) {
+        if (!props.api.confirmSlip) {
           throw new Error("SLIP_CONFIRM_UNAVAILABLE");
         }
-        await api.confirmSlip({ analysisToken, transaction });
+        await props.api.confirmSlip({
+          analysisToken: props.analysisToken,
+          transaction
+        });
       } else {
-        await api.postTransaction(transaction);
+        await props.api.postTransaction(transaction);
       }
       clientMutationId.current = crypto.randomUUID();
       setAmount("");
       setNote("");
       setSplits(null);
-      onPosted();
+      props.onPosted();
     } catch {
       setError("ยังบันทึกรายการไม่ได้ กรุณาตรวจข้อมูลแล้วลองอีกครั้ง");
     } finally {
@@ -297,13 +335,25 @@ export function TransactionForm({
       ) : null}
 
       <div className="form-actions full-field">
+        {reviewMode ? (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={props.onCancel}
+            disabled={submitting}
+          >
+            ยกเลิก
+          </button>
+        ) : null}
         <button
           type="submit"
           className={`primary-button ${type}`}
           disabled={submitting || !accounts.length}
         >
           <Save size={18} aria-hidden="true" />
-          {submitting
+          {reviewMode
+            ? "บันทึกการแก้ไข"
+            : submitting
             ? "กำลังบันทึก…"
             : type === "expense"
               ? "บันทึกรายจ่าย"

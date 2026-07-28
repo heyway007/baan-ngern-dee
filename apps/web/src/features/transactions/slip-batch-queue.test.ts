@@ -4,6 +4,7 @@ import type { PreparedSlipImage } from "./slip-image";
 import {
   batchTotals,
   canConfirmBatch,
+  createConcurrencyLimiter,
   createSlipBatchRow,
   disposeSlipBatchRows,
   reduceSlipBatchRows,
@@ -84,6 +85,19 @@ describe("slip batch queue", () => {
     });
     expect(rows[0]).toMatchObject({
       fileName: "replacement.jpg",
+      revision: 1,
+      status: "preparing"
+    });
+
+    const staleImage = image("9".repeat(64));
+    rows = reduceSlipBatchRows(rows, {
+      type: "prepared",
+      itemId: first.itemId,
+      revision: 0,
+      image: staleImage
+    });
+    expect(staleImage.dispose).toHaveBeenCalledOnce();
+    expect(rows[0]).toMatchObject({
       revision: 1,
       status: "preparing"
     });
@@ -212,6 +226,83 @@ describe("slip batch queue", () => {
       "ready",
       "quota_blocked"
     ]);
+  });
+
+  it("maps atomic confirmation issues back to the affected row", () => {
+    const row = {
+      ...createSlipBatchRow(
+        "44444444-4444-4444-8444-444444444444",
+        "blocked.jpg"
+      ),
+      status: "ready" as const,
+      image: image("1".repeat(64)),
+      analysisToken: "a".repeat(40),
+      analysisExpiresAt: "2026-07-29T03:30:00.000Z",
+      draft: {
+        type: "expense" as const,
+        amount: "60.00",
+        currency: "THB",
+        financialDate: "2026-07-27",
+        accountId,
+        categoryId,
+        fieldsNeedingReview: []
+      },
+      transaction: transaction(
+        "expense",
+        "60.00",
+        "THB",
+        "66666666-6666-4666-8666-666666666666"
+      )
+    };
+
+    expect(reduceSlipBatchRows([row], {
+      type: "confirmation_issue",
+      itemId: row.itemId,
+      code: "invalid_account"
+    })[0]).toMatchObject({
+      status: "needs_review",
+      transaction: row.transaction
+    });
+    expect(reduceSlipBatchRows([row], {
+      type: "confirmation_issue",
+      itemId: row.itemId,
+      code: "expired_analysis"
+    })[0]).toMatchObject({
+      status: "failed"
+    });
+    expect(reduceSlipBatchRows([row], {
+      type: "confirmation_issue",
+      itemId: row.itemId,
+      code: "duplicate"
+    })[0]).toMatchObject({
+      status: "duplicate"
+    });
+  });
+
+  it("shares a hard concurrency limit across independent callers", async () => {
+    const limit = createConcurrencyLimiter(2);
+    let active = 0;
+    let maximumActive = 0;
+    const releases: Array<() => void> = [];
+    const started: number[] = [];
+    const start = (index: number) => limit(async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      started.push(index);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      active -= 1;
+    });
+
+    const running = [start(0), start(1), start(2), start(3)];
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    while (releases.length > 0 || started.length < 4) {
+      releases.shift()?.();
+      await Promise.resolve();
+    }
+    await Promise.all(running);
+
+    expect(started).toEqual([0, 1, 2, 3]);
+    expect(maximumActive).toBe(2);
   });
 
   it("runs no more than two analyses concurrently", async () => {

@@ -1,4 +1,5 @@
 import type {
+  ConfirmSlipBatchResult,
   CreateTransactionInput,
   DuplicateTransaction,
   SlipTransactionDraft
@@ -83,7 +84,15 @@ export type SlipBatchAction =
       fileName: string;
     }>
   | Readonly<{ type: "remove"; itemId: string }>
-  | Readonly<{ type: "quota_blocked" }>;
+  | Readonly<{ type: "quota_blocked" }>
+  | Readonly<{
+      type: "confirmation_issue";
+      itemId: string;
+      code: Extract<
+        ConfirmSlipBatchResult,
+        { status: "blocked" }
+      >["issues"][number]["code"];
+    }>;
 
 export function createSlipBatchRow(
   itemId: string,
@@ -133,10 +142,46 @@ export function reduceSlipBatchRows(
   }
   if (action.type === "quota_blocked") {
     return rows.map((row) =>
-      row.status === "queued"
+      row.status === "queued" || row.status === "analyzing"
         ? { ...row, status: "quota_blocked" }
         : row
     );
+  }
+  if (action.type === "confirmation_issue") {
+    return rows.map((row) => {
+      if (row.itemId !== action.itemId) return row;
+      if (action.code === "duplicate") {
+        return {
+          ...row,
+          status: "duplicate",
+          transaction: undefined,
+          error: "รายการนี้ถูกบันทึกไว้แล้ว"
+        };
+      }
+      if (
+        action.code === "invalid_account" ||
+        action.code === "invalid_category" ||
+        action.code === "currency_mismatch"
+      ) {
+        return {
+          ...row,
+          status: "needs_review",
+          error: action.code === "invalid_account"
+            ? "กรุณาเลือกบัญชีใหม่"
+            : action.code === "invalid_category"
+              ? "กรุณาเลือกหมวดหมู่ใหม่"
+              : "สกุลเงินของบัญชีไม่ตรงกับรายการ"
+        };
+      }
+      return {
+        ...row,
+        status: "failed",
+        transaction: undefined,
+        error: action.code === "expired_analysis"
+          ? "ผลอ่านหมดอายุ กรุณาลองอ่านรูปใหม่"
+          : "ยืนยันรายการไม่สำเร็จ กรุณาลองอ่านรูปใหม่"
+      };
+    });
   }
   if (action.type === "retry") {
     return rows.map((row) => {
@@ -151,6 +196,15 @@ export function reduceSlipBatchRows(
     });
   }
   if (action.type === "prepared") {
+    const current = rows.find(
+      (row) =>
+        row.itemId === action.itemId &&
+        row.revision === action.revision
+    );
+    if (!current) {
+      action.image.dispose();
+      return [...rows];
+    }
     const localDuplicate = rows.some(
       (row) =>
         row.itemId !== action.itemId &&
@@ -271,6 +325,24 @@ export async function runBounded<T>(
     () => run()
   );
   await Promise.all(runners);
+}
+
+export function createConcurrencyLimiter(limit: number) {
+  let active = 0;
+  const waiters: Array<() => void> = [];
+
+  return async function limitTask<T>(task: () => Promise<T>): Promise<T> {
+    if (active >= limit) {
+      await new Promise<void>((resolve) => waiters.push(resolve));
+    }
+    active += 1;
+    try {
+      return await task();
+    } finally {
+      active -= 1;
+      waiters.shift()?.();
+    }
+  };
 }
 
 export function batchTotals(

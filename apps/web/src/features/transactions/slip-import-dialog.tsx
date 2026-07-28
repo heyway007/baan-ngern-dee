@@ -1,19 +1,38 @@
-import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Camera, Images, LoaderCircle, X } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent
+} from "react";
+import { Camera, Images, X } from "lucide-react";
 
 import type {
   Account,
   Category,
-  SlipAnalysisResponse
+  CreateTransactionInput,
+  SlipTransactionDraft
 } from "@systems-credit/contracts";
 
 import type { FinanceApi } from "../../lib/finance-api";
 import { RemoteFinanceError } from "../../lib/remote-finance-api";
 import {
+  createConcurrencyLimiter,
+  createSlipBatchRow,
+  disposeSlipBatchRows,
+  reduceSlipBatchRows,
+  runBounded,
+  type SlipBatchAction,
+  type SlipBatchRow
+} from "./slip-batch-queue";
+import { SlipBatchTable } from "./slip-batch-table";
+import {
   prepareSlipImage,
   type PreparedSlipImage
 } from "./slip-image";
 import { TransactionForm } from "./transaction-form";
+
+const MAX_FILES = 10;
+const ACCEPTED_IMAGES = "image/jpeg,image/png,image/webp";
 
 type Props = Readonly<{
   api: FinanceApi;
@@ -25,6 +44,43 @@ type Props = Readonly<{
   onManual(): void;
 }>;
 
+function completeTransaction(
+  workspaceId: string,
+  itemId: string,
+  draft: SlipTransactionDraft
+): CreateTransactionInput | undefined {
+  if (
+    draft.fieldsNeedingReview.length > 0 ||
+    !draft.amount ||
+    !draft.financialDate ||
+    !draft.accountId ||
+    !draft.categoryId
+  ) {
+    return undefined;
+  }
+  return {
+    workspaceId,
+    accountId: draft.accountId,
+    categoryId: draft.categoryId,
+    type: draft.type,
+    amount: draft.amount,
+    currency: draft.currency,
+    financialDate: draft.financialDate,
+    ...(draft.note ? { note: draft.note } : {}),
+    tagIds: [],
+    clientMutationId: itemId
+  };
+}
+
+function analysisError(reason: unknown) {
+  if (reason instanceof RemoteFinanceError) {
+    return reason.code === "RATE_LIMITED"
+      ? "ใช้โควตาอ่านสลิปครบ 30 รูปของวันนี้แล้ว"
+      : "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือเปลี่ยนรูป";
+  }
+  return "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือเปลี่ยนรูป";
+}
+
 export function SlipImportDialog({
   api,
   workspaceId,
@@ -34,86 +90,288 @@ export function SlipImportDialog({
   onPosted,
   onManual
 }: Props) {
-  const [image, setImage] = useState<PreparedSlipImage | null>(null);
-  const [result, setResult] = useState<SlipAnalysisResponse | null>(null);
-  const [status, setStatus] =
-    useState<"selecting" | "ready" | "analyzing" | "error">("selecting");
+  const [rows, setRows] = useState<SlipBatchRow[]>([]);
+  const rowsRef = useRef<SlipBatchRow[]>([]);
   const [error, setError] = useState("");
-  const imageRef = useRef<PreparedSlipImage | null>(null);
+  const [quota, setQuota] = useState({ used: 0, limit: 30 as const });
+  const [editingItemId, setEditingItemId] = useState<string>();
+  const [blockedItemId, setBlockedItemId] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
+  const confirmInFlight = useRef(false);
+  const batchMutationId = useRef(crypto.randomUUID());
+  const mounted = useRef(true);
+  const quotaReached = useRef(false);
+  const limitAnalysis = useRef(createConcurrencyLimiter(2)).current;
+
+  function dispatch(action: SlipBatchAction) {
+    const next = reduceSlipBatchRows(rowsRef.current, action);
+    rowsRef.current = next;
+    if (mounted.current) setRows(next);
+    return next;
+  }
 
   useEffect(() => {
-    imageRef.current = image;
-  }, [image]);
-  useEffect(() => () => imageRef.current?.dispose(), []);
+    mounted.current = true;
+    void api.getSlipQuota(workspaceId)
+      .then((nextQuota) => {
+        if (!mounted.current) return;
+        setQuota((current) => ({
+          used: Math.max(current.used, nextQuota.used),
+          limit: 30
+        }));
+        quotaReached.current = nextQuota.used >= nextQuota.limit;
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted.current = false;
+      disposeSlipBatchRows(rowsRef.current);
+      rowsRef.current = [];
+    };
+  }, [api, workspaceId]);
 
-  function disposeImage() {
-    imageRef.current?.dispose();
-    imageRef.current = null;
-    setImage(null);
-  }
-
-  async function selectFile(file?: File) {
-    if (!file) return;
-    disposeImage();
-    setResult(null);
-    setError("");
-    try {
-      const prepared = await prepareSlipImage(file);
-      imageRef.current = prepared;
-      setImage(prepared);
-      setStatus("ready");
-    } catch (reason) {
-      setStatus("error");
-      setError(
-        reason instanceof Error ? reason.message : "เตรียมรูปไม่สำเร็จ"
-      );
+  async function analyzeRow(row: SlipBatchRow) {
+    const current = rowsRef.current.find(
+      (candidate) =>
+        candidate.itemId === row.itemId &&
+        candidate.revision === row.revision &&
+        candidate.status === "queued"
+    );
+    if (!mounted.current || !current) return;
+    if (!row.image || quotaReached.current) {
+      dispatch({ type: "quota_blocked" });
+      return;
     }
-  }
-
-  async function analyze() {
-    if (!image || status === "analyzing") return;
-    setStatus("analyzing");
-    setError("");
+    const { itemId, revision, image } = row;
+    dispatch({ type: "analysis_started", itemId, revision });
     try {
       const response = await api.analyzeSlip({
         workspaceId,
-        clientMutationId: crypto.randomUUID(),
+        clientMutationId: itemId,
         imageSha256: image.sha256,
         image: image.blob
       });
-      setResult(response);
-      setStatus("ready");
-    } catch (reason) {
-      setStatus("error");
-      if (reason instanceof RemoteFinanceError) {
-        setError(
-          reason.code === "RATE_LIMITED"
-            ? "ใช้การอ่านสลิปครบชั่วคราวแล้ว กรุณาลองใหม่ภายหลัง"
-            : "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือกรอกข้อมูลเอง"
-        );
-      } else {
-        setError("ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือกรอกข้อมูลเอง");
+      setQuota((current) => ({
+        used: Math.min(current.limit, current.used + 1),
+        limit: 30
+      }));
+      if (response.status === "success") {
+        dispatch({
+          type: "analysis_success",
+          itemId,
+          revision,
+          analysisToken: response.analysisToken,
+          analysisExpiresAt: response.analysisExpiresAt,
+          draft: response.draft,
+          transaction: completeTransaction(
+            workspaceId,
+            itemId,
+            response.draft
+          )
+        });
+        return;
       }
+      if (response.status === "duplicate") {
+        dispatch({
+          type: "analysis_duplicate",
+          itemId,
+          revision,
+          duplicate: response.existingTransaction
+        });
+        return;
+      }
+      dispatch({ type: "analysis_unsupported", itemId, revision });
+    } catch (reason) {
+      if (
+        reason instanceof RemoteFinanceError &&
+        reason.code === "RATE_LIMITED"
+      ) {
+        quotaReached.current = true;
+        setQuota({ used: 30, limit: 30 });
+        dispatch({ type: "quota_blocked" });
+        return;
+      }
+      dispatch({
+        type: "analysis_failed",
+        itemId,
+        revision,
+        error: analysisError(reason)
+      });
     }
   }
 
+  async function prepareAndAnalyze(
+    entries: readonly Readonly<{
+      itemId: string;
+      revision: number;
+      file: File;
+    }>[]
+  ) {
+    for (const entry of entries) {
+      try {
+        const image = await prepareSlipImage(entry.file);
+        dispatch({
+          type: "prepared",
+          itemId: entry.itemId,
+          revision: entry.revision,
+          image
+        });
+      } catch (reason) {
+        dispatch({
+          type: "analysis_failed",
+          itemId: entry.itemId,
+          revision: entry.revision,
+          error: reason instanceof Error
+            ? reason.message
+            : "เตรียมรูปไม่สำเร็จ"
+        });
+      }
+    }
+    const ids = new Set(entries.map((entry) => entry.itemId));
+    const queued = rowsRef.current.filter(
+      (row) => ids.has(row.itemId) && row.status === "queued"
+    );
+    await runBounded(
+      queued,
+      2,
+      (row) => limitAnalysis(() => analyzeRow(row))
+    );
+  }
+
+  async function addFiles(files: readonly File[]) {
+    if (confirmInFlight.current) return;
+    setError("");
+    if (files.length === 0) return;
+    if (
+      files.length > MAX_FILES ||
+      rowsRef.current.length + files.length > MAX_FILES
+    ) {
+      setError("เลือกได้ไม่เกิน 10 รูป");
+      return;
+    }
+    const entries = files.map((file) => {
+      const itemId = crypto.randomUUID();
+      const row = createSlipBatchRow(itemId, file.name);
+      rowsRef.current = [...rowsRef.current, row];
+      return { itemId, revision: row.revision, file };
+    });
+    setRows([...rowsRef.current]);
+    await prepareAndAnalyze(entries);
+  }
+
+  function readFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    void addFiles(files);
+  }
+
   function close() {
-    if (status === "analyzing") return;
-    disposeImage();
+    if (confirmInFlight.current) return;
+    if (
+      rowsRef.current.length > 0 &&
+      !window.confirm("ยังมีรายการที่ยังไม่ได้บันทึก ต้องการปิดหรือไม่")
+    ) {
+      return;
+    }
+    disposeSlipBatchRows(rowsRef.current);
+    rowsRef.current = [];
+    setRows([]);
     onClose();
   }
+
+  function manual() {
+    if (confirmInFlight.current) return;
+    disposeSlipBatchRows(rowsRef.current);
+    rowsRef.current = [];
+    setRows([]);
+    onManual();
+  }
+
+  function retry(itemId: string) {
+    if (confirmInFlight.current) return;
+    const next = dispatch({ type: "retry", itemId });
+    const row = next.find((candidate) => candidate.itemId === itemId);
+    if (row?.status === "queued") {
+      void limitAnalysis(() => analyzeRow(row));
+    }
+  }
+
+  function replace(itemId: string, file: File) {
+    if (confirmInFlight.current) return;
+    const next = dispatch({ type: "replace", itemId, fileName: file.name });
+    const row = next.find((candidate) => candidate.itemId === itemId);
+    if (row) {
+      void prepareAndAnalyze([{
+        itemId,
+        revision: row.revision,
+        file
+      }]);
+    }
+  }
+
+  async function confirmBatch() {
+    const readyRows = rowsRef.current.filter(
+      (row) =>
+        row.status === "ready" &&
+        row.analysisToken &&
+        row.transaction
+    );
+    if (readyRows.length === 0 || confirmInFlight.current) return;
+    confirmInFlight.current = true;
+    setConfirming(true);
+    setError("");
+    setBlockedItemId(undefined);
+    try {
+      const result = await api.confirmSlipBatch({
+        workspaceId,
+        batchMutationId: batchMutationId.current,
+        items: readyRows.map((row) => ({
+          itemId: row.itemId,
+          analysisToken: row.analysisToken!,
+          transaction: row.transaction!
+        }))
+      });
+      if (result.status === "posted") {
+        disposeSlipBatchRows(rowsRef.current);
+        rowsRef.current = [];
+        setRows([]);
+        batchMutationId.current = crypto.randomUUID();
+        onPosted();
+        return;
+      }
+      result.issues.forEach((issue) => {
+        dispatch({
+          type: "confirmation_issue",
+          itemId: issue.itemId,
+          code: issue.code
+        });
+      });
+      setBlockedItemId(result.issues[0]?.itemId);
+      setError("ยังบันทึกไม่ได้ กรุณาตรวจสอบรายการที่ระบบระบุ");
+    } catch {
+      setError(
+        "ยังบันทึกรายการทั้งชุดไม่ได้ กรุณาลองอีกครั้ง โดยระบบจะไม่บันทึกซ้ำ"
+      );
+    } finally {
+      confirmInFlight.current = false;
+      if (mounted.current) setConfirming(false);
+    }
+  }
+
+  const editingRow = editingItemId
+    ? rows.find((row) => row.itemId === editingItemId)
+    : undefined;
 
   return (
     <div className="slip-dialog-backdrop" role="presentation">
       <section
-        className="slip-dialog"
+        className="slip-dialog slip-batch-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="slip-dialog-title"
       >
         <div className="slip-dialog-heading">
           <div>
-            <span className="eyebrow">เพิ่มรายการจากรูป</span>
+            <span className="eyebrow">เพิ่มรายการจากรูปหลายใบ</span>
             <h2 id="slip-dialog-title">อ่านสลิปหรือใบเสร็จ</h2>
           </div>
           <button
@@ -121,139 +379,120 @@ export function SlipImportDialog({
             className="icon-button"
             aria-label="ปิดหน้าต่างอ่านสลิป"
             onClick={close}
-            disabled={status === "analyzing"}
+            disabled={confirming}
           >
             <X size={20} aria-hidden="true" />
           </button>
         </div>
 
-        <p className="slip-privacy-note">
-          รูปจะถูกส่งให้ Cloudflare AI เพื่ออ่านข้อมูล
-          ระบบจะไม่เก็บรูปไว้หลังประมวลผล
-        </p>
+        <div className="slip-batch-notice">
+          <p>
+            เลือกได้ครั้งละไม่เกิน 10 รูป ระบบอ่านพร้อมกันสูงสุด 2 รูป
+            โดยส่งให้ Cloudflare AI และไม่เก็บไฟล์ภาพหลังประมวลผล
+          </p>
+          <strong>วันนี้ใช้ {quota.used}/{quota.limit} รูป</strong>
+        </div>
 
-        {!result ? (
+        {!editingRow ? (
           <>
             <div className="slip-file-picker-options">
               <label className="slip-file-picker">
                 <Images size={24} aria-hidden="true" />
                 <strong>เลือกจากคลังภาพ</strong>
-                <span>เลือกรูปสลิปหรือใบเสร็จที่มีอยู่</span>
+                <span>เลือกสลิปหรือใบเสร็จได้หลายรูป</span>
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept={ACCEPTED_IMAGES}
                   aria-label="เลือกจากคลังภาพ"
-                  onChange={(event) => void selectFile(event.target.files?.[0])}
-                  disabled={status === "analyzing"}
+                  multiple
+                  disabled={confirming}
+                  onChange={readFiles}
                 />
               </label>
               <label className="slip-file-picker">
                 <Camera size={24} aria-hidden="true" />
                 <strong>ถ่ายรูปใหม่</strong>
-                <span>เปิดกล้องหลังเพื่อถ่ายเอกสาร</span>
+                <span>เปิดกล้องหลังเพื่อถ่ายครั้งละหนึ่งรูป</span>
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept={ACCEPTED_IMAGES}
                   capture="environment"
+                  disabled={confirming}
                   aria-label="ถ่ายรูปใหม่"
-                  onChange={(event) => void selectFile(event.target.files?.[0])}
-                  disabled={status === "analyzing"}
+                  onChange={readFiles}
                 />
               </label>
             </div>
             <p className="slip-file-help">
-              รองรับ JPG, PNG, WebP ไม่เกิน 5 MB
+              รองรับ JPG, PNG, WebP รูปละไม่เกิน 5 MB
             </p>
-            {image ? (
-              <img
-                className="slip-preview"
-                src={image.previewUrl}
-                alt="ตัวอย่างสลิปหรือใบเสร็จที่เลือก"
-              />
-            ) : null}
-            {status === "analyzing" ? (
-              <div className="slip-progress" role="status">
-                <LoaderCircle className="spin" aria-hidden="true" />
-                <div>
-                  <strong>กำลังตรวจสลิปซ้ำ</strong>
-                  <span>กำลังอ่านยอดและรายละเอียด</span>
-                </div>
-              </div>
-            ) : null}
             {error ? (
               <p className="form-error" role="alert">{error}</p>
             ) : null}
-            <div className="slip-dialog-actions">
+
+            {rows.length > 0 ? (
+              <SlipBatchTable
+                rows={rows}
+                accounts={accounts}
+                categories={categories}
+                blockedItemId={blockedItemId}
+                confirming={confirming}
+                onEdit={(itemId) => {
+                  if (!confirmInFlight.current) setEditingItemId(itemId);
+                }}
+                onRetry={retry}
+                onReplace={replace}
+                onRemove={(itemId) => {
+                  if (!confirmInFlight.current) {
+                    dispatch({ type: "remove", itemId });
+                  }
+                }}
+                onConfirm={() => void confirmBatch()}
+              />
+            ) : (
+              <div className="slip-batch-empty">
+                เลือกรูปแล้วระบบจะเริ่มอ่านข้อมูลให้อัตโนมัติ
+              </div>
+            )}
+
+            <div className="slip-dialog-actions slip-batch-footer">
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => {
-                  disposeImage();
-                  onManual();
-                }}
-                disabled={status === "analyzing"}
+                onClick={manual}
+                disabled={confirming}
               >
                 กรอกเอง
               </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void analyze()}
-                disabled={!image || status === "analyzing"}
-              >
-                อ่านข้อมูลจากรูป
-              </button>
             </div>
           </>
-        ) : null}
-
-        {result?.status === "unsupported" ? (
-          <div className="slip-result-message">
-            <AlertTriangle aria-hidden="true" />
-            <h3>ยังอ่านเอกสารนี้ไม่ได้</h3>
-            <p>กรุณาใช้สลิปธนาคารไทยหรือใบเสร็จร้านค้าที่เห็นข้อมูลชัดเจน</p>
-            <button type="button" className="primary-button" onClick={onManual}>
-              กรอกข้อมูลเอง
-            </button>
-          </div>
-        ) : null}
-
-        {result?.status === "duplicate" ? (
-          <div className="slip-result-message duplicate">
-            <AlertTriangle aria-hidden="true" />
-            <h3>รายการนี้ถูกบันทึกแล้ว</h3>
-            <p>
-              {result.existingTransaction.financialDate} · ฿
-              {result.existingTransaction.amount}
-            </p>
-            {result.existingTransaction.note ? (
-              <p>{result.existingTransaction.note}</p>
-            ) : null}
-            <button type="button" className="secondary-button" onClick={close}>
-              กลับ
-            </button>
-          </div>
-        ) : null}
-
-        {result?.status === "success" ? (
+        ) : (
           <div className="slip-review">
-            <p className="slip-review-intro">
-              ตรวจสอบข้อมูลที่อ่านได้ก่อนบันทึก โดยเฉพาะช่องที่มีคำเตือน
-            </p>
+            <div className="slip-review-heading">
+              <strong>ตรวจสอบ {editingRow.fileName}</strong>
+              <span>แก้ข้อมูลให้ครบก่อนนำกลับไปบันทึกทั้งชุด</span>
+            </div>
             <TransactionForm
-              api={api}
+              mode="review"
               workspaceId={workspaceId}
               accounts={accounts}
               categories={categories}
-              initialDraft={result.draft}
-              analysisToken={result.analysisToken}
-              onPosted={() => {
-                disposeImage();
-                onPosted();
+              initialDraft={editingRow.draft!}
+              initialTransaction={editingRow.transaction}
+              clientMutationId={editingRow.itemId}
+              onReviewed={(transaction) => {
+                dispatch({
+                  type: "reviewed",
+                  itemId: editingRow.itemId,
+                  revision: editingRow.revision,
+                  transaction
+                });
+                setEditingItemId(undefined);
               }}
+              onCancel={() => setEditingItemId(undefined)}
             />
           </div>
-        ) : null}
+        )}
       </section>
     </div>
   );

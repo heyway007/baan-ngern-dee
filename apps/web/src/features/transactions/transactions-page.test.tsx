@@ -85,7 +85,8 @@ function createApi(
   })
 ) {
   return {
-    voidTransaction
+    voidTransaction,
+    getSlipQuota: vi.fn().mockResolvedValue({ used: 0, limit: 30 })
   } as unknown as FinanceApi;
 }
 

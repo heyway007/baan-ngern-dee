@@ -26,6 +26,93 @@ const food: Category = {
 };
 
 describe("TransactionForm", () => {
+  it("returns a validated review edit without calling the Finance API", async () => {
+    const user = userEvent.setup();
+    const onReviewed = vi.fn();
+    const clientMutationId =
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    render(
+      <TransactionForm
+        mode="review"
+        workspaceId={account.workspaceId}
+        accounts={[account]}
+        categories={[food]}
+        initialDraft={{
+          type: "expense",
+          amount: "60.00",
+          currency: "THB",
+          financialDate: "2026-07-27",
+          accountId: account.id,
+          categoryId: food.id,
+          fieldsNeedingReview: ["type", "account"]
+        }}
+        clientMutationId={clientMutationId}
+        onReviewed={onReviewed}
+        onCancel={vi.fn()}
+      />
+    );
+
+    await user.clear(screen.getByLabelText(/จำนวนเงิน/));
+    await user.type(screen.getByLabelText(/จำนวนเงิน/), "1191.67");
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกการแก้ไข" })
+    );
+
+    expect(onReviewed).toHaveBeenCalledWith({
+      workspaceId: account.workspaceId,
+      accountId: account.id,
+      categoryId: food.id,
+      type: "expense",
+      amount: "1191.67",
+      currency: "THB",
+      financialDate: "2026-07-27",
+      tagIds: [],
+      clientMutationId
+    });
+  });
+
+  it("reopens review mode from the previously edited transaction", async () => {
+    const onReviewed = vi.fn();
+    const clientMutationId =
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    render(
+      <TransactionForm
+        mode="review"
+        workspaceId={account.workspaceId}
+        accounts={[account]}
+        categories={[food]}
+        initialDraft={{
+          type: "expense",
+          amount: "60.00",
+          currency: "THB",
+          financialDate: "2026-07-27",
+          accountId: account.id,
+          categoryId: food.id,
+          fieldsNeedingReview: []
+        }}
+        initialTransaction={{
+          workspaceId: account.workspaceId,
+          accountId: account.id,
+          categoryId: food.id,
+          type: "expense",
+          amount: "1191.67",
+          currency: "THB",
+          financialDate: "2026-07-28",
+          note: "แก้แล้ว",
+          tagIds: [],
+          clientMutationId
+        }}
+        clientMutationId={clientMutationId}
+        onReviewed={onReviewed}
+        onCancel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText(/จำนวนเงิน/)).toHaveValue("1191.67");
+    expect(screen.getByLabelText(/วันที่รายการ/)).toHaveValue("2026-07-28");
+    expect(screen.getByLabelText(/หมายเหตุ/)).toHaveValue("แก้แล้ว");
+  });
+
   it("reviews a slip draft and confirms it instead of posting manually", async () => {
     const user = userEvent.setup();
     const confirmSlip = vi.fn().mockResolvedValue({

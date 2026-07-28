@@ -17,6 +17,9 @@ import type {
   RecurringOccurrence,
   RecurringPeriod,
   RecurringTemplate,
+  ConfirmSlipBatchInput,
+  ConfirmSlipBatchResult,
+  SlipQuotaState,
   RecurringVersionActionInput,
   UpdateRecurringOccurrenceInput,
   UpdateRecurringTemplateInput,
@@ -130,6 +133,10 @@ export interface FinanceApi {
   confirmSlip(
     input: ConfirmSlipInput
   ): Promise<PostedTransactionResponse>;
+  getSlipQuota(workspaceId: string): Promise<SlipQuotaState>;
+  confirmSlipBatch(
+    input: ConfirmSlipBatchInput
+  ): Promise<ConfirmSlipBatchResult>;
   createPrivateWorkspace(
     input: CreatePrivateWorkspaceInput
   ): Promise<WorkspaceCreationResult>;

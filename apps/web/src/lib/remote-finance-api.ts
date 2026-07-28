@@ -9,7 +9,10 @@ import {
   recurringPeriodSchema,
   recurringTemplateSchema,
   analyzeSlipResponseSchema,
+  confirmSlipBatchInputSchema,
+  confirmSlipBatchResultSchema,
   confirmSlipInputSchema,
+  slipQuotaStateSchema,
   type ApiErrorCode,
   type FinanceSnapshot
 } from "@systems-credit/contracts";
@@ -335,6 +338,22 @@ export function createRemoteFinanceApi(options: {
         "/v1/slip-imports/confirm",
         confirmSlipInputSchema.parse(input),
         postedTransactionResponseSchema
+      );
+    },
+
+    getSlipQuota(workspaceId) {
+      return request(
+        `/v1/slip-imports/quota?workspaceId=${encodeURIComponent(workspaceId)}`,
+        { method: "GET" },
+        slipQuotaStateSchema
+      );
+    },
+
+    confirmSlipBatch(input) {
+      return post(
+        "/v1/slip-imports/confirm-batch",
+        confirmSlipBatchInputSchema.parse(input),
+        confirmSlipBatchResultSchema
       );
     },
 
