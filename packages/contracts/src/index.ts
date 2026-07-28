@@ -159,6 +159,23 @@ export type {
   PostedTransferResponse
 } from "./transfers";
 export { createTransferSchema } from "./transfers";
+export type {
+  ConfirmSlipInput,
+  DuplicateTransaction,
+  SlipAiExtraction,
+  SlipAnalysisResponse,
+  SlipDocumentKind,
+  SlipTransactionDraft
+} from "./slip-imports";
+export {
+  analyzeSlipResponseSchema,
+  confirmSlipInputSchema,
+  duplicateTransactionSchema,
+  slipAiExtractionSchema,
+  slipDocumentKindSchema,
+  slipReviewFieldSchema,
+  slipTransactionDraftSchema
+} from "./slip-imports";
 
 export type HealthResponse = {
   ok: true;
