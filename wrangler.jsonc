@@ -21,7 +21,8 @@
       "SUPABASE_URL",
       "SUPABASE_ANON_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
-      "SUPER_ADMIN_USER_ID"
+      "SUPER_ADMIN_USER_ID",
+      "TURNSTILE_SITE_KEY"
     ]
   }
 }

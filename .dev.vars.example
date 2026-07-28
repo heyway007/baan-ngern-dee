@@ -2,5 +2,7 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_your-browser-safe-key
 SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
 SUPER_ADMIN_USER_ID=00000000-0000-0000-0000-000000000000
+# Public Cloudflare test site key: always passes on localhost.
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
 # Optional: only for a separate cross-origin local client.
 # ALLOWED_ORIGIN=http://127.0.0.1:5173
