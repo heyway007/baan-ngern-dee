@@ -76,7 +76,10 @@ export function buildMonthlyTransactionModel(
         (transaction.type === "income" ? "à¸£à¸²à¸¢à¸£à¸±à¸š" : "à¸£à¸²à¸¢à¸ˆà¹ˆà¸²à¸¢"),
       categoryLabel: hasSplits
         ? "à¹à¸šà¹ˆà¸‡à¸«à¸¥à¸²à¸¢à¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ"
-        : categoryName ?? "à¹„à¸¡à¹ˆà¸žà¸šà¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ",
+        : categoryName ??
+          (transaction.categoryId
+            ? "à¹„à¸¡à¹ˆà¸žà¸šà¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ"
+            : "â€”"),
       accountLabel:
         accountNames.get(transaction.accountId) ?? "à¹„à¸¡à¹ˆà¸žà¸šà¸šà¸±à¸ญà¸Šà¸µ",
       income: transaction.type === "income" ? transaction.amount : null,

@@ -140,6 +140,11 @@ describe("buildMonthlyTransactionModel", () => {
           categoryId: missingCategoryId,
           accountId: missingAccountId,
           financialDate: "2026-07-02"
+        }),
+        transaction({
+          id: "a2000000-0000-4000-8000-000000000020",
+          categoryId: undefined,
+          financialDate: "2026-07-01"
         })
       ],
       accounts: [account],
@@ -170,6 +175,11 @@ describe("buildMonthlyTransactionModel", () => {
         itemLabel: "à¸£à¸²à¸¢à¸£à¸±à¸š",
         categoryLabel: "à¹„à¸¡à¹ˆà¸žà¸šà¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ",
         accountLabel: "à¹„à¸¡à¹ˆà¸žà¸šà¸šà¸±à¸ญà¸Šà¸µ"
+      },
+      {
+        itemLabel: "à¸£à¸²à¸¢à¸£à¸±à¸š",
+        categoryLabel: "â€”",
+        accountLabel: "à¸šà¸±à¸ญà¸Šà¸µà¸«à¸¥à¸±à¸"
       }
     ]);
   });
