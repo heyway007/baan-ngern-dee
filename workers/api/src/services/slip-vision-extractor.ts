@@ -1,8 +1,6 @@
-import {
-  slipAiExtractionSchema,
-  type SlipAiExtraction
-} from "@systems-credit/contracts";
+import type { SlipAiExtraction } from "@systems-credit/contracts";
 
+import { normalizeSlipExtraction } from "./slip-extraction-normalizer";
 import type { SlipImageMime } from "./slip-image";
 
 export interface SlipAiBinding {
@@ -16,8 +14,14 @@ export interface SlipVisionExtractor {
   }>): Promise<SlipAiExtraction>;
 }
 
+export type SlipVisionFailureCategory =
+  | "provider"
+  | "empty_answer"
+  | "invalid_json"
+  | "invalid_shape";
+
 export class SlipVisionUnavailableError extends Error {
-  constructor() {
+  constructor(readonly category: SlipVisionFailureCategory) {
     super("SLIP_VISION_UNAVAILABLE");
     this.name = "SlipVisionUnavailableError";
   }
@@ -37,42 +41,14 @@ function parseAnswer(answer: string) {
   return JSON.parse(json);
 }
 
-function addConservativeConfidence(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const fields = value as Record<string, unknown>;
-  const present = (field: string) =>
-    typeof fields[field] === "string" && fields[field].trim() ? 0.75 : 0;
-  const amount = typeof fields.amount === "string"
-    ? fields.amount.replace(/(?:THB|บาท|฿|,|\s)/gi, "")
-    : fields.amount;
-  const currency = typeof fields.currency === "string"
-    ? fields.currency.trim().toUpperCase()
-    : fields.currency;
-  const normalizedCurrency =
-    currency === "฿" || currency === "บาท" || currency === "BAHT"
-      ? "THB"
-      : typeof currency === "string" && /^[A-Z]{3}$/.test(currency)
-        ? currency
-        : null;
-  return {
-    ...fields,
-    amount,
-    currency: normalizedCurrency,
-    confidence: {
-      documentKind: present("documentKind"),
-      suggestedType: present("suggestedType"),
-      amount: present("amount"),
-      financialDate: present("financialDate"),
-      reference: present("reference")
-    }
-  };
-}
-
 const question = `Extract only values visible in this Thai bank transfer slip or shop receipt.
 Do not infer missing values; return null. For bank slips, choose income only when the
 document clearly indicates money received. Amount is the final transfer or receipt
 total, not balance, subtotal, tax, or change. Return Gregorian YYYY-MM-DD; subtract
 543 only when a printed year is clearly Buddhist Era.
+Thai labels such as "ชำระเงินสำเร็จ" or "จ่ายบิลสำเร็จ" mean an outgoing bank
+payment and suggestedType expense. A two-digit Thai year is Buddhist Era.
+Return null for a field you cannot read. Do not add fields.
 
 Return only one valid JSON object without Markdown using exactly these fields:
 {
@@ -93,8 +69,9 @@ export function createCloudflareSlipVisionExtractor(
 ): SlipVisionExtractor {
   return {
     async extract(input) {
+      let providerResult: unknown;
       try {
-        const result = await ai.run("@cf/moondream/moondream3.1-9B-A2B", {
+        providerResult = await ai.run("@cf/moondream/moondream3.1-9B-A2B", {
           task: "query",
           image: `data:${input.mime};base64,${toBase64(input.bytes)}`,
           question,
@@ -102,18 +79,31 @@ export function createCloudflareSlipVisionExtractor(
           stream: false,
           temperature: 0,
           max_tokens: 700
-        }) as {
-          answer?: unknown;
-          result?: { answer?: unknown };
-        };
-        const answer = result?.result?.answer ?? result?.answer;
-        const value =
-          typeof answer === "string"
-            ? parseAnswer(answer)
-            : answer;
-        return slipAiExtractionSchema.parse(addConservativeConfidence(value));
+        });
       } catch {
-        throw new SlipVisionUnavailableError();
+        throw new SlipVisionUnavailableError("provider");
+      }
+
+      const result = providerResult as {
+        answer?: unknown;
+        result?: { answer?: unknown };
+      } | null;
+      const answer = result?.result?.answer ?? result?.answer;
+      if (typeof answer !== "string" || !answer.trim()) {
+        throw new SlipVisionUnavailableError("empty_answer");
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = parseAnswer(answer);
+      } catch {
+        throw new SlipVisionUnavailableError("invalid_json");
+      }
+
+      try {
+        return normalizeSlipExtraction(parsed);
+      } catch {
+        throw new SlipVisionUnavailableError("invalid_shape");
       }
     }
   };

@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  createCloudflareSlipVisionExtractor,
-  SlipVisionUnavailableError
+  createCloudflareSlipVisionExtractor
 } from "../src/services/slip-vision-extractor";
 
 describe("Cloudflare slip vision extractor", () => {
@@ -62,14 +61,33 @@ describe("Cloudflare slip vision extractor", () => {
     );
   });
 
-  it("converts malformed provider output to a safe error", async () => {
-    const extractor = createCloudflareSlipVisionExtractor({
-      run: vi.fn().mockResolvedValue({ response: "not-json" })
+  it("normalizes a wrapped partial provider answer", async () => {
+    const run = vi.fn().mockResolvedValue({
+      result: {
+        answer: JSON.stringify({
+          documentKind: "bill_payment",
+          suggestedType: "payment",
+          amount: "60.00 บาท",
+          financialDate: "27 ก.ค. 69",
+          reference: "SYNTHETIC-060",
+          recipient: "ร้านตัวอย่าง",
+          institution: "ธนาคารตัวอย่าง"
+        })
+      }
     });
-    await expect(extractor.extract({
+    const result = await createCloudflareSlipVisionExtractor({ run }).extract({
       bytes: new Uint8Array([0xff, 0xd8, 0xff]),
       mime: "image/jpeg"
-    })).rejects.toBeInstanceOf(SlipVisionUnavailableError);
+    });
+
+    expect(result).toMatchObject({
+      documentKind: "bank_transfer",
+      suggestedType: "expense",
+      amount: "60.00",
+      currency: null,
+      financialDate: "2026-07-27"
+    });
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("accepts a JSON answer wrapped in a Markdown code fence", async () => {
@@ -87,5 +105,31 @@ describe("Cloudflare slip vision extractor", () => {
     });
 
     expect(result.reference).toBe("REF-250");
+  });
+
+  it.each([
+    [{}, "empty_answer"],
+    [{ answer: "not-json" }, "invalid_json"],
+    [{ answer: "[]" }, "invalid_shape"]
+  ])("classifies unsafe provider output", async (providerResult, category) => {
+    const extractor = createCloudflareSlipVisionExtractor({
+      run: vi.fn().mockResolvedValue(providerResult)
+    });
+
+    await expect(extractor.extract({
+      bytes: new Uint8Array([0xff, 0xd8, 0xff]),
+      mime: "image/jpeg"
+    })).rejects.toMatchObject({ category });
+  });
+
+  it("classifies a rejected provider call", async () => {
+    const extractor = createCloudflareSlipVisionExtractor({
+      run: vi.fn().mockRejectedValue(new Error("provider detail"))
+    });
+
+    await expect(extractor.extract({
+      bytes: new Uint8Array([0xff, 0xd8, 0xff]),
+      mime: "image/jpeg"
+    })).rejects.toMatchObject({ category: "provider" });
   });
 });

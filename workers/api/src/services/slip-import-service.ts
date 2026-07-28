@@ -160,7 +160,8 @@ export function createSlipImportService(dependencies: {
           throw new ApiError(
             "AI_UNAVAILABLE",
             503,
-            "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือกรอกข้อมูลเอง"
+            "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือกรอกข้อมูลเอง",
+            { slipVisionCategory: error.category }
           );
         }
         throw error;

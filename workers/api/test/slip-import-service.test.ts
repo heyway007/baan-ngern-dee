@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createSlipImportService } from "../src/services/slip-import-service";
+import { SlipVisionUnavailableError } from
+  "../src/services/slip-vision-extractor";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const workspaceId = "22222222-2222-4222-8222-222222222222";
@@ -106,5 +108,25 @@ describe("SlipImportService", () => {
     expect(result.status).toBe("duplicate");
     expect(deps.repository.consumeQuota).not.toHaveBeenCalled();
     expect(deps.extractor.extract).not.toHaveBeenCalled();
+  });
+
+  it("preserves a bounded vision failure category for internal logging", async () => {
+    const deps = dependencies();
+    deps.extractor.extract.mockRejectedValueOnce(
+      new SlipVisionUnavailableError("invalid_json")
+    );
+    const service = createSlipImportService(deps as never);
+
+    await expect(service.analyze(actor, {
+      workspaceId,
+      bytes: new Uint8Array([0xff, 0xd8, 0xff]),
+      claimedMime: "image/jpeg",
+      imageSha256:
+        "6e568e1f67fba258184c78181539e5e8fdee447e49bb706fc0ea34fbf12336a5"
+    })).rejects.toMatchObject({
+      code: "AI_UNAVAILABLE",
+      logContext: { slipVisionCategory: "invalid_json" },
+      status: 503
+    });
   });
 });

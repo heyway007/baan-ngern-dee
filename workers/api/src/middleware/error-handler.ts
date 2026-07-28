@@ -54,6 +54,7 @@ export const errorHandler: ErrorHandler<AppEnv> = (error, context) => {
     path: new URL(context.req.url).pathname,
     requestId,
     status: apiError.status,
+    ...(apiError.logContext ?? {}),
     ...(validationIssues ? { validationIssues } : {})
   });
 
