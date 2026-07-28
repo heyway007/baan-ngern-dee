@@ -56,6 +56,34 @@ describe("financeSnapshotSchema", () => {
     ).toThrowError(z.ZodError);
   });
 
+  it("parses void transaction history and module sources", () => {
+    const transaction = {
+      id: "10000000-0000-4000-8000-000000000001",
+      workspaceId: "20000000-0000-4000-8000-000000000002",
+      accountId: "30000000-0000-4000-8000-000000000003",
+      type: "expense",
+      amount: "125.50",
+      currency: "THB",
+      financialDate: "2026-07-28",
+      categoryId: "40000000-0000-4000-8000-000000000004",
+      tagIds: [],
+      state: "void",
+      version: 2,
+      createdAt: "2026-07-28T04:00:00.000Z",
+      voidedAt: "2026-07-28T05:00:00.000Z",
+      voidReason: "บันทึกรายการผิด",
+      source: "recurring_occurrence",
+      sourceId: "50000000-0000-4000-8000-000000000005"
+    } as const;
+
+    expect(
+      financeSnapshotSchema.parse({
+        ...emptySnapshot,
+        transactions: [transaction]
+      }).transactions[0]
+    ).toEqual(transaction);
+  });
+
   it("accepts the incremented contract version returned after a payment", () => {
     expect(
       financeInstallmentContractSchema.parse({

@@ -12,7 +12,10 @@ import {
   recurringOccurrenceSchema,
   recurringTemplateSchema
 } from "./recurring";
-import { transactionSplitSchema } from "./transactions";
+import {
+  transactionSplitSchema,
+  transactionStateSchema
+} from "./transactions";
 import type { Workspace } from "./workspaces";
 
 const uuidSchema = z.string().uuid();
@@ -101,11 +104,18 @@ export const financeTransactionSchema = z
     splits: z.array(transactionSplitSchema).optional(),
     note: z.string().optional(),
     tagIds: z.array(uuidSchema),
-    state: z.literal("posted"),
-    version: z.literal(1),
+    state: transactionStateSchema,
+    version: versionSchema,
     createdAt: timestampSchema,
+    voidedAt: timestampSchema.optional(),
+    voidReason: z.string().min(1).max(200).optional(),
     source: z
-      .enum(["installment_payment", "installment_payoff"])
+      .enum([
+        "transfer_fee",
+        "installment_payment",
+        "installment_payoff",
+        "recurring_occurrence"
+      ])
       .optional(),
     sourceId: uuidSchema.optional()
   })
