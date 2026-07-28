@@ -88,8 +88,9 @@ describe("local PostgreSQL user management migration", () => {
         email: string;
         display_name: string;
         status: string;
+        deletion_pending: boolean;
       }>(
-        "select user_id, email, display_name, status from public.list_admin_users($1, 25, null, null)",
+        "select user_id, email, display_name, status, deletion_pending from public.list_admin_users($1, 25, null, null)",
         ["FRIEND"]
       );
       expect(listed.rows).toEqual([
@@ -97,7 +98,8 @@ describe("local PostgreSQL user management migration", () => {
           user_id: userId,
           email: "friend@example.test",
           display_name: "Friend",
-          status: "active"
+          status: "active",
+          deletion_pending: false
         }
       ]);
     } finally {
