@@ -12,6 +12,25 @@ export type CloudSession = Readonly<{
   accessToken: string;
 }>;
 
+export type CloudAuthErrorCode =
+  | "AUTH_EMAIL_EXISTS"
+  | "AUTH_EMAIL_NOT_CONFIRMED"
+  | "AUTH_INVALID_CREDENTIALS"
+  | "AUTH_USER_SUSPENDED"
+  | "AUTH_WEAK_PASSWORD"
+  | "AUTH_CAPTCHA_FAILED"
+  | "AUTH_RATE_LIMITED"
+  | "AUTH_NETWORK_UNAVAILABLE"
+  | "AUTH_SIGNUP_SESSION_REQUIRED"
+  | "AUTH_UNKNOWN";
+
+export class CloudAuthFailure extends Error {
+  constructor(readonly code: CloudAuthErrorCode) {
+    super(code);
+    this.name = "CloudAuthFailure";
+  }
+}
+
 export interface CloudAuth {
   getSession(): Promise<CloudSession | null>;
   refreshSession(): Promise<CloudSession | null>;
@@ -24,8 +43,8 @@ export interface CloudAuth {
     displayName: string;
     email: string;
     password: string;
-    redirectTo: string;
-  }): Promise<"confirmation_required" | CloudSession>;
+    captchaToken: string;
+  }): Promise<CloudSession>;
   requestPasswordReset(
     email: string,
     redirectTo: string
@@ -34,9 +53,45 @@ export interface CloudAuth {
   signOut(): Promise<void>;
 }
 
-function throwAuthError(error: AuthError | null) {
+function mapAuthError(error: AuthError): CloudAuthFailure {
+  const code = error.code?.toLowerCase();
+  switch (code) {
+    case "user_already_exists":
+    case "email_exists":
+      return new CloudAuthFailure("AUTH_EMAIL_EXISTS");
+    case "email_not_confirmed":
+      return new CloudAuthFailure("AUTH_EMAIL_NOT_CONFIRMED");
+    case "invalid_credentials":
+      return new CloudAuthFailure("AUTH_INVALID_CREDENTIALS");
+    case "user_banned":
+      return new CloudAuthFailure("AUTH_USER_SUSPENDED");
+    case "weak_password":
+      return new CloudAuthFailure("AUTH_WEAK_PASSWORD");
+    case "captcha_failed":
+      return new CloudAuthFailure("AUTH_CAPTCHA_FAILED");
+    case "over_request_rate_limit":
+      return new CloudAuthFailure("AUTH_RATE_LIMITED");
+    default:
+      return new CloudAuthFailure("AUTH_UNKNOWN");
+  }
+}
+
+function throwAuthError(error: AuthError | null): void {
   if (error) {
-    throw error;
+    throw mapAuthError(error);
+  }
+}
+
+async function authRequest<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof CloudAuthFailure) {
+      throw error;
+    }
+    throw new CloudAuthFailure("AUTH_NETWORK_UNAVAILABLE");
   }
 }
 
@@ -71,13 +126,17 @@ export function createSupabaseCloudAuth(
 
   return {
     async getSession() {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await authRequest(() =>
+        supabase.auth.getSession()
+      );
       throwAuthError(error);
       return mapSession(data.session);
     },
 
     async refreshSession() {
-      const { data, error } = await supabase.auth.refreshSession();
+      const { data, error } = await authRequest(() =>
+        supabase.auth.refreshSession()
+      );
       throwAuthError(error);
       return mapSession(data.session);
     },
@@ -90,44 +149,56 @@ export function createSupabaseCloudAuth(
     },
 
     async signIn(input) {
-      const { data, error } =
-        await supabase.auth.signInWithPassword(input);
+      const { data, error } = await authRequest(() =>
+        supabase.auth.signInWithPassword(input)
+      );
       throwAuthError(error);
       const mapped = mapSession(data.session);
       if (!mapped) {
-        throw new Error("AUTH_SESSION_REQUIRED");
+        throw new CloudAuthFailure("AUTH_UNKNOWN");
       }
       return mapped;
     },
 
     async signUp(input) {
-      const { data, error } = await supabase.auth.signUp({
-        email: input.email,
-        password: input.password,
-        options: {
-          data: { display_name: input.displayName },
-          emailRedirectTo: input.redirectTo
-        }
-      });
+      const { data, error } = await authRequest(() =>
+        supabase.auth.signUp({
+          email: input.email,
+          password: input.password,
+          options: {
+            data: { display_name: input.displayName },
+            captchaToken: input.captchaToken
+          }
+        })
+      );
       throwAuthError(error);
-      return mapSession(data.session) ?? "confirmation_required";
+      const mapped = mapSession(data.session);
+      if (!mapped) {
+        throw new CloudAuthFailure(
+          "AUTH_SIGNUP_SESSION_REQUIRED"
+        );
+      }
+      return mapped;
     },
 
     async requestPasswordReset(email, redirectTo) {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email,
-        { redirectTo }
+      const { error } = await authRequest(() =>
+        supabase.auth.resetPasswordForEmail(email, { redirectTo })
       );
       throwAuthError(error);
     },
 
     async updatePassword(password) {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await authRequest(() =>
+        supabase.auth.updateUser({ password })
+      );
       throwAuthError(error);
     },
 
     async signOut() {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await authRequest(() =>
+        supabase.auth.signOut()
+      );
       throwAuthError(error);
     }
   };

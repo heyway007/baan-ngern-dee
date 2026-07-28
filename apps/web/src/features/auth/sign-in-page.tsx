@@ -9,10 +9,13 @@ import {
   type FormEvent
 } from "react";
 
-import type {
-  CloudAuth,
-  CloudSession
+import {
+  CloudAuthFailure,
+  type CloudAuth,
+  type CloudAuthErrorCode,
+  type CloudSession
 } from "../../lib/cloud-auth";
+import { TurnstileWidget } from "./turnstile-widget";
 
 type AuthActions = Pick<
   CloudAuth,
@@ -21,19 +24,60 @@ type AuthActions = Pick<
 
 type SignInPageProps = Readonly<{
   auth: AuthActions;
+  turnstileSiteKey: string;
   onAuthenticated(session: CloudSession): void;
 }>;
 
 type AuthMode = "sign-in" | "sign-up" | "reset";
 
+const cloudAuthMessages: Record<CloudAuthErrorCode, string> = {
+  AUTH_EMAIL_EXISTS:
+    "อีเมลนี้มีบัญชีอยู่แล้ว กรุณาเข้าสู่ระบบหรือกดลืมรหัสผ่าน",
+  AUTH_EMAIL_NOT_CONFIRMED:
+    "บัญชีนี้ยังไม่ยืนยัน กรุณาให้ผู้ดูแลระบบยืนยันบัญชีให้",
+  AUTH_INVALID_CREDENTIALS: "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+  AUTH_USER_SUSPENDED:
+    "บัญชีนี้ถูกระงับ กรุณาติดต่อผู้ดูแลระบบ",
+  AUTH_WEAK_PASSWORD:
+    "รหัสผ่านไม่ผ่านนโยบายความปลอดภัย กรุณาใช้รหัสที่เดายากขึ้น",
+  AUTH_CAPTCHA_FAILED:
+    "การตรวจสอบความปลอดภัยไม่สำเร็จ กรุณาลองใหม่",
+  AUTH_RATE_LIMITED:
+    "ลองหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่",
+  AUTH_NETWORK_UNAVAILABLE:
+    "ยังเชื่อมต่อระบบบัญชีไม่ได้ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่",
+  AUTH_SIGNUP_SESSION_REQUIRED:
+    "สร้างบัญชีแล้วแต่ยังเข้าใช้งานไม่ได้ กรุณาให้ผู้ดูแลตรวจการตั้งค่า Confirm Email",
+  AUTH_UNKNOWN:
+    "ระบบบัญชีขัดข้องชั่วคราว กรุณาลองใหม่"
+};
+
+function authErrorMessage(
+  caught: unknown,
+  mode: AuthMode
+): string {
+  if (caught instanceof CloudAuthFailure) {
+    return cloudAuthMessages[caught.code];
+  }
+  return mode === "sign-in"
+    ? "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"
+    : mode === "sign-up"
+      ? "สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่"
+      : "ส่งลิงก์ไม่สำเร็จ กรุณาลองใหม่";
+}
+
 export function SignInPage({
   auth,
+  turnstileSiteKey,
   onAuthenticated
 }: SignInPageProps) {
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +86,9 @@ export function SignInPage({
     setMode(nextMode);
     setError("");
     setSuccess("");
+    setPassword("");
+    setConfirmPassword("");
+    setCaptchaToken("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -58,6 +105,14 @@ export function SignInPage({
     }
     if (mode !== "reset" && password.length < 8) {
       setError("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
+      return;
+    }
+    if (mode === "sign-up" && password !== confirmPassword) {
+      setError("รหัสผ่านไม่ตรงกัน");
+      return;
+    }
+    if (mode === "sign-up" && !captchaToken) {
+      setError("กรุณาผ่านการตรวจสอบความปลอดภัย");
       return;
     }
 
@@ -80,15 +135,9 @@ export function SignInPage({
           displayName: normalizedName,
           email: normalizedEmail,
           password,
-          redirectTo: `${window.location.origin}/`
+          captchaToken
         });
-        if (result === "confirmation_required") {
-          setSuccess(
-            "สร้างบัญชีแล้ว กรุณาตรวจสอบอีเมลและกดยืนยันก่อนเข้าสู่ระบบ"
-          );
-        } else {
-          onAuthenticated(result);
-        }
+        onAuthenticated(result);
         return;
       }
       onAuthenticated(
@@ -97,16 +146,18 @@ export function SignInPage({
           password
         })
       );
-    } catch {
-      setError(
-        mode === "sign-in"
-          ? "เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน"
-          : mode === "sign-up"
-            ? "สมัครสมาชิกไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง"
-            : "ส่งลิงก์ไม่สำเร็จ กรุณาตรวจสอบอีเมลแล้วลองอีกครั้ง"
-      );
+    } catch (caught) {
+      setError(authErrorMessage(caught, mode));
     } finally {
       setSubmitting(false);
+      if (mode !== "reset") {
+        setPassword("");
+      }
+      if (mode === "sign-up") {
+        setConfirmPassword("");
+        setCaptchaToken("");
+        setTurnstileResetKey((value) => value + 1);
+      }
     }
   }
 
@@ -199,6 +250,29 @@ export function SignInPage({
                 maxLength={80}
                 disabled={submitting}
               />
+              {mode === "sign-up" ? (
+                <>
+                  <label htmlFor="confirm-password">
+                    ยืนยันรหัสผ่าน
+                  </label>
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) =>
+                      setConfirmPassword(event.target.value)
+                    }
+                    autoComplete="new-password"
+                    minLength={8}
+                    disabled={submitting}
+                  />
+                  <TurnstileWidget
+                    siteKey={turnstileSiteKey}
+                    onToken={setCaptchaToken}
+                    resetKey={turnstileResetKey}
+                  />
+                </>
+              ) : null}
             </>
           ) : null}
 

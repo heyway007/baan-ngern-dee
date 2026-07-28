@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createSupabaseCloudAuth } from "./cloud-auth";
+import {
+  CloudAuthFailure,
+  createSupabaseCloudAuth
+} from "./cloud-auth";
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn()
@@ -46,7 +49,7 @@ function createAuthSdk() {
       error: null
     }),
     signUp: vi.fn().mockResolvedValue({
-      data: { session: null },
+      data: { session },
       error: null
     }),
     resetPasswordForEmail: vi.fn().mockResolvedValue({
@@ -72,7 +75,8 @@ describe("createSupabaseCloudAuth", () => {
     const { sdk, unsubscribe } = createAuthSdk();
     const auth = createSupabaseCloudAuth({
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
     });
 
     await expect(auth.getSession()).resolves.toEqual({
@@ -98,7 +102,8 @@ describe("createSupabaseCloudAuth", () => {
     const { sdk } = createAuthSdk();
     const auth = createSupabaseCloudAuth({
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
     });
 
     await expect(
@@ -117,16 +122,94 @@ describe("createSupabaseCloudAuth", () => {
         displayName: "มิน",
         email: "min@example.test",
         password: "correct-horse-battery",
-        redirectTo: "https://app.example.test/"
+        captchaToken: "turnstile-token"
       })
-    ).resolves.toBe("confirmation_required");
+    ).resolves.toMatchObject({ userId: user.id });
     expect(sdk.signUp).toHaveBeenCalledWith({
       email: "min@example.test",
       password: "correct-horse-battery",
       options: {
         data: { display_name: "มิน" },
-        emailRedirectTo: "https://app.example.test/"
+        captchaToken: "turnstile-token"
       }
+    });
+  });
+
+  it("fails closed when signup does not return a session", async () => {
+    const { sdk } = createAuthSdk();
+    sdk.signUp.mockResolvedValueOnce({
+      data: { session: null },
+      error: null
+    });
+    const auth = createSupabaseCloudAuth({
+      supabaseUrl: "https://project.supabase.co",
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
+    });
+
+    await expect(
+      auth.signUp({
+        displayName: "มิน",
+        email: "min@example.test",
+        password: "correct-horse-battery",
+        captchaToken: "turnstile-token"
+      })
+    ).rejects.toMatchObject({
+      code: "AUTH_SIGNUP_SESSION_REQUIRED"
+    });
+  });
+
+  it.each([
+    ["email_exists", "AUTH_EMAIL_EXISTS"],
+    ["email_not_confirmed", "AUTH_EMAIL_NOT_CONFIRMED"],
+    ["invalid_credentials", "AUTH_INVALID_CREDENTIALS"],
+    ["user_banned", "AUTH_USER_SUSPENDED"],
+    ["weak_password", "AUTH_WEAK_PASSWORD"],
+    ["captcha_failed", "AUTH_CAPTCHA_FAILED"],
+    ["over_request_rate_limit", "AUTH_RATE_LIMITED"]
+  ] as const)("maps Supabase code %s to %s", async (upstream, appCode) => {
+    const { sdk } = createAuthSdk();
+    sdk.signInWithPassword.mockResolvedValueOnce({
+      data: { session: null },
+      error: {
+        name: "AuthApiError",
+        message: "upstream detail",
+        status: 400,
+        code: upstream
+      }
+    });
+    const auth = createSupabaseCloudAuth({
+      supabaseUrl: "https://project.supabase.co",
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
+    });
+
+    await expect(
+      auth.signIn({
+        email: "min@example.test",
+        password: "wrong-password"
+      })
+    ).rejects.toEqual(new CloudAuthFailure(appCode));
+  });
+
+  it("maps a rejected Auth request to a network-safe error", async () => {
+    const { sdk } = createAuthSdk();
+    sdk.signInWithPassword.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    );
+    const auth = createSupabaseCloudAuth({
+      supabaseUrl: "https://project.supabase.co",
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
+    });
+
+    await expect(
+      auth.signIn({
+        email: "min@example.test",
+        password: "wrong-password"
+      })
+    ).rejects.toMatchObject({
+      code: "AUTH_NETWORK_UNAVAILABLE"
     });
   });
 
@@ -134,7 +217,8 @@ describe("createSupabaseCloudAuth", () => {
     const { sdk } = createAuthSdk();
     const auth = createSupabaseCloudAuth({
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
     });
 
     await auth.requestPasswordReset(
@@ -169,7 +253,8 @@ describe("createSupabaseCloudAuth", () => {
     });
     const auth = createSupabaseCloudAuth({
       supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public"
+      supabasePublishableKey: "sb_publishable_public",
+      turnstileSiteKey: "turnstile-site-key"
     });
 
     await expect(auth.getSession()).resolves.toMatchObject({

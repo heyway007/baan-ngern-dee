@@ -6,7 +6,23 @@ import type {
   CloudAuth,
   CloudSession
 } from "../../lib/cloud-auth";
+import { CloudAuthFailure } from "../../lib/cloud-auth";
 import { SignInPage } from "./sign-in-page";
+
+vi.mock("./turnstile-widget", () => ({
+  TurnstileWidget: ({
+    onToken
+  }: {
+    onToken(token: string): void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onToken("turnstile-token")}
+    >
+      ผ่านการตรวจสอบความปลอดภัย
+    </button>
+  )
+}));
 
 const session: CloudSession = {
   userId: "9c585235-f409-4764-b4ad-f1da4d500290",
@@ -43,6 +59,7 @@ describe("SignInPage", () => {
     render(
       <SignInPage
         auth={auth}
+        turnstileSiteKey="turnstile-site-key"
         onAuthenticated={onAuthenticated}
       />
     );
@@ -75,12 +92,17 @@ describe("SignInPage", () => {
     });
   });
 
-  it("signs up with a display name and shows confirmation feedback", async () => {
+  it("signs up with matching passwords and authenticates immediately", async () => {
     const user = userEvent.setup();
     const auth = authActions();
-    auth.signUp.mockResolvedValue("confirmation_required");
+    auth.signUp.mockResolvedValue(session);
+    const onAuthenticated = vi.fn();
     render(
-      <SignInPage auth={auth} onAuthenticated={vi.fn()} />
+      <SignInPage
+        auth={auth}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={onAuthenticated}
+      />
     );
 
     await user.click(
@@ -94,6 +116,15 @@ describe("SignInPage", () => {
     const password = screen.getByLabelText("รหัสผ่าน");
     expect(password).toHaveAttribute("autocomplete", "new-password");
     await user.type(password, "correct-horse-battery");
+    await user.type(
+      screen.getByLabelText("ยืนยันรหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "ผ่านการตรวจสอบความปลอดภัย"
+      })
+    );
     await user.click(
       screen.getByRole("button", { name: "สร้างบัญชี" })
     );
@@ -102,11 +133,85 @@ describe("SignInPage", () => {
       displayName: "มิน",
       email: "min@example.test",
       password: "correct-horse-battery",
-      redirectTo: `${window.location.origin}/`
+      captchaToken: "turnstile-token"
     });
-    expect(
-      await screen.findByRole("status")
-    ).toHaveTextContent("ตรวจสอบอีเมล");
+    expect(onAuthenticated).toHaveBeenCalledWith(session);
+    expect(password).toHaveValue("");
+    expect(screen.getByLabelText("ยืนยันรหัสผ่าน")).toHaveValue("");
+  });
+
+  it("rejects mismatched password confirmation before signup", async () => {
+    const user = userEvent.setup();
+    const auth = authActions();
+    render(
+      <SignInPage
+        auth={auth}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={vi.fn()}
+      />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "สมัครสมาชิก" })
+    );
+    await user.type(screen.getByLabelText("ชื่อที่แสดง"), "มิน");
+    await user.type(
+      screen.getByLabelText("อีเมล"),
+      "min@example.test"
+    );
+    await user.type(
+      screen.getByLabelText("รหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.type(
+      screen.getByLabelText("ยืนยันรหัสผ่าน"),
+      "different-password"
+    );
+    await user.click(
+      screen.getByRole("button", { name: "สร้างบัญชี" })
+    );
+
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "รหัสผ่านไม่ตรงกัน"
+    );
+  });
+
+  it("requires a Turnstile token before signup", async () => {
+    const user = userEvent.setup();
+    const auth = authActions();
+    render(
+      <SignInPage
+        auth={auth}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={vi.fn()}
+      />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "สมัครสมาชิก" })
+    );
+    await user.type(screen.getByLabelText("ชื่อที่แสดง"), "มิน");
+    await user.type(
+      screen.getByLabelText("อีเมล"),
+      "min@example.test"
+    );
+    await user.type(
+      screen.getByLabelText("รหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.type(
+      screen.getByLabelText("ยืนยันรหัสผ่าน"),
+      "correct-horse-battery"
+    );
+    await user.click(
+      screen.getByRole("button", { name: "สร้างบัญชี" })
+    );
+
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "กรุณาผ่านการตรวจสอบความปลอดภัย"
+    );
   });
 
   it("requests a password-reset email", async () => {
@@ -114,7 +219,11 @@ describe("SignInPage", () => {
     const auth = authActions();
     auth.requestPasswordReset.mockResolvedValue(undefined);
     render(
-      <SignInPage auth={auth} onAuthenticated={vi.fn()} />
+      <SignInPage
+        auth={auth}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={vi.fn()}
+      />
     );
 
     await user.click(
@@ -140,9 +249,15 @@ describe("SignInPage", () => {
   it("shows a Thai error when Supabase rejects sign in", async () => {
     const user = userEvent.setup();
     const auth = authActions();
-    auth.signIn.mockRejectedValue(new Error("Invalid credentials"));
+    auth.signIn.mockRejectedValue(
+      new CloudAuthFailure("AUTH_INVALID_CREDENTIALS")
+    );
     render(
-      <SignInPage auth={auth} onAuthenticated={vi.fn()} />
+      <SignInPage
+        auth={auth}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={vi.fn()}
+      />
     );
 
     await user.type(
@@ -155,7 +270,8 @@ describe("SignInPage", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "เข้าสู่ระบบไม่สำเร็จ"
+      "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
     );
+    expect(screen.getByLabelText("รหัสผ่าน")).toHaveValue("");
   });
 });
