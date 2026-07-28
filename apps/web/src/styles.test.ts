@@ -154,4 +154,32 @@ describe("global typography", () => {
       ).alignItems
     ).toBe("flex-end");
   });
+
+  it("keeps every monthly transaction month control at the same exact height", () => {
+    document.body.innerHTML = `
+      <div class="monthly-transaction-month-controls">
+        <button class="icon-button">ก่อนหน้า</button>
+        <label class="monthly-transaction-month-picker">
+          <input type="month" />
+        </label>
+        <button class="icon-button">ถัดไป</button>
+      </div>
+    `;
+
+    const controls = [
+      document.querySelector(
+        ".monthly-transaction-month-controls .icon-button"
+      )!,
+      document.querySelector(".monthly-transaction-month-picker")!,
+      document.querySelector(".monthly-transaction-month-picker input")!
+    ];
+
+    for (const control of controls) {
+      const style = getComputedStyle(control);
+
+      expect(style.boxSizing).toBe("border-box");
+      expect(style.height).toBe("2.75rem");
+      expect(style.minHeight).toBe("2.75rem");
+    }
+  });
 });

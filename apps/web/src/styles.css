@@ -1025,7 +1025,9 @@ select:focus {
 
 .monthly-transaction-month-controls .icon-button,
 .monthly-transaction-month-picker {
+  box-sizing: border-box;
   height: 2.75rem;
+  min-height: 2.75rem;
   border: 1px solid var(--line);
   background: var(--paper);
 }
@@ -1047,10 +1049,11 @@ select:focus {
 }
 
 .monthly-transaction-month-picker input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: 0;
-  height: 100%;
+  min-height: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: 0;
   outline: 0;
