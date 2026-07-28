@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Install the missing production Supabase migrations so the deployed Worker can list registered Auth users.
+**Goal:** Install the missing production Supabase migrations and repair the nullable deletion flag so the deployed Worker can list registered Auth users.
 
-**Architecture:** Keep the deployed Worker and web application unchanged. Bring the linked Supabase production schema forward from migration 012 through 015 in recorded order, then verify database history, focused regression tests, and the authenticated production page.
+**Architecture:** Keep the deployed Worker and web application unchanged. Bring the linked Supabase production schema forward from migration 012 through 015, then add migration 016 to make `list_admin_users.deletion_pending` a non-null boolean. Verify the SQL contract with a real database test before applying 016 and checking the authenticated production page.
 
 **Tech Stack:** Supabase CLI, PostgreSQL migrations, Vitest, Cloudflare Worker, React
 
@@ -62,16 +62,64 @@ Expected: local and remote versions match for 013, 014, and 015.
 ### Task 2: Verify user-management behavior
 
 **Files:**
+- Create: `supabase/migrations/202607280016_fix_admin_user_deletion_pending.sql`
+- Modify: `workers/api/test/user-management-database.test.ts`
 - Test: `workers/api/test/user-management-database.test.ts`
 - Test: `workers/api/test/supabase-user-management-repository.test.ts`
 - Test: `workers/api/test/user-management.test.ts`
 - Inspect: production `/admin/users`
 
 **Interfaces:**
-- Consumes: the production `list_admin_users` RPC installed by Task 1
-- Produces: evidence that the repository contract and production page can list users
+- Consumes: the `list_admin_users` RPC installed by Task 1
+- Produces: a non-null boolean `deletion_pending` value for every listed Auth user
 
-- [ ] **Step 1: Run focused database and Worker regressions**
+- [ ] **Step 1: Write the failing database regression assertion**
+
+Extend the first test query in
+`workers/api/test/user-management-database.test.ts` to select
+`deletion_pending`, then require this literal row:
+
+```ts
+{
+  user_id: userId,
+  email: "friend@example.test",
+  display_name: "Friend",
+  status: "active",
+  deletion_pending: false
+}
+```
+
+- [ ] **Step 2: Run the focused test and verify RED**
+
+Run:
+
+```powershell
+npm test -- --run workers/api/test/user-management-database.test.ts
+```
+
+Expected: FAIL because the actual `deletion_pending` value is `null`.
+
+- [ ] **Step 3: Add migration 016**
+
+Create
+`supabase/migrations/202607280016_fix_admin_user_deletion_pending.sql` with a
+`create or replace function public.list_admin_users(...)` definition matching
+migration 014, except the sanitized expression must be:
+
+```sql
+coalesce(
+  (
+    auth_user.raw_app_meta_data
+      ->> 'baan_ngern_dee_deletion_pending'
+  ) = 'true',
+  false
+) as deletion_pending
+```
+
+Retain `security definer`, the fixed `search_path`, and the existing execute
+privileges.
+
+- [ ] **Step 4: Run the focused database and Worker regressions**
 
 Run:
 
@@ -81,7 +129,7 @@ npm test -- --run workers/api/test/user-management-database.test.ts workers/api/
 
 Expected: every selected test passes.
 
-- [ ] **Step 2: Run type checking and the production build**
+- [ ] **Step 5: Run type checking and the production build**
 
 Run:
 
@@ -92,7 +140,20 @@ npm run build
 
 Expected: both commands exit with code 0.
 
-- [ ] **Step 3: Verify the authenticated production page**
+- [ ] **Step 6: Dry-run and apply migration 016**
+
+Run:
+
+```powershell
+npx supabase db push --include-all --dry-run
+npx supabase db push --include-all --yes
+npx supabase migration list
+```
+
+Expected: the dry-run and actual push contain only migration 016, and local and
+remote history match afterward.
+
+- [ ] **Step 7: Verify the authenticated production page**
 
 Reload the existing production `/admin/users` page as the configured Super
 Admin. Expected: the generic management error is absent and at least the
