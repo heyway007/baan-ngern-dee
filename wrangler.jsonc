@@ -7,6 +7,9 @@
   "observability": {
     "enabled": true
   },
+  "ai": {
+    "binding": "AI"
+  },
   "assets": {
     "directory": "./apps/web/dist",
     "not_found_handling": "single-page-application",
@@ -22,7 +25,8 @@
       "SUPABASE_ANON_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
       "SUPER_ADMIN_USER_ID",
-      "TURNSTILE_SITE_KEY"
+      "TURNSTILE_SITE_KEY",
+      "SLIP_ANALYSIS_TOKEN_SECRET"
     ]
   }
 }

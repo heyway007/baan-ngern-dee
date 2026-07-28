@@ -216,3 +216,22 @@ token ตอบ 401
 - retry ใช้ `clientMutationId` เดิมและไม่สร้างรายการซ้ำ
 - stale `expectedVersion` ตอบ conflict
 - เงินต้นไม่ถูกนับเป็นรายจ่าย; ดอกเบี้ย/ค่าธรรมเนียมถูกนับครั้งเดียว
+## Slip and receipt image import
+
+Deploy the image-import feature in this order:
+
+1. Apply `supabase/migrations/202607280017_slip_imports.sql`.
+2. Add `SLIP_ANALYSIS_TOKEN_SECRET` under Cloudflare Variables and Secrets.
+   Use at least 32 random characters and never expose it to the browser.
+3. Verify the Worker has an `AI` binding named `AI`.
+4. Accept the Meta license for
+   `@cf/meta/llama-3.2-11b-vision-instruct` in the Cloudflare account.
+5. Build and deploy the Worker.
+6. Test with one redacted Thai bank slip and one redacted shop receipt.
+7. Confirm that no Supabase Storage object is created.
+8. Re-upload both documents and confirm that duplicates are blocked.
+9. Confirm manual transaction entry still works when Workers AI is unavailable.
+
+Local tests use a fake AI adapter. A manual test through a remote Workers AI
+binding consumes the account's Workers AI allocation. Never commit real slips,
+receipts, account numbers, or production secrets as fixtures.
