@@ -124,9 +124,10 @@ describe("MonthlyTransactionTable", () => {
     render(<MonthInputHarness />);
     const monthPicker = screen.getByLabelText("เลือกเดือน");
     await user.click(monthPicker);
-    await user.paste("2026-08");
+    await user.type(monthPicker, "2026-08");
     await user.tab();
 
+    expect(onInputMonthChange).toHaveBeenCalledTimes(1);
     expect(onInputMonthChange).toHaveBeenCalledWith("2026-08");
     expect(monthPicker).toHaveValue("2026-08");
   });
