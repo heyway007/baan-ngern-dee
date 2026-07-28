@@ -1,0 +1,174 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  createSupabaseUserAuthAdmin
+} from "../src/services/supabase-user-auth-admin";
+
+const config = {
+  url: "https://project.supabase.co/",
+  serviceRoleKey: "service-role-secret"
+};
+const userId = "22222222-2222-4222-8222-222222222222";
+
+const rawUser = {
+  id: userId,
+  email: "friend@example.test",
+  user_metadata: { display_name: "Friend" },
+  app_metadata: { provider: "email" },
+  created_at: "2026-07-28T10:00:00.000Z",
+  last_sign_in_at: null,
+  email_confirmed_at: null,
+  banned_until: null
+};
+
+describe("Supabase user Auth Admin adapter", () => {
+  it("gets and confirms a legacy unconfirmed user", async () => {
+    const confirmed = {
+      ...rawUser,
+      email_confirmed_at: "2026-07-28T10:01:00.000Z"
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(rawUser))
+      .mockResolvedValueOnce(Response.json(confirmed));
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(authAdmin.getUser(userId)).resolves.toMatchObject({
+      userId,
+      status: "unconfirmed"
+    });
+    await expect(
+      authAdmin.confirmUser(userId)
+    ).resolves.toMatchObject({
+      userId,
+      status: "active"
+    });
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[1]![1]?.body))
+    ).toEqual({ email_confirm: true });
+  });
+
+  it("suspends, resumes, and hard deletes with exact Auth payloads", async () => {
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          ...rawUser,
+          banned_until: "2126-07-28T10:00:00.000Z"
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          ...rawUser,
+          email_confirmed_at: "2026-07-28T10:01:00.000Z"
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await authAdmin.suspendUser(userId);
+    await authAdmin.resumeUser(userId);
+    await authAdmin.deleteUser(userId);
+
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[0]![1]?.body))
+    ).toEqual({ ban_duration: "876000h" });
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[1]![1]?.body))
+    ).toEqual({ ban_duration: "none" });
+    expect(requestFetch.mock.calls[2]![0]).toBe(
+      `https://project.supabase.co/auth/v1/admin/users/${userId}?should_soft_delete=false`
+    );
+    expect(requestFetch.mock.calls[2]![1]?.method).toBe("DELETE");
+  });
+
+  it("preserves app metadata while marking deletion pending", async () => {
+    const pending = {
+      ...rawUser,
+      app_metadata: {
+        provider: "email",
+        baan_ngern_dee_deletion_pending: true
+      },
+      banned_until: "2126-07-28T10:00:00.000Z"
+    };
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(rawUser))
+      .mockResolvedValueOnce(Response.json(pending));
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(
+      authAdmin.markDeletionPending(userId)
+    ).resolves.toMatchObject({
+      status: "deletion_pending",
+      deletionPending: true
+    });
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[1]![1]?.body))
+    ).toEqual({
+      ban_duration: "876000h",
+      app_metadata: {
+        provider: "email",
+        baan_ngern_dee_deletion_pending: true
+      }
+    });
+  });
+
+  it("sends only a normal Supabase recovery request", async () => {
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await authAdmin.sendPasswordReset("friend@example.test");
+
+    expect(requestFetch).toHaveBeenCalledWith(
+      "https://project.supabase.co/auth/v1/recover",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "friend@example.test" })
+      })
+    );
+  });
+
+  it.each([
+    [404, "USER_NOT_FOUND", 404],
+    [429, "USER_ADMIN_RATE_LIMITED", 429],
+    [500, "USER_ADMIN_ACTION_FAILED", 500]
+  ] as const)("maps Auth status %s to %s", async (
+    upstreamStatus,
+    code,
+    status
+  ) => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        { message: "service-role-secret upstream detail" },
+        { status: upstreamStatus }
+      )
+    );
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    const error = await authAdmin
+      .getUser(userId)
+      .catch((caught) => caught);
+    expect(error).toMatchObject({ code, status });
+    expect(String(error.message)).not.toContain(
+      "service-role-secret"
+    );
+  });
+});
