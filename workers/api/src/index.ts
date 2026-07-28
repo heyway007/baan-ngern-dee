@@ -8,6 +8,10 @@ import { createSupabaseInvitationRepository } from "./services/supabase-invitati
 import { createUserManagementService } from "./services/user-management-service";
 import { createSupabaseUserAuthAdmin } from "./services/supabase-user-auth-admin";
 import { createSupabaseUserManagementRepository } from "./services/supabase-user-management-repository";
+import { createSupabaseSlipImportRepository } from "./services/supabase-slip-import-repository";
+import { createSlipImportService } from "./services/slip-import-service";
+import { createSlipAnalysisTokenCodec } from "./services/slip-analysis-token";
+import { createCloudflareSlipVisionExtractor } from "./services/slip-vision-extractor";
 import type { AppEnv } from "./types";
 
 type WorkerBindings = AppEnv["Bindings"];
@@ -70,16 +74,25 @@ export default {
           createSupabaseUserManagementRepository(adminConfig),
         authAdmin: createSupabaseUserAuthAdmin(adminConfig)
       });
+    const financeRepository = createSupabaseFinanceRepository(config);
     const app = createApp({
       authVerifier: createSupabaseAuthVerifier(config),
-      financeRepository: createSupabaseFinanceRepository(config),
+      financeRepository,
       invitationService,
       userManagementService,
       publicConfig: {
         supabaseUrl: env.SUPABASE_URL,
         supabasePublishableKey: env.SUPABASE_ANON_KEY,
         turnstileSiteKey: env.TURNSTILE_SITE_KEY
-      }
+      },
+      slipImportService: createSlipImportService({
+        repository: createSupabaseSlipImportRepository(config),
+        financeRepository,
+        extractor: createCloudflareSlipVisionExtractor(env.AI),
+        tokenCodec: createSlipAnalysisTokenCodec(
+          z.string().min(32).parse(env.SLIP_ANALYSIS_TOKEN_SECRET)
+        )
+      })
     });
     const response = await app.fetch(
       request,

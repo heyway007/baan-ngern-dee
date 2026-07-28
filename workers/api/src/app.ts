@@ -26,6 +26,7 @@ import {
 } from "./routes/recurring";
 import { snapshotRoutes } from "./routes/snapshot";
 import { transactionRoutes } from "./routes/transactions";
+import { slipImportRoutes } from "./routes/slip-imports";
 import { transferRoutes } from "./routes/transfers";
 import { workspaceRoutes } from "./routes/workspaces";
 import { adminUserRoutes } from "./routes/users";
@@ -37,6 +38,7 @@ import type {
   InvitationService
 } from "./services/invitation-service";
 import type { UserManagementService } from "./services/user-management-service";
+import type { SlipImportService } from "./services/slip-import-service";
 import type { AppEnv } from "./types";
 
 export type AppDependencies = Readonly<{
@@ -45,6 +47,7 @@ export type AppDependencies = Readonly<{
   invitationService: InvitationService;
   userManagementService: UserManagementService;
   publicConfig: PublicAppConfig;
+  slipImportService: SlipImportService;
 }>;
 
 export function createApp(
@@ -101,6 +104,12 @@ export function createApp(
     "/v1/transactions",
     transactionRoutes(financeRepository)
   );
+  if (dependencies.slipImportService) {
+    app.route(
+      "/v1/slip-imports",
+      slipImportRoutes(dependencies.slipImportService)
+    );
+  }
   app.route("/v1/transfers", transferRoutes(financeRepository));
   app.route(
     "/v1/recurring-templates",
