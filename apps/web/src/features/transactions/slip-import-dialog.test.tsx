@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Account, Category } from "@systems-credit/contracts";
 
 import type { FinanceApi } from "../../lib/finance-api";
+import { RemoteFinanceError } from "../../lib/remote-finance-api";
 import { SlipImportDialog } from "./slip-import-dialog";
 import {
   prepareSlipImage,
@@ -110,10 +111,18 @@ describe("SlipImportDialog", () => {
 
   it("continues updating rows under React Strict Mode", async () => {
     const user = userEvent.setup();
+    let used = 0;
+    const financeApi = api({
+      getSlipQuota: vi.fn(async () => ({ used, limit: 30 })),
+      analyzeSlip: vi.fn(async () => {
+        used = 1;
+        return success();
+      })
+    });
     render(
       <StrictMode>
         <SlipImportDialog
-          api={api()}
+          api={financeApi}
           workspaceId={workspaceId}
           accounts={[account]}
           categories={[category]}
@@ -234,6 +243,45 @@ describe("SlipImportDialog", () => {
     expect(await screen.findByText("พร้อมบันทึก")).toBeInTheDocument();
     expect(prepareSlipImage).toHaveBeenCalledOnce();
     expect(image.dispose).not.toHaveBeenCalled();
+  });
+
+  it("explains that transient AI failures were retried without using quota", async () => {
+    const user = userEvent.setup();
+    const analyzeSlip = vi.fn().mockRejectedValue(
+      new RemoteFinanceError(
+        "AI_UNAVAILABLE",
+        503,
+        "AI unavailable"
+      )
+    );
+    renderDialog(api({ analyzeSlip }));
+
+    await user.upload(
+      screen.getByLabelText("เลือกจากคลังภาพ"),
+      new File(["image"], "unstable.jpg", { type: "image/jpeg" })
+    );
+
+    expect(await screen.findByText(
+      "AI ขัดข้องชั่วคราว ระบบลองให้แล้ว 3 ครั้งและไม่หักโควตา กรุณาลองใหม่"
+    )).toBeInTheDocument();
+    expect(screen.getByText("วันนี้ใช้ 0/30 รูป")).toBeInTheDocument();
+  });
+
+  it("refreshes the server quota after a completed analysis", async () => {
+    const user = userEvent.setup();
+    const getSlipQuota = vi.fn()
+      .mockResolvedValueOnce({ used: 7, limit: 30 })
+      .mockResolvedValueOnce({ used: 8, limit: 30 });
+    renderDialog(api({ getSlipQuota }));
+
+    expect(await screen.findByText("วันนี้ใช้ 7/30 รูป")).toBeInTheDocument();
+    await user.upload(
+      screen.getByLabelText("เลือกจากคลังภาพ"),
+      new File(["image"], "counted.jpg", { type: "image/jpeg" })
+    );
+
+    await waitFor(() => expect(getSlipQuota).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("วันนี้ใช้ 8/30 รูป")).toBeInTheDocument();
   });
 
   it("confirms ready rows atomically and disposes every preview", async () => {

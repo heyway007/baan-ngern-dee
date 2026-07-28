@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -74,9 +75,12 @@ function completeTransaction(
 
 function analysisError(reason: unknown) {
   if (reason instanceof RemoteFinanceError) {
-    return reason.code === "RATE_LIMITED"
-      ? "ใช้โควตาอ่านสลิปครบ 30 รูปของวันนี้แล้ว"
-      : "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือเปลี่ยนรูป";
+    if (reason.code === "RATE_LIMITED") {
+      return "ใช้โควตาอ่านสลิปครบ 30 รูปของวันนี้แล้ว";
+    }
+    if (reason.code === "AI_UNAVAILABLE") {
+      return "AI ขัดข้องชั่วคราว ระบบลองให้แล้ว 3 ครั้งและไม่หักโควตา กรุณาลองใหม่";
+    }
   }
   return "ยังอ่านรูปไม่ได้ กรุณาลองใหม่หรือเปลี่ยนรูป";
 }
@@ -110,24 +114,29 @@ export function SlipImportDialog({
     return next;
   }
 
+  const refreshQuota = useCallback(async () => {
+    try {
+      const nextQuota = await api.getSlipQuota(workspaceId);
+      if (!mounted.current) return;
+      setQuota((current) => ({
+        used: Math.max(current.used, nextQuota.used),
+        limit: 30
+      }));
+      quotaReached.current = nextQuota.used >= nextQuota.limit;
+    } catch {
+      // The current value remains a safe lower bound until the next refresh.
+    }
+  }, [api, workspaceId]);
+
   useEffect(() => {
     mounted.current = true;
-    void api.getSlipQuota(workspaceId)
-      .then((nextQuota) => {
-        if (!mounted.current) return;
-        setQuota((current) => ({
-          used: Math.max(current.used, nextQuota.used),
-          limit: 30
-        }));
-        quotaReached.current = nextQuota.used >= nextQuota.limit;
-      })
-      .catch(() => undefined);
+    void refreshQuota();
     return () => {
       mounted.current = false;
       disposeSlipBatchRows(rowsRef.current);
       rowsRef.current = [];
     };
-  }, [api, workspaceId]);
+  }, [refreshQuota]);
 
   async function analyzeRow(row: SlipBatchRow) {
     const current = rowsRef.current.find(
@@ -150,10 +159,7 @@ export function SlipImportDialog({
         imageSha256: image.sha256,
         image: image.blob
       });
-      setQuota((current) => ({
-        used: Math.min(current.limit, current.used + 1),
-        limit: 30
-      }));
+      void refreshQuota();
       if (response.status === "success") {
         dispatch({
           type: "analysis_success",
