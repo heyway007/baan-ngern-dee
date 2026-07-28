@@ -1,4 +1,5 @@
 import type {
+  ConfirmSlipBatchResult,
   CreateTransactionInput,
   DuplicateTransaction,
   PostedTransactionResponse,
@@ -14,6 +15,19 @@ export type ConfirmSlipCommand = Readonly<{
   documentIdentitySha256: string | null;
   documentKind: SlipDocumentKind;
   transaction: CreateTransactionInput;
+}>;
+
+export type ConfirmSlipBatchCommand = Readonly<{
+  workspaceId: string;
+  batchMutationId: string;
+  requestSha256: string;
+  items: Array<Readonly<{
+    itemId: string;
+    imageSha256: string;
+    documentIdentitySha256: string | null;
+    documentKind: SlipDocumentKind;
+    transaction: CreateTransactionInput;
+  }>>;
 }>;
 
 export interface SlipImportRepository {
@@ -44,6 +58,10 @@ export interface SlipImportRepository {
     command: ConfirmSlipCommand
   ): Promise<
     | { status: "posted"; transaction: PostedTransactionResponse }
-    | { status: "duplicate"; existingTransaction: DuplicateTransaction }
+      | { status: "duplicate"; existingTransaction: DuplicateTransaction }
   >;
+  confirmBatch(
+    actor: AuthSession,
+    command: ConfirmSlipBatchCommand
+  ): Promise<ConfirmSlipBatchResult>;
 }

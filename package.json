@@ -13,7 +13,7 @@
     "dev:api": "npm run dev -w @systems-credit/api",
     "dev:web": "npm run dev -w @systems-credit/web",
     "test": "vitest",
-    "test:db": "vitest --run workers/api/test/identity-database.test.ts workers/api/test/accounts-database.test.ts workers/api/test/transactions-database.test.ts workers/api/test/transfers-database.test.ts workers/api/test/installments-database.test.ts workers/api/test/finance-snapshot-database.test.ts workers/api/test/recurring-database.test.ts workers/api/test/user-invitations-database.test.ts workers/api/test/user-management-database.test.ts workers/api/test/slip-imports-database.test.ts",
+    "test:db": "vitest --run workers/api/test/identity-database.test.ts workers/api/test/accounts-database.test.ts workers/api/test/transactions-database.test.ts workers/api/test/transfers-database.test.ts workers/api/test/installments-database.test.ts workers/api/test/finance-snapshot-database.test.ts workers/api/test/recurring-database.test.ts workers/api/test/user-invitations-database.test.ts workers/api/test/user-management-database.test.ts workers/api/test/slip-imports-database.test.ts workers/api/test/slip-batch-database.test.ts",
     "test:db:supabase": "supabase test db",
     "test:e2e": "playwright test",
     "typecheck": "npm run typecheck --workspaces --if-present"

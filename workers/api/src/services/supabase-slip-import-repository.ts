@@ -1,4 +1,5 @@
 import {
+  confirmSlipBatchResultSchema,
   duplicateTransactionSchema,
   postedTransactionResponseSchema,
   slipQuotaStateSchema
@@ -84,6 +85,15 @@ export function createSupabaseSlipImportRepository(
         await client.rpc(actor, "confirm_financial_document_import", {
           p_input: command
         })
+      );
+    },
+    async confirmBatch(actor, command) {
+      return confirmSlipBatchResultSchema.parse(
+        await client.rpc(
+          actor,
+          "confirm_financial_document_import_batch",
+          { p_input: command }
+        )
       );
     }
   };

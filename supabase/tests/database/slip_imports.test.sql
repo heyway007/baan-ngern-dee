@@ -1,7 +1,8 @@
 begin;
-select plan(11);
+select plan(16);
 select has_table('public', 'financial_document_imports');
 select has_table('public', 'slip_analysis_attempts');
+select has_table('public', 'financial_document_import_batches');
 select has_function(
   'public', 'find_financial_document_duplicate',
   array['uuid', 'text', 'text']
@@ -48,6 +49,31 @@ select table_privs_are(
 );
 select has_function(
   'public', 'confirm_financial_document_import', array['jsonb']
+);
+select has_function(
+  'public',
+  'confirm_financial_document_import_batch',
+  array['jsonb']
+);
+select function_privs_are(
+  'public',
+  'confirm_financial_document_import_batch',
+  array['jsonb'],
+  'authenticated',
+  array['EXECUTE']
+);
+select function_privs_are(
+  'public',
+  'confirm_financial_document_import_batch',
+  array['jsonb'],
+  'anon',
+  array[]::text[]
+);
+select table_privs_are(
+  'public',
+  'financial_document_import_batches',
+  'authenticated',
+  array[]::text[]
 );
 select * from finish();
 rollback;
