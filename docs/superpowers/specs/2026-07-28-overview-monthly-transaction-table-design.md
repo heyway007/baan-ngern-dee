@@ -33,9 +33,10 @@ Use the full-width table layout shown in the approved mockup:
 
 ### Transaction rows
 
-Include posted income and expense transactions whose financial date belongs to
-the selected month. Sort by financial date descending, then use the transaction
-ID as a stable tie-breaker.
+Include posted THB income and expense transactions whose financial date belongs
+to the selected month. This matches the existing THB monthly summary cards and
+prevents totals from combining currencies. Sort by financial date descending,
+then use the transaction ID as a stable tie-breaker.
 
 Display these columns:
 
