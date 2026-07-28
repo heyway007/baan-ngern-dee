@@ -20,6 +20,7 @@ import type {
   RecurringVersionActionInput,
   UpdateRecurringOccurrenceInput,
   UpdateRecurringTemplateInput,
+  VoidTransactionInput,
   Workspace
 } from "@systems-credit/contracts";
 
@@ -137,6 +138,10 @@ export interface FinanceApi {
   ): Promise<InstallmentPayoffResult>;
   postTransaction(
     input: CreateTransactionInput
+  ): Promise<PostedTransactionResponse>;
+  voidTransaction(
+    transactionId: string,
+    input: VoidTransactionInput
   ): Promise<PostedTransactionResponse>;
   createRecurringTemplate(
     input: CreateRecurringTemplateInput

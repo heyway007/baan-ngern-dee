@@ -352,6 +352,14 @@ export function createRemoteFinanceApi(options: {
       );
     },
 
+    voidTransaction(transactionId, input) {
+      return post(
+        `/v1/transactions/${encodeURIComponent(transactionId)}/void`,
+        input,
+        postedTransactionResponseSchema
+      );
+    },
+
     createInstallmentContract(input, clientMutationId) {
       return post(
         "/v1/installments",

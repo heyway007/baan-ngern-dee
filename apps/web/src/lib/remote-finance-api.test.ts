@@ -271,6 +271,41 @@ describe("createRemoteFinanceApi", () => {
     ]);
   });
 
+  it("voids a transaction with its current version and reason", async () => {
+    const response = {
+      transactionId: mutationId,
+      version: 2,
+      state: "void",
+      accountBalances: [
+        { accountId, amount: "1000.00", currency: "THB" }
+      ]
+    } as const;
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json(response));
+    const api = createRemoteFinanceApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+
+    await expect(
+      api.voidTransaction(mutationId, {
+        version: 1,
+        reason: "บันทึกรายการผิด"
+      })
+    ).resolves.toEqual(response);
+
+    expect(requestFetch).toHaveBeenCalledOnce();
+    const [url, init] = requestFetch.mock.calls[0]!;
+    expect(url).toBe(`/v1/transactions/${mutationId}/void`);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      version: 1,
+      reason: "บันทึกรายการผิด"
+    });
+  });
+
   it("maps installment creation, payment, and payoff with the cached version", async () => {
     const snapshot = {
       ...emptySnapshot,
