@@ -17,7 +17,7 @@ const categoryId = "30000000-0000-4000-8000-000000000003";
 const account: Account = {
   id: accountId,
   workspaceId,
-  name: "à¸šà¸±à¸ญà¸Šà¸µà¸«à¸¥à¸±à¸",
+  name: "บัญชีหลัก",
   type: "bank",
   currency: "THB",
   version: 1
@@ -27,7 +27,7 @@ const category: Category = {
   id: categoryId,
   workspaceId,
   slug: "salary",
-  name: "à¹€à¸‡à¸´à¸™à¹€à¸”à¸·à¸­à¸™",
+  name: "เงินเดือน",
   kind: "income",
   isDefault: true,
   version: 1
@@ -112,7 +112,7 @@ describe("buildMonthlyTransactionModel", () => {
       ...category,
       id: splitCategoryId,
       slug: "food",
-      name: "à¸­à¸²à¸«à¸²à¸£",
+      name: "อาหาร",
       kind: "expense"
     };
     const model = buildMonthlyTransactionModel({
@@ -120,7 +120,7 @@ describe("buildMonthlyTransactionModel", () => {
       transactions: [
         transaction({
           id: "d0000000-0000-4000-8000-000000000013",
-          note: "  à¸šà¸±à¸™à¸—à¸¶à¸  ",
+          note: "  บันทึก  ",
           financialDate: "2026-07-05"
         }),
         transaction({
@@ -157,31 +157,98 @@ describe("buildMonthlyTransactionModel", () => {
       accountLabel: row.accountLabel
     }))).toEqual([
       {
-        itemLabel: "à¸šà¸±à¸™à¸—à¸¶à¸",
-        categoryLabel: "à¹€à¸‡à¸´à¸™à¹€à¸”à¸·à¸­à¸™",
-        accountLabel: "à¸šà¸±à¸ญà¸Šà¸µà¸«à¸¥à¸±à¸"
+        itemLabel: "บันทึก",
+        categoryLabel: "เงินเดือน",
+        accountLabel: "บัญชีหลัก"
       },
       {
-        itemLabel: "à¹€à¸‡à¸´à¸™à¹€à¸”à¸·à¸­à¸™",
-        categoryLabel: "à¹€à¸‡à¸´à¸™à¹€à¸”à¸·à¸­à¸™",
-        accountLabel: "à¸šà¸±à¸ญà¸Šà¸µà¸«à¸¥à¸±à¸"
+        itemLabel: "เงินเดือน",
+        categoryLabel: "เงินเดือน",
+        accountLabel: "บัญชีหลัก"
       },
       {
-        itemLabel: "à¸£à¸²à¸¢à¸ˆà¹ˆà¸²à¸¢",
-        categoryLabel: "à¹à¸šà¹ˆà¸‡à¸«à¸¥à¸²à¸¢à¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ",
-        accountLabel: "à¸šà¸±à¸ญà¸Šà¸µà¸«à¸¥à¸±à¸"
+        itemLabel: "รายจ่าย",
+        categoryLabel: "แบ่งหลายหมวดหมู่",
+        accountLabel: "บัญชีหลัก"
       },
       {
-        itemLabel: "à¸£à¸²à¸¢à¸£à¸±à¸š",
-        categoryLabel: "à¹„à¸¡à¹ˆà¸žà¸šà¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ",
-        accountLabel: "à¹„à¸¡à¹ˆà¸žà¸šà¸šà¸±à¸ญà¸Šà¸µ"
+        itemLabel: "รายรับ",
+        categoryLabel: "ไม่พบหมวดหมู่",
+        accountLabel: "ไม่พบบัญชี"
       },
       {
-        itemLabel: "à¸£à¸²à¸¢à¸£à¸±à¸š",
-        categoryLabel: "â€”",
-        accountLabel: "à¸šà¸±à¸ญà¸Šà¸µà¸«à¸¥à¸±à¸"
+        itemLabel: "รายรับ",
+        categoryLabel: "—",
+        accountLabel: "บัญชีหลัก"
       }
     ]);
+  });
+
+  it("does not require ES2023 copy-array methods or mutate input order", () => {
+    const transactions = [
+      transaction({
+        id: "aa000000-0000-4000-8000-000000000001",
+        financialDate: "2026-07-02"
+      }),
+      transaction({
+        id: "aa000000-0000-4000-8000-000000000002",
+        financialDate: "2026-07-01"
+      })
+    ];
+    const originalIds = transactions.map(({ id }) => id);
+    const toSortedDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      "toSorted"
+    );
+    const toReversedDescriptor = Object.getOwnPropertyDescriptor(
+      Array.prototype,
+      "toReversed"
+    );
+
+    Object.defineProperty(Array.prototype, "toSorted", {
+      configurable: true,
+      value: undefined
+    });
+    Object.defineProperty(Array.prototype, "toReversed", {
+      configurable: true,
+      value: undefined
+    });
+
+    try {
+      let rowIds: string[] = [];
+      expect(() => {
+        rowIds = buildMonthlyTransactionModel({
+          month: "2026-07",
+          transactions,
+          accounts: [account],
+          categories: [category]
+        }).rows.map(({ id }) => id);
+      }).not.toThrow();
+      expect(rowIds).toEqual([
+        "aa000000-0000-4000-8000-000000000001",
+        "aa000000-0000-4000-8000-000000000002"
+      ]);
+      expect(transactions.map(({ id }) => id)).toEqual(originalIds);
+    } finally {
+      if (toSortedDescriptor) {
+        Object.defineProperty(
+          Array.prototype,
+          "toSorted",
+          toSortedDescriptor
+        );
+      } else {
+        delete (Array.prototype as { toSorted?: unknown }).toSorted;
+      }
+      if (toReversedDescriptor) {
+        Object.defineProperty(
+          Array.prototype,
+          "toReversed",
+          toReversedDescriptor
+        );
+      } else {
+        delete (Array.prototype as { toReversed?: unknown }).toReversed;
+      }
+    }
   });
 
   it("calculates cumulative monthly net chronologically before presenting newest first", () => {
@@ -215,6 +282,52 @@ describe("buildMonthlyTransactionModel", () => {
       "750.25",
       "750.05",
       "1000.10"
+    ]);
+  });
+
+  it("uses createdAt then id to order same-date rows and cumulative values", () => {
+    const model = buildMonthlyTransactionModel({
+      month: "2026-07",
+      transactions: [
+        transaction({
+          id: "cc000000-0000-4000-8000-000000000003",
+          amount: "5.00",
+          financialDate: "2026-07-08",
+          createdAt: "2026-07-08T09:00:00.000Z"
+        }),
+        transaction({
+          id: "aa000000-0000-4000-8000-000000000001",
+          amount: "100.00",
+          financialDate: "2026-07-08",
+          createdAt: "2026-07-08T08:00:00.000Z"
+        }),
+        transaction({
+          id: "bb000000-0000-4000-8000-000000000002",
+          type: "expense",
+          amount: "30.00",
+          financialDate: "2026-07-08",
+          createdAt: "2026-07-08T09:00:00.000Z"
+        })
+      ],
+      accounts: [account],
+      categories: [category]
+    });
+
+    expect(
+      model.rows.map(({ id, cumulativeNet }) => ({ id, cumulativeNet }))
+    ).toEqual([
+      {
+        id: "cc000000-0000-4000-8000-000000000003",
+        cumulativeNet: "75.00"
+      },
+      {
+        id: "bb000000-0000-4000-8000-000000000002",
+        cumulativeNet: "70.00"
+      },
+      {
+        id: "aa000000-0000-4000-8000-000000000001",
+        cumulativeNet: "100.00"
+      }
     ]);
   });
 });

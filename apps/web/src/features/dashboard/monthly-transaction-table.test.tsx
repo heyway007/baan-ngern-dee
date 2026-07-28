@@ -161,6 +161,43 @@ describe("MonthlyTransactionTable", () => {
     expect(screen.getByText("หน้า 2 / 2")).toBeInTheDocument();
   });
 
+  it("clamps pagination when same-month rows shrink below the current page", async () => {
+    const user = userEvent.setup();
+    const fullMonth = Array.from({ length: 12 }, (_, index) =>
+      transaction(index + 1)
+    );
+
+    function Harness() {
+      const [transactions, setTransactions] = useState(fullMonth);
+      return (
+        <MemoryRouter>
+          <button
+            type="button"
+            onClick={() => setTransactions(fullMonth.slice(0, 2))}
+          >
+            ลดรายการ
+          </button>
+          <MonthlyTransactionTable
+            month="2026-07"
+            transactions={transactions}
+            accounts={[account]}
+            categories={[category]}
+            onMonthChange={vi.fn()}
+          />
+        </MemoryRouter>
+      );
+    }
+
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "หน้าถัดไป" }));
+    expect(screen.getByText("หน้า 2 / 2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "ลดรายการ" }));
+
+    expect(screen.getByText("รายการ 2")).toBeInTheDocument();
+    expect(screen.getByText("หน้า 1 / 1")).toBeInTheDocument();
+  });
+
   it("resets pagination when its month prop changes", async () => {
     const user = userEvent.setup();
     const july = Array.from({ length: 12 }, (_, index) => transaction(index + 1));
@@ -232,5 +269,11 @@ describe("MonthlyTransactionTable", () => {
         .getAllByRole("cell")
         .map((cell) => cell.getAttribute("data-label"))
     ).toEqual(headers);
+    expect(
+      screen.getByRole("columnheader", { name: "สุทธิสะสม" })
+    ).toBeInTheDocument();
+    expect(
+      within(row as HTMLTableRowElement).getAllByRole("cell").at(-1)
+    ).toHaveAttribute("data-label", "สุทธิสะสม");
   });
 });

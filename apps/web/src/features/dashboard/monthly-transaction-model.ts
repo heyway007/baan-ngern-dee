@@ -41,18 +41,18 @@ export function buildMonthlyTransactionModel(
   const categoryNames = new Map(
     input.categories.map((category) => [category.id, category.name])
   );
-  const transactions = input.transactions
-    .filter(
+  const transactions = [
+    ...input.transactions.filter(
       (transaction) =>
         transaction.state === "posted" &&
         transaction.currency === "THB" &&
         transaction.financialDate.startsWith(`${input.month}-`)
     )
-    .toSorted((left, right) =>
+  ].sort((left, right) =>
       left.financialDate.localeCompare(right.financialDate) ||
       left.createdAt.localeCompare(right.createdAt) ||
       left.id.localeCompare(right.id)
-    );
+  );
 
   let cumulativeNet = "0.00";
   const rows = transactions.map((transaction): MonthlyTransactionRow => {
@@ -73,15 +73,15 @@ export function buildMonthlyTransactionModel(
       itemLabel:
         transaction.note?.trim() ||
         categoryName ||
-        (transaction.type === "income" ? "à¸£à¸²à¸¢à¸£à¸±à¸š" : "à¸£à¸²à¸¢à¸ˆà¹ˆà¸²à¸¢"),
+        (transaction.type === "income" ? "รายรับ" : "รายจ่าย"),
       categoryLabel: hasSplits
-        ? "à¹à¸šà¹ˆà¸‡à¸«à¸¥à¸²à¸¢à¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ"
+        ? "แบ่งหลายหมวดหมู่"
         : categoryName ??
           (transaction.categoryId
-            ? "à¹„à¸¡à¹ˆà¸žà¸šà¸«à¸¡à¸§à¸”à¸«à¸¡à¸¹à¹ˆ"
-            : "â€”"),
+            ? "ไม่พบหมวดหมู่"
+            : "—"),
       accountLabel:
-        accountNames.get(transaction.accountId) ?? "à¹„à¸¡à¹ˆà¸žà¸šà¸šà¸±à¸ญà¸Šà¸µ",
+        accountNames.get(transaction.accountId) ?? "ไม่พบบัญชี",
       income: transaction.type === "income" ? transaction.amount : null,
       expense: transaction.type === "expense" ? transaction.amount : null,
       cumulativeNet,
@@ -100,7 +100,7 @@ export function buildMonthlyTransactionModel(
   );
 
   return {
-    rows: rows.toReversed(),
+    rows: [...rows].reverse(),
     income,
     expense,
     net: addExactMoney([income, `-${expense}`])

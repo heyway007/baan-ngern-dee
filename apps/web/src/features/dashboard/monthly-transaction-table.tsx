@@ -60,6 +60,10 @@ export function MonthlyTransactionTable(props: Readonly<{
     setPage(0);
   }, [month]);
 
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount - 1));
+  }, [pageCount]);
+
   function selectMonth(value: string) {
     if (value) onMonthChange(value);
   }
@@ -113,7 +117,7 @@ export function MonthlyTransactionTable(props: Readonly<{
               <th>บัญชี</th>
               <th>รายรับ</th>
               <th>รายจ่าย</th>
-              <th>ยอดสุทธิสะสม</th>
+              <th>สุทธิสะสม</th>
             </tr>
           </thead>
           <tbody>
@@ -132,7 +136,7 @@ export function MonthlyTransactionTable(props: Readonly<{
                   <td data-label="รายจ่าย" className="expense">
                     {row.expense ? formatMoney(row.expense, "THB") : "—"}
                   </td>
-                  <td data-label="ยอดสุทธิสะสม" className="net">
+                  <td data-label="สุทธิสะสม" className="net">
                     {formatMoney(row.cumulativeNet, "THB")}
                   </td>
                 </tr>

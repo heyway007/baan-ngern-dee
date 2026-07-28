@@ -119,7 +119,7 @@ afterEach(() => {
 describe("OverviewPage", () => {
   it("updates the summary cards and transactions for the selected month", () => {
     vi.useFakeTimers();
-    vi.setSystemTime("2026-07-28T12:00:00.000Z");
+    vi.setSystemTime("2026-06-30T18:00:00.000Z");
 
     render(
       <MemoryRouter>
