@@ -29,64 +29,64 @@ function toBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-const extractionJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    documentKind: {
-      type: "string",
-      enum: ["bank_transfer", "receipt", "unsupported"]
-    },
-    suggestedType: {
-      anyOf: [
-        { type: "string", enum: ["income", "expense"] },
-        { type: "null" }
-      ]
-    },
-    amount: { anyOf: [{ type: "string" }, { type: "null" }] },
-    currency: { anyOf: [{ type: "string" }, { type: "null" }] },
-    financialDate: { anyOf: [{ type: "string" }, { type: "null" }] },
-    reference: { anyOf: [{ type: "string" }, { type: "null" }] },
-    merchant: { anyOf: [{ type: "string" }, { type: "null" }] },
-    sender: { anyOf: [{ type: "string" }, { type: "null" }] },
-    recipient: { anyOf: [{ type: "string" }, { type: "null" }] },
-    institution: { anyOf: [{ type: "string" }, { type: "null" }] },
-    confidence: {
-      type: "object",
-      additionalProperties: false,
-      properties: Object.fromEntries(
-        ["documentKind", "suggestedType", "amount", "financialDate", "reference"]
-          .map((name) => [name, { type: "number", minimum: 0, maximum: 1 }])
-      ),
-      required: [
-        "documentKind",
-        "suggestedType",
-        "amount",
-        "financialDate",
-        "reference"
-      ]
-    }
-  },
-  required: [
-    "documentKind",
-    "suggestedType",
-    "amount",
-    "currency",
-    "financialDate",
-    "reference",
-    "merchant",
-    "sender",
-    "recipient",
-    "institution",
-    "confidence"
-  ]
-} as const;
+function parseAnswer(answer: string) {
+  const json = answer
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  return JSON.parse(json);
+}
 
-const prompt = `Extract only values visible in this Thai bank transfer slip or shop receipt.
+function addConservativeConfidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const fields = value as Record<string, unknown>;
+  const present = (field: string) =>
+    typeof fields[field] === "string" && fields[field].trim() ? 0.75 : 0;
+  const amount = typeof fields.amount === "string"
+    ? fields.amount.replace(/(?:THB|บาท|฿|,|\s)/gi, "")
+    : fields.amount;
+  const currency = typeof fields.currency === "string"
+    ? fields.currency.trim().toUpperCase()
+    : fields.currency;
+  const normalizedCurrency =
+    currency === "฿" || currency === "บาท" || currency === "BAHT"
+      ? "THB"
+      : typeof currency === "string" && /^[A-Z]{3}$/.test(currency)
+        ? currency
+        : null;
+  return {
+    ...fields,
+    amount,
+    currency: normalizedCurrency,
+    confidence: {
+      documentKind: present("documentKind"),
+      suggestedType: present("suggestedType"),
+      amount: present("amount"),
+      financialDate: present("financialDate"),
+      reference: present("reference")
+    }
+  };
+}
+
+const question = `Extract only values visible in this Thai bank transfer slip or shop receipt.
 Do not infer missing values; return null. For bank slips, choose income only when the
 document clearly indicates money received. Amount is the final transfer or receipt
 total, not balance, subtotal, tax, or change. Return Gregorian YYYY-MM-DD; subtract
-543 only when a printed year is clearly Buddhist Era.`;
+543 only when a printed year is clearly Buddhist Era.
+
+Return only one valid JSON object without Markdown using exactly these fields:
+{
+  "documentKind": "bank_transfer" | "receipt" | "unsupported",
+  "suggestedType": "income" | "expense" | null,
+  "amount": string | null,
+  "currency": string | null,
+  "financialDate": string | null,
+  "reference": string | null,
+  "merchant": string | null,
+  "sender": string | null,
+  "recipient": string | null,
+  "institution": string | null
+}`;
 
 export function createCloudflareSlipVisionExtractor(
   ai: SlipAiBinding
@@ -94,24 +94,24 @@ export function createCloudflareSlipVisionExtractor(
   return {
     async extract(input) {
       try {
-        const result = await ai.run(
-          "@cf/meta/llama-3.2-11b-vision-instruct",
-          {
-            prompt,
-            image: `data:${input.mime};base64,${toBase64(input.bytes)}`,
-            temperature: 0,
-            max_tokens: 700,
-            response_format: {
-              type: "json_schema",
-              json_schema: extractionJsonSchema
-            }
-          }
-        ) as { response?: unknown };
+        const result = await ai.run("@cf/moondream/moondream3.1-9B-A2B", {
+          task: "query",
+          image: `data:${input.mime};base64,${toBase64(input.bytes)}`,
+          question,
+          reasoning: false,
+          stream: false,
+          temperature: 0,
+          max_tokens: 700
+        }) as {
+          answer?: unknown;
+          result?: { answer?: unknown };
+        };
+        const answer = result?.result?.answer ?? result?.answer;
         const value =
-          typeof result?.response === "string"
-            ? JSON.parse(result.response)
-            : result?.response;
-        return slipAiExtractionSchema.parse(value);
+          typeof answer === "string"
+            ? parseAnswer(answer)
+            : answer;
+        return slipAiExtractionSchema.parse(addConservativeConfidence(value));
       } catch {
         throw new SlipVisionUnavailableError();
       }
