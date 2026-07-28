@@ -86,6 +86,7 @@ export function MonthlyTransactionTable(props: Readonly<{
               aria-label="เลือกเดือน"
               type="month"
               value={month}
+              onInput={(event) => selectMonth(event.currentTarget.value)}
               onChange={(event) => selectMonth(event.target.value)}
             />
           </label>
@@ -139,7 +140,7 @@ export function MonthlyTransactionTable(props: Readonly<{
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="empty-copy">
+                <td colSpan={7} data-label="รายการ" className="empty-copy">
                   ยังไม่มีรายการในเดือนนี้
                 </td>
               </tr>

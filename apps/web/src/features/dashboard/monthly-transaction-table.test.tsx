@@ -3,7 +3,7 @@ import type {
   Category,
   FinanceTransaction
 } from "@systems-credit/contracts";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -104,7 +104,7 @@ describe("MonthlyTransactionTable", () => {
     unmount();
     const onInputMonthChange = vi.fn();
     function MonthInputHarness() {
-      const [month, setMonth] = useState("2026-07");
+      const [month, setMonth] = useState("");
       return (
         <MemoryRouter>
           <MonthlyTransactionTable
@@ -123,7 +123,9 @@ describe("MonthlyTransactionTable", () => {
 
     render(<MonthInputHarness />);
     const monthPicker = screen.getByLabelText("เลือกเดือน");
-    fireEvent.change(monthPicker, { target: { value: "2026-08" } });
+    await user.click(monthPicker);
+    await user.paste("2026-08");
+    await user.tab();
 
     expect(onInputMonthChange).toHaveBeenCalledWith("2026-08");
     expect(monthPicker).toHaveValue("2026-08");
@@ -139,6 +141,10 @@ describe("MonthlyTransactionTable", () => {
     expect(screen.getByText("รายการ 12")).toBeInTheDocument();
     expect(screen.getByText("รายการ 3")).toBeInTheDocument();
     expect(screen.queryByText("รายการ 2")).not.toBeInTheDocument();
+    for (let index = 3; index <= 12; index += 1) {
+      expect(screen.getByText(`รายการ ${index}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("รายการ 1")).not.toBeInTheDocument();
 
     const footer = screen.getByRole("row", { name: /รวม/ });
     expect(within(footer).getByText("฿600.00")).toBeInTheDocument();
@@ -199,6 +205,10 @@ describe("MonthlyTransactionTable", () => {
     expect(
       screen.getByText("ยังไม่มีรายการในเดือนนี้")
     ).toBeInTheDocument();
+    expect(screen.getByText("ยังไม่มีรายการในเดือนนี้")).toHaveAttribute(
+      "data-label",
+      "รายการ"
+    );
     expect(screen.getByLabelText("เลือกเดือน")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "เดือนก่อนหน้า" })).toBeEnabled();
     expect(screen.getByRole("link", { name: /ดูรายการทั้งหมด/ })).toHaveAttribute(
