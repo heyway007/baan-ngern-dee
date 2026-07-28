@@ -4192,25 +4192,30 @@ select:focus {
 }
 
 .slip-batch-row-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  width: min(100%, 300px);
 }
 
 .slip-batch-row-actions button,
 .slip-batch-row-actions label {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-height: 32px;
-  padding: 5px 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 8px;
   border: 1px solid var(--line, #d9dfdb);
   border-radius: 8px;
   background: #fff;
+  box-sizing: border-box;
   color: inherit;
   cursor: pointer;
   font: inherit;
   font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .slip-batch-row-actions input {
