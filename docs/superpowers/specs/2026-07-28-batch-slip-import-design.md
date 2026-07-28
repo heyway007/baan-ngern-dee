@@ -157,6 +157,9 @@ Create a new Supabase migration that replaces
   day.
 - Return bounded metadata: `allowed`, and when relevant `reason:
   "workspace_day"`, plus `used` and `limit`.
+- Add a read-only `get_slip_analysis_quota(uuid)` RPC and authenticated
+  `GET /v1/slip-imports/quota?workspaceId=...` endpoint so the dialog can show
+  current `used` and `limit` values without consuming an attempt.
 - Perform persisted duplicate detection before quota consumption.
 - A request that reaches Workers AI counts even if the provider fails or the
   output is unreadable.
