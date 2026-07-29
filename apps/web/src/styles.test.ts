@@ -182,4 +182,44 @@ describe("global typography", () => {
       expect(style.minHeight).toBe("2.75rem");
     }
   });
+
+  it("provides responsive planning layouts and accessible control heights", () => {
+    document.body.innerHTML = `
+      <main class="planning-page">
+        <div class="budget-summary-grid"></div>
+        <table class="budget-category-table"></table>
+        <div class="savings-goal-grid"></div>
+        <div class="goal-progress"></div>
+        <div class="planning-dialog">
+          <button>บันทึก</button>
+          <input />
+          <select></select>
+        </div>
+      </main>
+    `;
+
+    expect(
+      getComputedStyle(document.querySelector(".budget-summary-grid")!).display
+    ).toBe("grid");
+    expect(
+      getComputedStyle(document.querySelector(".savings-goal-grid")!).display
+    ).toBe("grid");
+    for (const control of document.querySelectorAll(
+      ".planning-dialog button, .planning-dialog input, .planning-dialog select"
+    )) {
+      expect(getComputedStyle(control).minHeight).toBe("44px");
+    }
+
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+    expect(css).toContain(".budget-category-card");
+    expect(css).toContain("max-width: 760px");
+  });
 });

@@ -8,6 +8,7 @@ import {
   Repeat2,
   Settings,
   ShieldCheck,
+  Target,
   UserRoundPlus,
   UsersRound,
   WalletCards,
@@ -49,6 +50,12 @@ const navigation = [
     label: "รายการประจำ",
     mobileLabel: "ประจำ",
     icon: Repeat2
+  },
+  {
+    to: "/planning",
+    label: "แผนการเงิน",
+    mobileLabel: "แผน",
+    icon: Target
   },
   {
     to: "/installments",

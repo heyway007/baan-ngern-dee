@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { FinanceApi } from "../../lib/finance-api";
 import { BudgetPanel } from "./budget-panel";
+import { SavingsGoalsPanel } from "./savings-goals-panel";
 
 type PlanningPageProps = Readonly<{
   api: FinanceApi;
@@ -116,13 +117,22 @@ export function PlanningPage({
       ) : null}
 
       {loadState === "ready" && plan ? (
-        <BudgetPanel
-          api={api}
-          plan={plan}
-          categories={snapshot.categories}
-          canEdit={canEdit}
-          onChanged={planningChanged}
-        />
+        <>
+          <BudgetPanel
+            api={api}
+            plan={plan}
+            categories={snapshot.categories}
+            canEdit={canEdit}
+            onChanged={planningChanged}
+          />
+          <SavingsGoalsPanel
+            api={api}
+            plan={plan}
+            accounts={snapshot.accounts}
+            canEdit={canEdit}
+            onChanged={planningChanged}
+          />
+        </>
       ) : null}
     </main>
   );

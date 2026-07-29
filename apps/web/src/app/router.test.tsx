@@ -131,9 +131,28 @@ function createDependencies(options: {
       existingCount: 0
     }
   );
+  const getFinancialPlan = vi.fn().mockResolvedValue({
+    workspaceId: workspaceSnapshot.workspace!.id,
+    month: toFinancialDate(
+      new Date().toISOString(),
+      workspaceSnapshot.workspace!.timeZone
+    ).slice(0, 7),
+    currency: "THB",
+    totals: {
+      baseBudget: "0.00",
+      priorCarry: "0.00",
+      available: "0.00",
+      spent: "0.00",
+      remaining: "0.00"
+    },
+    categories: [],
+    goals: []
+  });
   const api = {
     getSnapshot,
-    materializeRecurringPeriod
+    materializeRecurringPeriod,
+    initializeBudgetMonth: vi.fn().mockResolvedValue({ createdCount: 0 }),
+    getFinancialPlan
   } as unknown as RemoteFinanceApi;
   const adminApi = {
     capabilities: vi.fn().mockResolvedValue({
@@ -191,6 +210,25 @@ function createDependencies(options: {
 }
 
 describe("cloud application flow", () => {
+  it("opens the integrated financial planning route", async () => {
+    const { dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot
+    });
+    render(
+      <MemoryRouter initialEntries={["/planning"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "แผนการเงิน" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "แผนการเงิน" })
+    ).toHaveAttribute("href", "/planning");
+  });
+
   it("routes a signed-out user to sign in after cloud boot", async () => {
     const { dependencies } = createDependencies({ session: null });
     render(

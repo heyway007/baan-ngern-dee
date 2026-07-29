@@ -4371,3 +4371,425 @@ select:focus {
     justify-content: center;
   }
 }
+
+/* Financial planning */
+.planning-page {
+  display: grid;
+  gap: 24px;
+}
+
+.planning-page > .page-heading {
+  align-items: flex-end;
+}
+
+.planning-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 140px;
+}
+
+.planning-status.form-error {
+  flex-direction: column;
+}
+
+.planning-budget-section,
+.planning-savings-section {
+  display: grid;
+  gap: 20px;
+}
+
+.budget-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.budget-summary-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 138px;
+  padding: 20px;
+}
+
+.budget-summary-card > span,
+.budget-summary-card small {
+  color: var(--muted);
+}
+
+.budget-summary-card strong {
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+}
+
+.budget-summary-card small {
+  line-height: 1.45;
+}
+
+.money-value.negative,
+.planning-page .negative {
+  color: #b94c38;
+}
+
+.budget-create-card {
+  display: grid;
+  gap: 16px;
+}
+
+.budget-create-card h2,
+.planning-dialog h3,
+.savings-goal-card h3 {
+  margin: 0;
+}
+
+.budget-create-fields,
+.planning-dialog-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.budget-create-fields label,
+.planning-dialog-grid label {
+  display: grid;
+  gap: 7px;
+  font-weight: 600;
+}
+
+.budget-create-fields input,
+.budget-create-fields select,
+.planning-dialog input,
+.planning-dialog select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.budget-table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.budget-table-card > .section-heading {
+  padding: 22px 24px 12px;
+}
+
+.budget-category-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.budget-category-table th,
+.budget-category-table td {
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.budget-category-table thead th {
+  color: var(--muted);
+  background: #f6f7f3;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.budget-category-table tbody th {
+  min-width: 150px;
+}
+
+.budget-category-table input {
+  width: 120px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.budget-progress {
+  display: block;
+  width: 100%;
+  height: 5px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--mint);
+}
+
+.budget-progress > span,
+.goal-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--forest);
+}
+
+.table-actions,
+.goal-actions,
+.planning-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planning-page .icon-text-button,
+.planning-page .small-button,
+.planning-page button,
+.planning-page input,
+.planning-page select {
+  min-height: 44px;
+}
+
+.icon-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--forest);
+  cursor: pointer;
+}
+
+.icon-text-button.danger {
+  color: #b94c38;
+}
+
+.inline-error {
+  display: block;
+  margin-top: 4px;
+  color: #b94c38;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.unbudgeted-card {
+  border-color: rgba(223, 116, 93, 0.35);
+}
+
+.unbudgeted-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unbudgeted-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  border-top: 1px solid var(--line);
+}
+
+.planning-savings-heading {
+  align-items: flex-end;
+}
+
+.planning-savings-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.planning-dialog {
+  display: grid;
+  gap: 18px;
+}
+
+.planning-dialog-grid {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+}
+
+.planning-dialog-actions {
+  justify-content: flex-end;
+}
+
+.savings-goal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 16px;
+}
+
+.savings-goal-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.goal-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.goal-card-heading p,
+.goal-meta {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.goal-icon {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--mint);
+  color: var(--forest);
+}
+
+.goal-amount {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+
+.goal-progress {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--mint);
+}
+
+.goal-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.goal-success,
+.goal-warning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.goal-success {
+  color: var(--forest);
+}
+
+.goal-warning {
+  color: #b94c38;
+}
+
+.goal-actions {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.planning-empty,
+.empty-copy {
+  color: var(--muted);
+}
+
+@media (max-width: 1180px) {
+  .budget-summary-grid {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .planning-page > .page-heading,
+  .planning-savings-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .planning-page .month-selector,
+  .planning-page .month-selector input,
+  .planning-savings-heading > button {
+    width: 100%;
+  }
+
+  .budget-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .budget-create-fields,
+  .planning-dialog-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-create-fields > button {
+    width: 100%;
+  }
+
+  .budget-table-card {
+    overflow: visible;
+  }
+
+  .budget-category-table,
+  .budget-category-table tbody,
+  .budget-category-table tr,
+  .budget-category-table th,
+  .budget-category-table td,
+  .budget-category-card {
+    display: block;
+    width: 100%;
+  }
+
+  .budget-category-table thead {
+    display: none;
+  }
+
+  .budget-category-table tr,
+  .budget-category-card {
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--paper);
+  }
+
+  .budget-category-table tbody th {
+    padding: 15px;
+    border-top: 0;
+    background: #f6f7f3;
+  }
+
+  .budget-category-table td {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 11px 15px;
+    text-align: right;
+  }
+
+  .budget-category-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .budget-category-table .table-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .budget-summary-grid,
+  .savings-goal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-dialog-actions,
+  .goal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
