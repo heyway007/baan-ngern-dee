@@ -19,6 +19,7 @@ import {
   publicInvitationRoutes
 } from "./routes/invitations";
 import { installmentRoutes } from "./routes/installments";
+import { planningRoutes } from "./routes/planning";
 import {
   recurringOccurrenceRoutes,
   recurringPeriodRoutes,
@@ -38,12 +39,17 @@ import type {
   InvitationService
 } from "./services/invitation-service";
 import type { UserManagementService } from "./services/user-management-service";
+import {
+  createMemoryPlanningRepository,
+  type PlanningRepository
+} from "./services/planning-repository";
 import type { SlipImportService } from "./services/slip-import-service";
 import type { AppEnv } from "./types";
 
 export type AppDependencies = Readonly<{
   authVerifier: AuthVerifier;
   financeRepository: FinanceRepository;
+  planningRepository: PlanningRepository;
   invitationService: InvitationService;
   userManagementService: UserManagementService;
   publicConfig: PublicAppConfig;
@@ -57,6 +63,8 @@ export function createApp(
     dependencies.authVerifier ?? createStaticAuthVerifier({});
   const financeRepository =
     dependencies.financeRepository ?? createMemoryFinanceRepository();
+  const planningRepository =
+    dependencies.planningRepository ?? createMemoryPlanningRepository();
   const app = new Hono<AppEnv>();
 
   app.use("*", requestId());
@@ -111,6 +119,7 @@ export function createApp(
     );
   }
   app.route("/v1/transfers", transferRoutes(financeRepository));
+  app.route("/v1/planning", planningRoutes(planningRepository));
   app.route(
     "/v1/recurring-templates",
     recurringTemplateRoutes(financeRepository)

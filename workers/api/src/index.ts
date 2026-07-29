@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createSupabaseAuthAdmin } from "./services/supabase-auth-admin";
 import { createSupabaseAuthVerifier } from "./services/supabase-client";
 import { createSupabaseFinanceRepository } from "./services/supabase-finance-repository";
+import { createSupabasePlanningRepository } from "./services/supabase-planning-repository";
 import { createInvitationService } from "./services/invitation-service";
 import { createSupabaseInvitationRepository } from "./services/supabase-invitation-repository";
 import { createUserManagementService } from "./services/user-management-service";
@@ -78,6 +79,7 @@ export default {
     const app = createApp({
       authVerifier: createSupabaseAuthVerifier(config),
       financeRepository,
+      planningRepository: createSupabasePlanningRepository(config),
       invitationService,
       userManagementService,
       publicConfig: {
