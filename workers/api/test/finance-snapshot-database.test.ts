@@ -37,7 +37,8 @@ describe("finance snapshot migration", () => {
       "202607270010_finance_snapshot.sql",
       "202607270011_recurring_items.sql",
       "202607270012_recurring_snapshot.sql",
-      "202607280015_transaction_void_history.sql"
+      "202607280015_transaction_void_history.sql",
+      "202607290019_financial_planning.sql"
     ]) {
       await database.exec(await loadMigration(migration));
     }
@@ -360,6 +361,8 @@ describe("finance snapshot migration", () => {
         transactionId: recurringTransactionId
       })
     ]);
+    expect(ownerSnapshot.budgetAllocations).toEqual([]);
+    expect(ownerSnapshot.savingsGoals).toEqual([]);
 
     await database.exec(
       `select set_config(
