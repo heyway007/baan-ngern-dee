@@ -231,4 +231,41 @@ describe("global typography", () => {
       /@media \(max-width: 760px\)[\s\S]*?\.planning-page\s*\{[^}]*max-width:\s*100%/
     );
   });
+
+  it("keeps planning card content away from card borders", () => {
+    document.body.innerHTML = `
+      <main class="planning-page">
+        <section class="content-card budget-create-card"></section>
+        <section class="content-card budget-table-card">
+          <p class="empty-copy">ยังไม่ได้ตั้งงบ</p>
+        </section>
+        <section class="content-card unbudgeted-card">
+          <div class="section-heading"></div>
+          <ul class="unbudgeted-list"><li>อาหาร</li></ul>
+        </section>
+        <section class="content-card planning-dialog"></section>
+        <article class="content-card savings-goal-card"></article>
+        <section class="content-card planning-empty"></section>
+      </main>
+    `;
+
+    for (const selector of [
+      ".budget-create-card",
+      ".planning-dialog",
+      ".savings-goal-card",
+      ".planning-empty",
+      ".budget-table-card > .empty-copy",
+      ".unbudgeted-card > .section-heading",
+      ".unbudgeted-list li"
+    ]) {
+      expect(
+        getComputedStyle(document.querySelector(selector)!).paddingLeft,
+        selector
+      ).toBe("24px");
+      expect(
+        getComputedStyle(document.querySelector(selector)!).paddingRight,
+        selector
+      ).toBe("24px");
+    }
+  });
 });

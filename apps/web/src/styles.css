@@ -4438,6 +4438,7 @@ select:focus {
 .budget-create-card {
   display: grid;
   gap: 16px;
+  padding: 24px;
 }
 
 .budget-create-card h2,
@@ -4481,6 +4482,11 @@ select:focus {
 
 .budget-table-card > .section-heading {
   padding: 22px 24px 12px;
+}
+
+.budget-table-card > .empty-copy {
+  margin: 0;
+  padding: 0 24px 24px;
 }
 
 .budget-category-table {
@@ -4575,7 +4581,14 @@ select:focus {
 }
 
 .unbudgeted-card {
+  overflow: hidden;
+  padding: 0;
   border-color: rgba(223, 116, 93, 0.35);
+}
+
+.unbudgeted-card > .section-heading {
+  margin-bottom: 0;
+  padding: 22px 24px 12px;
 }
 
 .unbudgeted-list {
@@ -4590,7 +4603,7 @@ select:focus {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 13px 0;
+  padding: 13px 24px;
   border-top: 1px solid var(--line);
 }
 
@@ -4606,6 +4619,7 @@ select:focus {
 .planning-dialog {
   display: grid;
   gap: 18px;
+  padding: 24px;
 }
 
 .planning-dialog-grid {
@@ -4626,6 +4640,7 @@ select:focus {
   display: grid;
   align-content: start;
   gap: 14px;
+  padding: 24px;
 }
 
 .goal-card-heading {
@@ -4696,6 +4711,10 @@ select:focus {
 .planning-empty,
 .empty-copy {
   color: var(--muted);
+}
+
+.planning-empty {
+  padding: 24px;
 }
 
 @media (max-width: 1180px) {
