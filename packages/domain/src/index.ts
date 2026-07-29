@@ -31,6 +31,21 @@ export {
   summarizeRecurringOccurrences,
   type RecurringCurrencySummary
 } from "./recurring";
+export {
+  allocateSplitBaseAmount,
+  calculateBudgetPlan,
+  calculateSavingsProgress,
+  type BudgetCalculation,
+  type BudgetCalculationCategory,
+  type BudgetPlanInput,
+  type CategoryExpense,
+  type PlanningAllocationFact,
+  type PlanningCategory,
+  type PlanningExpenseFact,
+  type SavingsProgress,
+  type SavingsProgressInput,
+  type SplitBaseAllocationInput
+} from "./planning";
 export type {
   PostingEffect,
   TransactionState,
