@@ -90,7 +90,9 @@ const snapshot: FinanceSnapshot = {
   installmentPayments: [],
   installmentPayoffs: [],
   recurringTemplates: [activeTemplate],
-  recurringOccurrences: [currentOccurrence]
+  recurringOccurrences: [currentOccurrence],
+  budgetAllocations: [],
+  savingsGoals: []
 };
 
 function previousPeriod(period: string) {

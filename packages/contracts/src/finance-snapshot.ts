@@ -13,6 +13,10 @@ import {
   recurringTemplateSchema
 } from "./recurring";
 import {
+  monthlyBudgetAllocationSchema,
+  savingsGoalSchema
+} from "./planning";
+import {
   transactionSplitSchema,
   transactionStateSchema
 } from "./transactions";
@@ -259,7 +263,9 @@ export const financeSnapshotSchema = z
     installmentPayments: z.array(financeInstallmentPaymentSchema),
     installmentPayoffs: z.array(financeInstallmentPayoffSchema),
     recurringTemplates: z.array(recurringTemplateSchema),
-    recurringOccurrences: z.array(recurringOccurrenceSchema)
+    recurringOccurrences: z.array(recurringOccurrenceSchema),
+    budgetAllocations: z.array(monthlyBudgetAllocationSchema),
+    savingsGoals: z.array(savingsGoalSchema)
   })
   .strict();
 

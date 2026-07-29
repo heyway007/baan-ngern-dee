@@ -386,7 +386,9 @@ describe("finance snapshot migration", () => {
       installmentPayments: [],
       installmentPayoffs: [],
       recurringTemplates: [],
-      recurringOccurrences: []
+      recurringOccurrences: [],
+      budgetAllocations: [],
+      savingsGoals: []
     });
 
     await database.close();

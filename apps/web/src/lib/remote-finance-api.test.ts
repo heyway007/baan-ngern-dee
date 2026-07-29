@@ -31,7 +31,9 @@ const emptySnapshot = {
   installmentPayments: [],
   installmentPayoffs: [],
   recurringTemplates: [],
-  recurringOccurrences: []
+  recurringOccurrences: [],
+  budgetAllocations: [],
+  savingsGoals: []
 } as const;
 
 function createAuth(): CloudAuth {

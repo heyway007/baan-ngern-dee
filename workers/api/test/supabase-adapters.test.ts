@@ -28,7 +28,9 @@ describe("Supabase Worker adapters", () => {
       installmentPayments: [],
       installmentPayoffs: [],
       recurringTemplates: [],
-      recurringOccurrences: []
+      recurringOccurrences: [],
+      budgetAllocations: [],
+      savingsGoals: []
     };
     let fetchReceiver: unknown;
     const receiverSensitiveFetch = function (
@@ -66,7 +68,9 @@ describe("Supabase Worker adapters", () => {
       installmentPayments: [],
       installmentPayoffs: [],
       recurringTemplates: [],
-      recurringOccurrences: []
+      recurringOccurrences: [],
+      budgetAllocations: [],
+      savingsGoals: []
     };
     const requestFetch = vi
       .fn<typeof fetch>()

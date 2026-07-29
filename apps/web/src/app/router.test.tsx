@@ -51,7 +51,9 @@ const emptySnapshot: FinanceSnapshot = {
   installmentPayments: [],
   installmentPayoffs: [],
   recurringTemplates: [],
-  recurringOccurrences: []
+  recurringOccurrences: [],
+  budgetAllocations: [],
+  savingsGoals: []
 };
 
 const workspaceSnapshot: FinanceSnapshot = {

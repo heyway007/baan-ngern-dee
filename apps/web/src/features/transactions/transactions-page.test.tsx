@@ -74,7 +74,9 @@ const snapshot: FinanceSnapshot = {
   installmentPayments: [],
   installmentPayoffs: [],
   recurringTemplates: [],
-  recurringOccurrences: []
+  recurringOccurrences: [],
+  budgetAllocations: [],
+  savingsGoals: []
 };
 
 function createApi(

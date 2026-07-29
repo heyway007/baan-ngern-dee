@@ -19,7 +19,9 @@ const emptySnapshot = {
   installmentPayments: [],
   installmentPayoffs: [],
   recurringTemplates: [],
-  recurringOccurrences: []
+  recurringOccurrences: [],
+  budgetAllocations: [],
+  savingsGoals: []
 } as const;
 
 describe("financeSnapshotSchema", () => {
@@ -149,6 +151,39 @@ describe("financeSnapshotSchema", () => {
           }
         ]
       }).recurringOccurrences
+    ).toHaveLength(1);
+  });
+
+  it("validates budget allocations and savings goals", () => {
+    const workspaceId = "10000000-0000-4000-8000-000000000001";
+
+    expect(
+      financeSnapshotSchema.parse({
+        ...emptySnapshot,
+        budgetAllocations: [
+          {
+            id: "20000000-0000-4000-8000-000000000002",
+            workspaceId,
+            categoryId: "30000000-0000-4000-8000-000000000003",
+            month: "2026-08",
+            amount: "5000.00",
+            version: 1
+          }
+        ],
+        savingsGoals: [
+          {
+            id: "40000000-0000-4000-8000-000000000004",
+            workspaceId,
+            name: "เงินฉุกเฉิน",
+            targetAmount: "50000.00",
+            currency: "THB",
+            accountId: "50000000-0000-4000-8000-000000000005",
+            accountType: "bank",
+            status: "active",
+            version: 1
+          }
+        ]
+      }).savingsGoals
     ).toHaveLength(1);
   });
 });

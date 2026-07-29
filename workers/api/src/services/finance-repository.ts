@@ -394,7 +394,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
           installmentPayments: [],
           installmentPayoffs: [],
           recurringTemplates: [],
-          recurringOccurrences: []
+          recurringOccurrences: [],
+          budgetAllocations: [],
+          savingsGoals: []
         };
       }
 
@@ -501,7 +503,9 @@ export function createMemoryFinanceRepository(): FinanceRepository {
                 new Date().toISOString(),
                 selectedWorkspace.timeZone
               ).slice(0, 7)
-        )
+        ),
+        budgetAllocations: [],
+        savingsGoals: []
       };
       return snapshot;
     },
