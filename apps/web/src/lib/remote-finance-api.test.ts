@@ -10,6 +10,8 @@ const contractId = "44444444-4444-4444-8444-444444444444";
 const mutationId = "55555555-5555-4555-8555-555555555555";
 const templateId = "77777777-7777-4777-8777-777777777777";
 const occurrenceId = "88888888-8888-4888-8888-888888888888";
+const allocationId = "99999999-9999-4999-8999-999999999999";
+const goalId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const session: CloudSession = {
   userId: "66666666-6666-4666-8666-666666666666",
@@ -723,6 +725,188 @@ describe("createRemoteFinanceApi", () => {
         `/v1/recurring-occurrences/${occurrenceId}/post`,
         "POST",
         { version: 2, clientMutationId: mutationId }
+      ]
+    ]);
+  });
+
+  it("loads and mutates the financial plan through the planning routes", async () => {
+    const plan = {
+      workspaceId,
+      month: "2026-07",
+      currency: "THB",
+      totals: {
+        baseBudget: "10000.00",
+        priorCarry: "500.00",
+        available: "10500.00",
+        spent: "2000.00",
+        remaining: "8500.00"
+      },
+      categories: [
+        {
+          categoryId,
+          categoryName: "อาหาร",
+          allocationId,
+          allocationVersion: 1,
+          isBudgeted: true,
+          baseBudget: "10000.00",
+          priorCarry: "500.00",
+          available: "10500.00",
+          spent: "2000.00",
+          remaining: "8500.00"
+        }
+      ],
+      goals: [
+        {
+          id: goalId,
+          name: "เงินสำรอง",
+          accountId,
+          accountName: "เงินออม",
+          currentAmount: "25000.00",
+          targetAmount: "100000.00",
+          currency: "THB",
+          targetDate: "2027-07-01",
+          percent: 25,
+          reached: false,
+          accountArchived: false,
+          status: "active",
+          version: 1
+        }
+      ]
+    } as const;
+    const allocation = {
+      id: allocationId,
+      workspaceId,
+      categoryId,
+      month: "2026-07",
+      amount: "10000.00",
+      version: 1
+    } as const;
+    const goal = {
+      id: goalId,
+      workspaceId,
+      name: "เงินสำรอง",
+      targetAmount: "100000.00",
+      currency: "THB",
+      targetDate: "2027-07-01",
+      accountId,
+      accountType: "bank",
+      status: "active",
+      version: 1
+    } as const;
+    const requestFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(plan))
+      .mockResolvedValueOnce(Response.json({ createdCount: 2 }))
+      .mockResolvedValueOnce(Response.json(allocation))
+      .mockResolvedValueOnce(
+        Response.json({
+          ...allocation,
+          removedAt: "2026-07-29T10:00:00Z",
+          version: 2
+        })
+      )
+      .mockResolvedValueOnce(Response.json(goal))
+      .mockResolvedValueOnce(
+        Response.json({ ...goal, name: "ฉุกเฉิน", version: 2 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ...goal, status: "archived", version: 2 })
+      );
+    const api = createRemoteFinanceApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+
+    await expect(
+      api.getFinancialPlan(workspaceId, "2026-07")
+    ).resolves.toEqual(plan);
+    await api.initializeBudgetMonth({ workspaceId, month: "2026-07" });
+    await api.setMonthlyBudget({
+      workspaceId,
+      categoryId,
+      month: "2026-07",
+      amount: "10000.00"
+    });
+    await api.removeMonthlyBudget(allocationId, { version: 1 });
+    await api.createSavingsGoal({
+      workspaceId,
+      name: "เงินสำรอง",
+      targetAmount: "100000.00",
+      currency: "THB",
+      targetDate: "2027-07-01",
+      accountId
+    });
+    await api.updateSavingsGoal(goalId, {
+      name: "ฉุกเฉิน",
+      targetAmount: "100000.00",
+      currency: "THB",
+      targetDate: "2027-07-01",
+      accountId,
+      version: 1
+    });
+    await api.archiveSavingsGoal(goalId, { version: 2 });
+
+    expect(
+      requestFetch.mock.calls.map(([url, init]) => [
+        url,
+        init?.method,
+        init?.body ? JSON.parse(String(init.body)) : undefined
+      ])
+    ).toEqual([
+      [
+        `/v1/planning/2026-07?workspaceId=${workspaceId}`,
+        "GET",
+        undefined
+      ],
+      [
+        "/v1/planning/budgets/initialize",
+        "POST",
+        { workspaceId, month: "2026-07" }
+      ],
+      [
+        "/v1/planning/budgets",
+        "POST",
+        {
+          workspaceId,
+          categoryId,
+          month: "2026-07",
+          amount: "10000.00"
+        }
+      ],
+      [
+        `/v1/planning/budgets/${allocationId}/remove`,
+        "POST",
+        { version: 1 }
+      ],
+      [
+        "/v1/planning/goals",
+        "POST",
+        {
+          workspaceId,
+          name: "เงินสำรอง",
+          targetAmount: "100000.00",
+          currency: "THB",
+          targetDate: "2027-07-01",
+          accountId
+        }
+      ],
+      [
+        `/v1/planning/goals/${goalId}`,
+        "PATCH",
+        {
+          name: "ฉุกเฉิน",
+          targetAmount: "100000.00",
+          currency: "THB",
+          targetDate: "2027-07-01",
+          accountId,
+          version: 1
+        }
+      ],
+      [
+        `/v1/planning/goals/${goalId}/archive`,
+        "POST",
+        { version: 2 }
       ]
     ]);
   });

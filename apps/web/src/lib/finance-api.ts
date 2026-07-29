@@ -9,6 +9,7 @@ import type {
   CreateTransactionInput,
   MaterializeRecurringPeriodInput,
   MaterializeRecurringPeriodResult,
+  MonthlyBudgetAllocation,
   PostInstallmentPayoffInput,
   PostInstallmentPaymentInput,
   PostRecurringOccurrenceInput,
@@ -21,6 +22,15 @@ import type {
   ConfirmSlipBatchResult,
   SlipQuotaState,
   RecurringVersionActionInput,
+  RemoveMonthlyBudgetInput,
+  SavingsGoal,
+  SetMonthlyBudgetInput,
+  FinancialPlan,
+  InitializeBudgetMonthInput,
+  InitializeBudgetMonthResult,
+  CreateSavingsGoalInput,
+  UpdateSavingsGoalInput,
+  ArchiveSavingsGoalInput,
   UpdateRecurringOccurrenceInput,
   UpdateRecurringTemplateInput,
   VoidTransactionInput,
@@ -124,6 +134,31 @@ export type InstallmentPayoffResult = Readonly<{
 }>;
 
 export interface FinanceApi {
+  getFinancialPlan(
+    workspaceId: string,
+    month: string
+  ): Promise<FinancialPlan>;
+  initializeBudgetMonth(
+    input: InitializeBudgetMonthInput
+  ): Promise<InitializeBudgetMonthResult>;
+  setMonthlyBudget(
+    input: SetMonthlyBudgetInput
+  ): Promise<MonthlyBudgetAllocation>;
+  removeMonthlyBudget(
+    allocationId: string,
+    input: RemoveMonthlyBudgetInput
+  ): Promise<MonthlyBudgetAllocation>;
+  createSavingsGoal(
+    input: CreateSavingsGoalInput
+  ): Promise<SavingsGoal>;
+  updateSavingsGoal(
+    goalId: string,
+    input: UpdateSavingsGoalInput
+  ): Promise<SavingsGoal>;
+  archiveSavingsGoal(
+    goalId: string,
+    input: ArchiveSavingsGoalInput
+  ): Promise<SavingsGoal>;
   analyzeSlip(input: Readonly<{
     workspaceId: string;
     clientMutationId: string;

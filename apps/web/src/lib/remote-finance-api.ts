@@ -2,12 +2,22 @@ import {
   accountBalanceSchema,
   apiErrorCodes,
   financeSnapshotSchema,
+  financialPlanSchema,
+  initializeBudgetMonthSchema,
+  initializeBudgetMonthResultSchema,
   materializeRecurringPeriodResultSchema,
+  monthlyBudgetAllocationSchema,
   postedTransactionResponseSchema,
   postRecurringOccurrenceResultSchema,
   recurringOccurrenceSchema,
   recurringPeriodSchema,
   recurringTemplateSchema,
+  removeMonthlyBudgetSchema,
+  savingsGoalSchema,
+  setMonthlyBudgetSchema,
+  createSavingsGoalSchema,
+  updateSavingsGoalSchema,
+  archiveSavingsGoalSchema,
   analyzeSlipResponseSchema,
   confirmSlipBatchInputSchema,
   confirmSlipBatchResultSchema,
@@ -320,6 +330,62 @@ export function createRemoteFinanceApi(options: {
   }
 
   return {
+    getFinancialPlan(workspaceId, month) {
+      return request(
+        `/v1/planning/${encodeURIComponent(month)}?workspaceId=${encodeURIComponent(workspaceId)}`,
+        { method: "GET" },
+        financialPlanSchema
+      );
+    },
+
+    initializeBudgetMonth(input) {
+      return post(
+        "/v1/planning/budgets/initialize",
+        initializeBudgetMonthSchema.parse(input),
+        initializeBudgetMonthResultSchema
+      );
+    },
+
+    setMonthlyBudget(input) {
+      return post(
+        "/v1/planning/budgets",
+        setMonthlyBudgetSchema.parse(input),
+        monthlyBudgetAllocationSchema
+      );
+    },
+
+    removeMonthlyBudget(allocationId, input) {
+      return post(
+        `/v1/planning/budgets/${encodeURIComponent(allocationId)}/remove`,
+        removeMonthlyBudgetSchema.parse(input),
+        monthlyBudgetAllocationSchema
+      );
+    },
+
+    createSavingsGoal(input) {
+      return post(
+        "/v1/planning/goals",
+        createSavingsGoalSchema.parse(input),
+        savingsGoalSchema
+      );
+    },
+
+    updateSavingsGoal(goalId, input) {
+      return patch(
+        `/v1/planning/goals/${encodeURIComponent(goalId)}`,
+        updateSavingsGoalSchema.parse(input),
+        savingsGoalSchema
+      );
+    },
+
+    archiveSavingsGoal(goalId, input) {
+      return post(
+        `/v1/planning/goals/${encodeURIComponent(goalId)}/archive`,
+        archiveSavingsGoalSchema.parse(input),
+        savingsGoalSchema
+      );
+    },
+
     analyzeSlip(input) {
       const form = new FormData();
       form.set("workspaceId", input.workspaceId);
