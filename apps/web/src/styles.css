@@ -4375,6 +4375,9 @@ select:focus {
 /* Financial planning */
 .planning-page {
   display: grid;
+  width: 100%;
+  max-width: 82rem;
+  margin-inline: auto;
   gap: 24px;
 }
 
@@ -4702,6 +4705,10 @@ select:focus {
 }
 
 @media (max-width: 760px) {
+  .planning-page {
+    max-width: 100%;
+  }
+
   .planning-page > .page-heading,
   .planning-savings-heading {
     align-items: stretch;

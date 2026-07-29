@@ -204,6 +204,12 @@ describe("global typography", () => {
     expect(
       getComputedStyle(document.querySelector(".savings-goal-grid")!).display
     ).toBe("grid");
+    const planningStyle = getComputedStyle(
+      document.querySelector(".planning-page")!
+    );
+    expect(planningStyle.maxWidth).toBe("82rem");
+    expect(planningStyle.marginInline).toBe("auto");
+
     for (const control of document.querySelectorAll(
       ".planning-dialog button, .planning-dialog input, .planning-dialog select"
     )) {
@@ -221,5 +227,8 @@ describe("global typography", () => {
       .join("\n");
     expect(css).toContain(".budget-category-card");
     expect(css).toContain("max-width: 760px");
+    expect(css).toMatch(
+      /@media \(max-width: 760px\)[\s\S]*?\.planning-page\s*\{[^}]*max-width:\s*100%/
+    );
   });
 });
