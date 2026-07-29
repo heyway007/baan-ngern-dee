@@ -210,7 +210,7 @@ function createDependencies(options: {
 }
 
 describe("cloud application flow", () => {
-  it("opens the integrated financial planning route", async () => {
+  it("redirects the disabled financial planning route to overview", async () => {
     const { dependencies } = createDependencies({
       session,
       snapshot: workspaceSnapshot
@@ -222,11 +222,11 @@ describe("cloud application flow", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "แผนการเงิน" })
+      await screen.findByRole("heading", { name: /สวัสดี มิน/ })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "แผนการเงิน" })
-    ).toHaveAttribute("href", "/planning");
+      screen.queryByRole("link", { name: "แผนการเงิน" })
+    ).not.toBeInTheDocument();
   });
 
   it("routes a signed-out user to sign in after cloud boot", async () => {

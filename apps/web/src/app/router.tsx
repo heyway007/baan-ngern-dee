@@ -56,6 +56,7 @@ import {
   cloudReducer,
   initialCloudState
 } from "./cloud-state";
+import { featureFlags } from "./feature-flags";
 import { AppLayout } from "./layout";
 
 const LEGACY_STORAGE_KEYS = [
@@ -659,11 +660,15 @@ export function FinanceRoutes({
           <Route
             path="/planning"
             element={
-              <PlanningPage
-                api={api}
-                snapshot={snapshot}
-                onChanged={refreshSnapshot}
-              />
+              featureFlags.financialPlanning ? (
+                <PlanningPage
+                  api={api}
+                  snapshot={snapshot}
+                  onChanged={refreshSnapshot}
+                />
+              ) : (
+                <Navigate to="/overview" replace />
+              )
             }
           />
         </Route>

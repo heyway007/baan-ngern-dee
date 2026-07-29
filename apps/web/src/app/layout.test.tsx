@@ -13,7 +13,7 @@ const session: CloudSession = {
 };
 
 describe("AppLayout invitation navigation", () => {
-  it("links to the integrated financial plan", () => {
+  it("hides financial planning while the feature is disabled", () => {
     render(
       <MemoryRouter>
         <AppLayout session={session} onSignOut={vi.fn()} />
@@ -21,8 +21,8 @@ describe("AppLayout invitation navigation", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "แผนการเงิน" })
-    ).toHaveAttribute("href", "/planning");
+      screen.queryByRole("link", { name: "แผนการเงิน" })
+    ).not.toBeInTheDocument();
   });
 
   it("hides invitation management without the server capability", () => {

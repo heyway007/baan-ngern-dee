@@ -18,6 +18,7 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import type { CloudSession } from "../lib/cloud-auth";
+import { featureFlags } from "./feature-flags";
 
 type AppLayoutProps = Readonly<{
   session: CloudSession;
@@ -51,12 +52,14 @@ const navigation = [
     mobileLabel: "ประจำ",
     icon: Repeat2
   },
-  {
-    to: "/planning",
-    label: "แผนการเงิน",
-    mobileLabel: "แผน",
-    icon: Target
-  },
+  ...(featureFlags.financialPlanning
+    ? [{
+        to: "/planning",
+        label: "แผนการเงิน",
+        mobileLabel: "แผน",
+        icon: Target
+      }]
+    : []),
   {
     to: "/installments",
     label: "ผ่อนและหนี้",
