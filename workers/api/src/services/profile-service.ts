@@ -88,7 +88,14 @@ export function createProfileService(options: {
   randomUUID?: () => string;
 }): ProfileService {
   const cleanupObserver = options.cleanupObserver ?? {
-    recordAvatarCleanupFailure() {}
+    recordAvatarCleanupFailure(
+      failure: ProfileAvatarCleanupFailure
+    ) {
+      console.error({
+        event: "profile_avatar_cleanup_failed",
+        ...failure
+      });
+    }
   };
   const randomUUID =
     options.randomUUID ?? (() => crypto.randomUUID());

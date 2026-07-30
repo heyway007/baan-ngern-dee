@@ -324,6 +324,51 @@ describe("profile service", () => {
     ]);
   });
 
+  it("logs one structured cleanup failure with the default observer", async () => {
+    const oldPath = `${userId}/old.png`;
+    const newPath = `${userId}/${avatarId}.png`;
+    const cleanupError = new Error("delete unavailable");
+    const { gateway, stored } = createDependencies({
+      stored: {
+        displayName: "Mint",
+        avatarPath: oldPath
+      }
+    });
+    vi.mocked(gateway.deleteAvatar).mockRejectedValueOnce(
+      cleanupError
+    );
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      const service = createProfileService({
+        gateway,
+        randomUUID: () => avatarId
+      });
+
+      await expect(
+        service.replaceAvatar(actor, pngBytes)
+      ).resolves.toMatchObject({
+        avatar: {
+          source: "custom",
+          url: `https://images.example.test/${newPath}`
+        }
+      });
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith({
+        event: "profile_avatar_cleanup_failed",
+        stage: "replacement",
+        path: oldPath,
+        error: cleanupError
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+
+    expect(stored.avatarPath).toBe(newPath);
+  });
+
   it("returns the committed removal when deleting the old avatar fails", async () => {
     const oldPath = `${userId}/old.png`;
     const cleanupError = new Error("delete unavailable");
