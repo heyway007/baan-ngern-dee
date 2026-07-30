@@ -19,7 +19,17 @@ export type ApiErrorLogContext = Readonly<{
 export class ApiError extends Error {
   constructor(
     readonly code: ApiErrorCode,
-    readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503,
+    readonly status:
+      | 400
+      | 401
+      | 403
+      | 404
+      | 409
+      | 413
+      | 415
+      | 429
+      | 500
+      | 503,
     message: string,
     readonly logContext?: ApiErrorLogContext
   ) {
