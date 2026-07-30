@@ -252,12 +252,16 @@ describe("ProfilePage", () => {
     renderPage();
 
     const fileInput = screen.getByLabelText("เลือกรูปโปรไฟล์");
+    expect(fileInput).toBeEnabled();
     expect(fileInput).not.toHaveAttribute("tabindex", "-1");
-    expect(
-      document.querySelector(
-        'label[for="profile-avatar-file"]'
-      )
-    ).toHaveTextContent("เลือกรูป");
+    const visiblePicker = document.querySelector(
+      'label[for="profile-avatar-file"]'
+    );
+    expect(visiblePicker).toHaveTextContent("เลือกรูป");
+    expect(visiblePicker).toHaveAttribute(
+      "for",
+      "profile-avatar-file"
+    );
 
     await user.tab();
 

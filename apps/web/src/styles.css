@@ -4593,6 +4593,10 @@ select:focus {
   gap: 10px;
 }
 
+.profile-avatar-actions {
+  position: relative;
+}
+
 .profile-avatar-picker {
   cursor: pointer;
 }
@@ -4605,19 +4609,21 @@ select:focus {
 
 .profile-avatar-file {
   position: absolute;
+  inset: 0 auto auto 0;
   width: 1px;
+  min-width: 1px;
+  max-width: 1px;
   height: 1px;
-  margin: -1px;
+  min-height: 1px;
+  max-height: 1px;
+  box-sizing: border-box;
+  margin: 0;
   padding: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   border: 0;
   white-space: nowrap;
-}
-
-.profile-page .profile-avatar-file {
-  min-height: 1px;
 }
 
 .profile-avatar-file:focus-visible + .profile-avatar-picker {
@@ -4725,7 +4731,8 @@ select:focus {
     flex-direction: column;
   }
 
-  .profile-avatar-actions > *,
+  .profile-avatar-actions > .profile-avatar-picker,
+  .profile-avatar-actions > .profile-avatar-remove,
   .profile-form-actions > button {
     width: 100%;
     box-sizing: border-box;

@@ -505,27 +505,42 @@ describe("global typography", () => {
 
   it("provides a visible keyboard-focus proxy for the profile avatar picker", () => {
     document.body.innerHTML = `
-      <main class="profile-page">
-        <input
-          id="profile-avatar-file"
-          class="profile-avatar-file"
-          type="file"
-        />
-        <label
-          class="secondary-button profile-avatar-picker"
-          for="profile-avatar-file"
-        >
-          เลือกรูป
-        </label>
-      </main>
+      <div style="position: relative; width: 390px; overflow-x: auto">
+        <main class="profile-page">
+          <div class="profile-avatar-actions">
+            <input
+              id="profile-avatar-file"
+              class="profile-avatar-file"
+              type="file"
+            />
+            <label
+              class="secondary-button profile-avatar-picker"
+              for="profile-avatar-file"
+            >
+              เลือกรูป
+            </label>
+          </div>
+        </main>
+      </div>
     `;
 
     const inputStyle = getComputedStyle(
       document.querySelector(".profile-avatar-file")!
     );
     expect(inputStyle.position).toBe("absolute");
+    expect(inputStyle.width).toBe("1px");
+    expect(inputStyle.minWidth).toBe("1px");
+    expect(inputStyle.maxWidth).toBe("1px");
+    expect(inputStyle.height).toBe("1px");
+    expect(inputStyle.maxHeight).toBe("1px");
+    expect(inputStyle.clipPath).toBe("inset(50%)");
     expect(["hidden", "clip"]).toContain(inputStyle.overflow);
     expect(inputStyle.pointerEvents).not.toBe("none");
+    expect(
+      getComputedStyle(
+        document.querySelector(".profile-avatar-picker")!
+      ).minHeight
+    ).toBe("44px");
 
     const css = [...document.styleSheets]
       .flatMap((sheet) => {
@@ -538,6 +553,9 @@ describe("global typography", () => {
       .join("\n");
     expect(css).toMatch(
       /\.profile-avatar-file:focus-visible \+ \.profile-avatar-picker\s*\{[^}]*outline:\s*3px solid/
+    );
+    expect(css).not.toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.profile-avatar-actions > \*/
     );
   });
 
