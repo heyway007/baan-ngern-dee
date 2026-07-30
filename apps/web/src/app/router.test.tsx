@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import { readLineDestination } from "../features/auth/line-entry";
 import type {
   CloudAuth,
   CloudSession
@@ -100,6 +101,8 @@ function createDependencies(options: {
     existingCount: number;
   }>;
   storage?: Storage;
+  destinationStorage?: Storage;
+  createPrivateWorkspace?: ReturnType<typeof vi.fn>;
   canManageInvitations?: boolean;
   canManageUsers?: boolean;
 }) {
@@ -121,11 +124,15 @@ function createDependencies(options: {
     })
   };
   const getSnapshot = vi.fn();
-  for (const snapshot of options.snapshots ?? [
+  const configuredSnapshots = options.snapshots ?? [
     options.snapshot ?? emptySnapshot
-  ]) {
+  ];
+  for (const snapshot of configuredSnapshots) {
     getSnapshot.mockResolvedValueOnce(snapshot);
   }
+  getSnapshot.mockResolvedValue(
+    configuredSnapshots.at(-1) ?? emptySnapshot
+  );
   const materializeRecurringPeriod = vi.fn().mockResolvedValue(
     options.materialized ?? {
       createdCount: 0,
@@ -149,11 +156,15 @@ function createDependencies(options: {
     categories: [],
     goals: []
   });
+  const createPrivateWorkspace =
+    options.createPrivateWorkspace ??
+    vi.fn().mockResolvedValue(undefined);
   const api = {
     getSnapshot,
     materializeRecurringPeriod,
     initializeBudgetMonth: vi.fn().mockResolvedValue({ createdCount: 0 }),
-    getFinancialPlan
+    getFinancialPlan,
+    createPrivateWorkspace
   } as unknown as RemoteFinanceApi;
   const adminApi = {
     capabilities: vi.fn().mockResolvedValue({
@@ -185,8 +196,11 @@ function createDependencies(options: {
     sendPasswordReset: vi.fn(),
     delete: vi.fn()
   } satisfies UserManagementApi;
+  const destinationStorage =
+    options.destinationStorage ?? new MemoryStorage();
   const dependencies: CloudRouterDependencies = {
     storage: options.storage ?? new MemoryStorage(),
+    destinationStorage,
     loadConfig: vi.fn().mockResolvedValue(config),
     createAuth: vi.fn(() => auth),
     createApi: vi.fn(() => api),
@@ -205,12 +219,191 @@ function createDependencies(options: {
     publicInvitationApi,
     userManagementApi,
     dependencies,
+    destinationStorage,
+    createPrivateWorkspace,
     getSnapshot,
     materializeRecurringPeriod
   };
 }
 
 describe("cloud application flow", () => {
+  it("starts LINE OAuth from an allowlisted rich-menu destination", async () => {
+    const {
+      auth,
+      dependencies,
+      destinationStorage
+    } = createDependencies({ session: null });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/line?next=%2Ftransactions%2Fnew%3Ftype%3Dincome"
+        ]}
+      >
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(auth.startLineSignIn).toHaveBeenCalledWith(
+        `${window.location.origin}/line/callback`
+      );
+    });
+    expect(readLineDestination(destinationStorage)).toBe(
+      "/transactions/new?type=income"
+    );
+  });
+
+  it("falls back to overview before starting LINE OAuth for an external destination", async () => {
+    const {
+      auth,
+      dependencies,
+      destinationStorage
+    } = createDependencies({ session: null });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/line?next=https%3A%2F%2Fevil.example%2Faccounts"
+        ]}
+      >
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(auth.startLineSignIn).toHaveBeenCalledOnce();
+    });
+    expect(readLineDestination(destinationStorage)).toBe("/overview");
+  });
+
+  it("opens an authenticated rich-menu destination without restarting LINE OAuth", async () => {
+    const { auth, dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/line?next=%2Faccounts"]}
+      >
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "บัญชีทั้งหมด" })
+    ).toBeInTheDocument();
+    expect(auth.startLineSignIn).not.toHaveBeenCalled();
+  });
+
+  it("continues a LINE callback to its stored destination", async () => {
+    const destinationStorage = new MemoryStorage();
+    destinationStorage.setItem(
+      "baan-ngern-dee:line-destination:v1",
+      "/accounts"
+    );
+    const { auth, dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      destinationStorage
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/line/callback"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "บัญชีทั้งหมด" })
+    ).toBeInTheDocument();
+    expect(auth.startLineSignIn).not.toHaveBeenCalled();
+  });
+
+  it("creates a private workspace after LINE callback and then opens the stored destination", async () => {
+    const lineSession: CloudSession = {
+      ...session,
+      email: undefined,
+      displayName: "ลิน"
+    };
+    const destinationStorage = new MemoryStorage();
+    destinationStorage.setItem(
+      "baan-ngern-dee:line-destination:v1",
+      "/accounts"
+    );
+    const {
+      createPrivateWorkspace,
+      dependencies,
+      getSnapshot
+    } = createDependencies({
+      session: lineSession,
+      snapshots: [emptySnapshot, workspaceSnapshot],
+      destinationStorage
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/line/callback"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(createPrivateWorkspace).toHaveBeenCalledWith({
+        name: "บ้านเงินของ ลิน",
+        baseCurrency: "THB",
+        timeZone: "Asia/Bangkok"
+      });
+    });
+    expect(
+      await screen.findByRole("heading", { name: "บัญชีทั้งหมด" })
+    ).toBeInTheDocument();
+    expect(getSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a controlled retry when LINE workspace creation fails", async () => {
+    const createPrivateWorkspace = vi
+      .fn()
+      .mockRejectedValue(new Error("failed"));
+    const { dependencies } = createDependencies({
+      session: { ...session, email: undefined },
+      snapshot: emptySnapshot,
+      createPrivateWorkspace
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/line/callback"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent("ยังสร้างพื้นที่ส่วนตัวไม่สำเร็จ");
+    expect(
+      screen.getByRole("button", { name: "ลองอีกครั้ง" })
+    ).toBeInTheDocument();
+  });
+
+  it("shows a controlled LINE callback failure while signed out without redirecting again", async () => {
+    const { auth, dependencies } = createDependencies({
+      session: null
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/line/callback"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "เข้าสู่ระบบด้วย LINE ไม่สำเร็จ"
+      })
+    ).toBeInTheDocument();
+    expect(auth.startLineSignIn).not.toHaveBeenCalled();
+  });
+
   it("redirects the disabled financial planning route to overview", async () => {
     const { dependencies } = createDependencies({
       session,

@@ -23,6 +23,15 @@ import { AccountsPage } from "../features/accounts/accounts-page";
 import { InvitationsPage } from "../features/admin/invitations-page";
 import { UsersPage } from "../features/admin/users-page";
 import { AcceptInvitePage } from "../features/auth/accept-invite-page";
+import {
+  readLineDestination,
+  resolveLineDestination
+} from "../features/auth/line-entry";
+import {
+  LineLoginFailurePage,
+  LineLoginPage
+} from "../features/auth/line-login-page";
+import { LineWorkspacePage } from "../features/auth/line-workspace-page";
 import { ResetPasswordPage } from "../features/auth/reset-password-page";
 import { SessionGuard } from "../features/auth/session-guard";
 import { SignInPage } from "../features/auth/sign-in-page";
@@ -66,6 +75,10 @@ const LEGACY_STORAGE_KEYS = [
 
 export type CloudRouterDependencies = Readonly<{
   storage: Pick<Storage, "removeItem">;
+  destinationStorage: Pick<
+    Storage,
+    "getItem" | "setItem" | "removeItem"
+  >;
   loadConfig(): Promise<PublicAppConfig>;
   createAuth(config: PublicAppConfig): CloudAuth;
   createApi(
@@ -85,6 +98,7 @@ export type CloudRouterDependencies = Readonly<{
 
 const defaultDependencies: CloudRouterDependencies = {
   storage: window.localStorage,
+  destinationStorage: window.sessionStorage,
   loadConfig: () => loadPublicAppConfig(),
   createAuth: createSupabaseCloudAuth,
   createApi: (auth, onUnauthenticated) =>
@@ -169,6 +183,12 @@ export function FinanceRoutes({
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const requestedLineDestination =
+    location.pathname === "/line"
+      ? resolveLineDestination(searchParams.get("next"))
+      : readLineDestination(dependencies.destinationStorage);
+  const lineCallbackUrl =
+    `${window.location.origin}/line/callback`;
   const [invitationToken] = useState(() => {
     if (location.pathname !== "/accept-invite") return "";
     const token =
@@ -469,6 +489,27 @@ export function FinanceRoutes({
             />
           }
         />
+        <Route
+          path="/line"
+          element={
+            <LineLoginPage
+              auth={auth}
+              destination={requestedLineDestination}
+              destinationStorage={
+                dependencies.destinationStorage
+              }
+              callbackUrl={lineCallbackUrl}
+            />
+          }
+        />
+        <Route
+          path="/line/callback"
+          element={
+            <LineLoginFailurePage
+              destination={requestedLineDestination}
+            />
+          }
+        />
         <Route path="*" element={<Navigate to="/sign-in" replace />} />
       </Routes>
     );
@@ -527,6 +568,36 @@ export function FinanceRoutes({
               }}
             />
           )
+        }
+      />
+      <Route
+        path="/line"
+        element={
+          <LineWorkspacePage
+            session={session}
+            hasWorkspace={Boolean(snapshot.workspace)}
+            api={api}
+            destination={requestedLineDestination}
+            destinationStorage={
+              dependencies.destinationStorage
+            }
+            onWorkspaceChanged={refreshSnapshot}
+          />
+        }
+      />
+      <Route
+        path="/line/callback"
+        element={
+          <LineWorkspacePage
+            session={session}
+            hasWorkspace={Boolean(snapshot.workspace)}
+            api={api}
+            destination={requestedLineDestination}
+            destinationStorage={
+              dependencies.destinationStorage
+            }
+            onWorkspaceChanged={refreshSnapshot}
+          />
         }
       />
 
