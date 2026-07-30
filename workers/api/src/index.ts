@@ -4,6 +4,8 @@ import { createSupabaseAuthAdmin } from "./services/supabase-auth-admin";
 import { createSupabaseAuthVerifier } from "./services/supabase-client";
 import { createSupabaseFinanceRepository } from "./services/supabase-finance-repository";
 import { createSupabasePlanningRepository } from "./services/supabase-planning-repository";
+import { createProfileService } from "./services/profile-service";
+import { createSupabaseProfileGateway } from "./services/supabase-profile-gateway";
 import { createInvitationService } from "./services/invitation-service";
 import { createSupabaseInvitationRepository } from "./services/supabase-invitation-repository";
 import { createUserManagementService } from "./services/user-management-service";
@@ -76,12 +78,18 @@ export default {
         authAdmin: createSupabaseUserAuthAdmin(adminConfig)
       });
     const financeRepository = createSupabaseFinanceRepository(config);
+    const profileGateway =
+      createSupabaseProfileGateway(adminConfig);
+    const profileService = createProfileService({
+      gateway: profileGateway
+    });
     const app = createApp({
       authVerifier: createSupabaseAuthVerifier(config),
       financeRepository,
       planningRepository: createSupabasePlanningRepository(config),
       invitationService,
       userManagementService,
+      profileService,
       publicConfig: {
         supabaseUrl: env.SUPABASE_URL,
         supabasePublishableKey: env.SUPABASE_ANON_KEY,

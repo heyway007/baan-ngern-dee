@@ -20,6 +20,7 @@ import {
 } from "./routes/invitations";
 import { installmentRoutes } from "./routes/installments";
 import { planningRoutes } from "./routes/planning";
+import { profileRoutes } from "./routes/profile";
 import {
   recurringOccurrenceRoutes,
   recurringPeriodRoutes,
@@ -43,6 +44,7 @@ import {
   createMemoryPlanningRepository,
   type PlanningRepository
 } from "./services/planning-repository";
+import type { ProfileService } from "./services/profile-service";
 import type { SlipImportService } from "./services/slip-import-service";
 import type { AppEnv } from "./types";
 
@@ -52,6 +54,7 @@ export type AppDependencies = Readonly<{
   planningRepository: PlanningRepository;
   invitationService: InvitationService;
   userManagementService: UserManagementService;
+  profileService?: ProfileService;
   publicConfig: PublicAppConfig;
   slipImportService: SlipImportService;
 }>;
@@ -88,6 +91,12 @@ export function createApp(
     );
   }
   app.use("/v1/*", requireAuth(authVerifier));
+  if (dependencies.profileService) {
+    app.route(
+      "/v1/profile",
+      profileRoutes(dependencies.profileService)
+    );
+  }
   if (dependencies.invitationService) {
     app.route(
       "/v1/admin",
