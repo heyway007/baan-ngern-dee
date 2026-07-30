@@ -68,7 +68,7 @@ function deletionConfirmationMatches(
 ): boolean {
   return user.email
     ? value.trim().toLowerCase() === user.email
-    : value.trim() === user.userId;
+    : value.trim().replace(/^line\s+/i, "") === user.userId;
 }
 
 export function UsersPage({
