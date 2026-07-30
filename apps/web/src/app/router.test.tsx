@@ -811,6 +811,52 @@ describe("cloud application flow", () => {
     );
   });
 
+  it("does not let a delayed profile load overwrite a newer confirmed mutation", async () => {
+    const user = userEvent.setup();
+    const pendingGet = deferred<UserProfile>();
+    const update = vi.fn().mockResolvedValue(confirmedProfile);
+    const { dependencies, getSnapshot } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({
+        get: vi.fn().mockReturnValue(pendingGet.promise),
+        update
+      })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/profile"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    const displayName = await screen.findByRole("textbox", {
+      name: "ชื่อที่แสดง"
+    });
+    await user.clear(displayName);
+    await user.type(displayName, "มินยืนยันแล้ว");
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกชื่อ" })
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+      ).toHaveTextContent("มินยืนยันแล้ว")
+    );
+
+    await act(async () => {
+      pendingGet.resolve(sessionProfile);
+    });
+
+    expect(
+      screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+    ).toHaveTextContent("มินยืนยันแล้ว");
+    expect(
+      screen.getByRole("textbox", { name: "ชื่อที่แสดง" })
+    ).toHaveValue("มินยืนยันแล้ว");
+    expect(getSnapshot).toHaveBeenCalledOnce();
+  });
+
   it("clears the confirmed profile when signing out before another user arrives", async () => {
     const user = userEvent.setup();
     const nextProfileLoad = deferred<UserProfile>();

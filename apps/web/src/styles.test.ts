@@ -89,6 +89,21 @@ describe("global typography", () => {
     ).toBe("inline-flex");
   });
 
+  it("gives profile navigation controls 44px minimum targets", () => {
+    document.body.innerHTML = `
+      <a class="profile-row" href="/profile">เปิดโปรไฟล์</a>
+      <a class="icon-button" href="/profile">ตั้งค่า</a>
+    `;
+
+    for (const control of document.querySelectorAll(
+      ".profile-row, .icon-button"
+    )) {
+      const style = getComputedStyle(control);
+      expect(style.minWidth).toBe("44px");
+      expect(style.minHeight).toBe("44px");
+    }
+  });
+
   it("provides responsive user-management and Turnstile selectors", () => {
     document.body.innerHTML = `
       <div class="admin-users-page">

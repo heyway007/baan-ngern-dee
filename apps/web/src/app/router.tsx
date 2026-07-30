@@ -812,6 +812,7 @@ export function FinanceRoutes({
                 onRetry={() => void loadProfile(session.userId)}
                 onProfileChanged={(profile) => {
                   if (profile.userId !== session.userId) return;
+                  profileLoadGenerationRef.current += 1;
                   setProfileState({
                     profile,
                     loading: false

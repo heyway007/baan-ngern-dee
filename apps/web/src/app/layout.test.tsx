@@ -106,12 +106,17 @@ describe("AppLayout invitation navigation", () => {
       </MemoryRouter>
     );
 
-    expect(
-      screen.getByRole("link", { name: "เปิดโปรไฟล์" })
-    ).toHaveAttribute("href", "/profile");
-    expect(
-      screen.getByRole("link", { name: "ตั้งค่า" })
-    ).toHaveAttribute("href", "/profile");
+    const desktopProfile = screen.getByRole("link", {
+      name: "เปิดโปรไฟล์"
+    });
+    const mobileSettings = screen.getByRole("link", {
+      name: "ตั้งค่า"
+    });
+
+    expect(desktopProfile).toHaveAttribute("href", "/profile");
+    expect(mobileSettings).toHaveAttribute("href", "/profile");
+    expect(desktopProfile).toHaveClass("profile-row");
+    expect(mobileSettings).toHaveClass("icon-button");
   });
 
   it("renders the effective profile name and avatar", () => {
