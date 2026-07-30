@@ -42,6 +42,15 @@ async function createDatabase() {
         ''
       )::uuid
     $$;
+
+    create schema storage;
+    create table storage.buckets (
+      id text primary key,
+      name text not null,
+      public boolean not null default false,
+      file_size_limit bigint,
+      allowed_mime_types text[]
+    );
   `);
 
   const migrationFiles = (await readdir(migrationDirectory))
