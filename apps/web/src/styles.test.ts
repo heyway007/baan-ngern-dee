@@ -421,4 +421,52 @@ describe("global typography", () => {
     expect(getComputedStyle(toolbar).paddingLeft).toBe("1.2rem");
     expect(getComputedStyle(toolbar).paddingRight).toBe("1.2rem");
   });
+
+  it("keeps the profile card inside a 390px container with accessible controls", () => {
+    document.body.innerHTML = `
+      <div style="width: 390px; overflow-x: auto">
+        <main class="profile-page">
+          <section class="content-card profile-card">
+            <div class="profile-account-value">
+              min.with.a.very.long.account.address@example.test
+            </div>
+            <div class="profile-form-actions">
+              <input value="มิน" />
+              <button>บันทึกชื่อ</button>
+            </div>
+          </section>
+        </main>
+      </div>
+    `;
+
+    const profilePage = document.querySelector(".profile-page")!;
+    const profileCard = document.querySelector(".profile-card")!;
+    const accountValue = document.querySelector(
+      ".profile-account-value"
+    )!;
+
+    expect(getComputedStyle(profilePage).minWidth).toBe("0px");
+    expect(getComputedStyle(profileCard).boxSizing).toBe("border-box");
+    expect(getComputedStyle(profileCard).maxWidth).toBe("100%");
+    expect(getComputedStyle(accountValue).overflowWrap).toBe("anywhere");
+
+    for (const control of document.querySelectorAll(
+      ".profile-page button, .profile-page input"
+    )) {
+      expect(getComputedStyle(control).minHeight).toBe("44px");
+    }
+
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+    expect(css).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.profile-avatar-actions,\s*\.profile-form-actions\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/
+    );
+  });
 });
