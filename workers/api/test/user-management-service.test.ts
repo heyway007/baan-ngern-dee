@@ -397,7 +397,6 @@ describe("user management service", () => {
       "auth.getUser",
       "repository.getDeletionState",
       "auth.getUser",
-      "auth.markDeletionPending",
       "repository.purgePrivateData",
       "auth.deleteUser",
       "repository.completeDeletion"

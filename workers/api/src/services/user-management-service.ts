@@ -239,7 +239,9 @@ export function createUserManagementService(options: {
         );
       }
 
-      if (!target.deletionPending) {
+      // Email-less LINE identities cannot use the email-oriented pending
+      // marker reliably; purge their private data before Auth deletion.
+      if (!target.deletionPending && target.email) {
         await options.authAdmin.markDeletionPending(userId);
       }
       await options.repository.purgePrivateData({
