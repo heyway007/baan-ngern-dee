@@ -41,6 +41,18 @@ export interface ProfileGateway {
   deleteAvatar(path: string): Promise<void>;
 }
 
+export type ProfileAvatarCleanupFailure = Readonly<{
+  stage: "rollback" | "replacement" | "removal";
+  path: string;
+  error: unknown;
+}>;
+
+export interface ProfileCleanupObserver {
+  recordAvatarCleanupFailure(
+    failure: ProfileAvatarCleanupFailure
+  ): void | Promise<void>;
+}
+
 export interface ProfileService {
   get(actor: AuthSession): Promise<UserProfile>;
   update(
@@ -72,8 +84,12 @@ function profileImageUploadFailed(): ApiError {
 
 export function createProfileService(options: {
   gateway: ProfileGateway;
+  cleanupObserver?: ProfileCleanupObserver;
   randomUUID?: () => string;
 }): ProfileService {
+  const cleanupObserver = options.cleanupObserver ?? {
+    recordAvatarCleanupFailure() {}
+  };
   const randomUUID =
     options.randomUUID ?? (() => crypto.randomUUID());
 
@@ -141,6 +157,25 @@ export function createProfileService(options: {
     }
   }
 
+  async function cleanupAvatar(
+    stage: ProfileAvatarCleanupFailure["stage"],
+    path: string
+  ): Promise<void> {
+    try {
+      await options.gateway.deleteAvatar(path);
+    } catch (error) {
+      try {
+        await cleanupObserver.recordAvatarCleanupFailure({
+          stage,
+          path,
+          error
+        });
+      } catch {
+        // Cleanup reporting must not change the committed profile outcome.
+      }
+    }
+  }
+
   return {
     async get(actor) {
       return readCurrent(actor.userId);
@@ -174,17 +209,13 @@ export function createProfileService(options: {
           newPath
         );
       } catch {
-        await options.gateway
-          .deleteAvatar(newPath)
-          .catch(() => undefined);
+        await cleanupAvatar("rollback", newPath);
         throw profileImageUploadFailed();
       }
 
       const oldPath = stored.avatarPath;
       if (oldPath) {
-        await runAvatarMutation(() =>
-          options.gateway.deleteAvatar(oldPath)
-        );
+        await cleanupAvatar("replacement", oldPath);
       }
 
       return readCurrent(actor.userId);
@@ -200,9 +231,7 @@ export function createProfileService(options: {
         options.gateway.updateAvatarPath(actor.userId, null)
       );
       const oldPath = stored.avatarPath;
-      await runAvatarMutation(() =>
-        options.gateway.deleteAvatar(oldPath)
-      );
+      await cleanupAvatar("removal", oldPath);
       return readCurrent(actor.userId);
     }
   };

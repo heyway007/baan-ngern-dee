@@ -23,6 +23,11 @@ function createDependencies(input?: {
   stored?: StoredProfile;
   identity?: ProfileIdentity;
 }) {
+  const cleanupFailures: Array<{
+    stage: "rollback" | "replacement" | "removal";
+    path: string;
+    error: unknown;
+  }> = [];
   const operations: string[] = [];
   const signatures: string[] = [];
   const uploads: Array<
@@ -61,10 +66,16 @@ function createDependencies(input?: {
   };
   const service = createProfileService({
     gateway,
+    cleanupObserver: {
+      recordAvatarCleanupFailure(failure) {
+        cleanupFailures.push(failure);
+      }
+    },
     randomUUID: () => avatarId
   });
 
   return {
+    cleanupFailures,
     gateway,
     identity,
     operations,
@@ -263,6 +274,149 @@ describe("profile service", () => {
       `delete:${newPath}`
     ]);
     expect(stored.avatarPath).toBe(oldPath);
+  });
+
+  it("returns the committed replacement when deleting the old avatar fails", async () => {
+    const oldPath = `${userId}/old.png`;
+    const newPath = `${userId}/${avatarId}.png`;
+    const cleanupError = new Error("delete unavailable");
+    const {
+      cleanupFailures,
+      gateway,
+      operations,
+      service,
+      signatures,
+      stored
+    } = createDependencies({
+      stored: {
+        displayName: "Mint",
+        avatarPath: oldPath
+      }
+    });
+    vi.mocked(gateway.deleteAvatar).mockImplementationOnce(
+      async (path) => {
+        operations.push(`delete:${path}`);
+        throw cleanupError;
+      }
+    );
+
+    await expect(
+      service.replaceAvatar(actor, pngBytes)
+    ).resolves.toMatchObject({
+      avatar: {
+        source: "custom",
+        url: `https://images.example.test/${newPath}`
+      }
+    });
+    expect(operations).toEqual([
+      `upload:${newPath}`,
+      `path:${newPath}`,
+      `delete:${oldPath}`
+    ]);
+    expect(signatures).toEqual([`sign:${newPath}:86400`]);
+    expect(stored.avatarPath).toBe(newPath);
+    expect(cleanupFailures).toEqual([
+      {
+        stage: "replacement",
+        path: oldPath,
+        error: cleanupError
+      }
+    ]);
+  });
+
+  it("returns the committed removal when deleting the old avatar fails", async () => {
+    const oldPath = `${userId}/old.png`;
+    const cleanupError = new Error("delete unavailable");
+    const {
+      cleanupFailures,
+      gateway,
+      operations,
+      service,
+      stored
+    } = createDependencies({
+      stored: {
+        displayName: "Mint",
+        avatarPath: oldPath
+      }
+    });
+    vi.mocked(gateway.deleteAvatar).mockImplementationOnce(
+      async (path) => {
+        operations.push(`delete:${path}`);
+        throw cleanupError;
+      }
+    );
+
+    await expect(
+      service.removeAvatar(actor)
+    ).resolves.toMatchObject({
+      avatar: {
+        source: "initial",
+        url: null
+      }
+    });
+    expect(operations).toEqual([
+      "path:null",
+      `delete:${oldPath}`
+    ]);
+    expect(stored.avatarPath).toBeNull();
+    expect(cleanupFailures).toEqual([
+      {
+        stage: "removal",
+        path: oldPath,
+        error: cleanupError
+      }
+    ]);
+  });
+
+  it("records the orphan path when rollback cleanup fails", async () => {
+    const oldPath = `${userId}/old.png`;
+    const newPath = `${userId}/${avatarId}.png`;
+    const pathError = new Error("database unavailable");
+    const cleanupError = new Error("delete unavailable");
+    const {
+      cleanupFailures,
+      gateway,
+      operations,
+      service,
+      stored
+    } = createDependencies({
+      stored: {
+        displayName: "Mint",
+        avatarPath: oldPath
+      }
+    });
+    vi.mocked(gateway.updateAvatarPath).mockImplementationOnce(
+      async (_targetUserId, avatarPath) => {
+        operations.push(`path:${avatarPath}`);
+        throw pathError;
+      }
+    );
+    vi.mocked(gateway.deleteAvatar).mockImplementationOnce(
+      async (path) => {
+        operations.push(`delete:${path}`);
+        throw cleanupError;
+      }
+    );
+
+    await expect(
+      service.replaceAvatar(actor, pngBytes)
+    ).rejects.toMatchObject({
+      code: "PROFILE_IMAGE_UPLOAD_FAILED",
+      status: 500
+    });
+    expect(operations).toEqual([
+      `upload:${newPath}`,
+      `path:${newPath}`,
+      `delete:${newPath}`
+    ]);
+    expect(stored.avatarPath).toBe(oldPath);
+    expect(cleanupFailures).toEqual([
+      {
+        stage: "rollback",
+        path: newPath,
+        error: cleanupError
+      }
+    ]);
   });
 
   it("clears the avatar path before deletion and is idempotent", async () => {
