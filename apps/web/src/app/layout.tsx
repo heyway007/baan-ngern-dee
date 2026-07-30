@@ -187,7 +187,7 @@ export function AppLayout({
           </div>
           <NavLink
             to="/profile"
-            className="icon-button"
+            className="icon-button profile-settings-link"
             aria-label="ตั้งค่า"
           >
             <Settings aria-hidden="true" />

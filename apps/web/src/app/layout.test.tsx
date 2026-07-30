@@ -116,7 +116,10 @@ describe("AppLayout invitation navigation", () => {
     expect(desktopProfile).toHaveAttribute("href", "/profile");
     expect(mobileSettings).toHaveAttribute("href", "/profile");
     expect(desktopProfile).toHaveClass("profile-row");
-    expect(mobileSettings).toHaveClass("icon-button");
+    expect(mobileSettings).toHaveClass(
+      "icon-button",
+      "profile-settings-link"
+    );
   });
 
   it("renders the effective profile name and avatar", () => {

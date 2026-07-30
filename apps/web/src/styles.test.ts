@@ -92,16 +92,34 @@ describe("global typography", () => {
   it("gives profile navigation controls 44px minimum targets", () => {
     document.body.innerHTML = `
       <a class="profile-row" href="/profile">เปิดโปรไฟล์</a>
-      <a class="icon-button" href="/profile">ตั้งค่า</a>
+      <a class="icon-button profile-settings-link" href="/profile">
+        ตั้งค่า
+      </a>
     `;
 
     for (const control of document.querySelectorAll(
-      ".profile-row, .icon-button"
+      ".profile-row, .profile-settings-link"
     )) {
       const style = getComputedStyle(control);
       expect(style.minWidth).toBe("44px");
       expect(style.minHeight).toBe("44px");
     }
+  });
+
+  it("keeps desktop admin icon controls at their compact size", () => {
+    document.body.innerHTML = `
+      <div class="admin-users-actions">
+        <button class="icon-button">จัดการ</button>
+      </div>
+    `;
+
+    const style = getComputedStyle(
+      document.querySelector(".admin-users-actions .icon-button")!
+    );
+    expect(style.width).toBe("38px");
+    expect(style.height).toBe("38px");
+    expect(style.minWidth).toBe("auto");
+    expect(style.minHeight).toBe("auto");
   });
 
   it("provides responsive user-management and Turnstile selectors", () => {
