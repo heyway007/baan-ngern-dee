@@ -9,6 +9,8 @@ commit ลง Git หรือใส่ใน `VITE_*`.
 > เจ้าของต้องลงชื่อเข้าใช้และทำขั้นตอน interactive ของ LINE ด้วยตนเอง
 
 อ้างอิง: [LINE Login สำหรับเว็บ](https://developers.line.biz/en/docs/line-login/integrate-line-login/),
+[เริ่มต้น LINE Login](https://developers.line.biz/en/docs/line-login/getting-started/),
+[เริ่มต้น Messaging API](https://developers.line.biz/en/docs/messaging-api/getting-started/),
 [LINE Rich Menu](https://developers.line.biz/en/docs/messaging-api/using-rich-menus/),
 และ [Supabase custom OAuth providers](https://supabase.com/docs/guides/auth/custom-oauth-providers).
 
@@ -21,17 +23,22 @@ commit ลง Git หรือใส่ใน `VITE_*`.
 
 ## 2. เปิดใช้ Messaging API
 
-จาก OA ให้เปิดใช้ Messaging API เพื่อสร้าง Messaging API channel และออก channel
-access token สำหรับการ provision rich menu เท่านั้น เก็บ token ไว้ใน password
-manager หรือใช้เฉพาะ environment ของ terminal ในขั้นตอนที่ 9; อย่าใส่ token ใน
-Cloudflare variables, browser bundle, ไฟล์ `.env` ที่จะ commit หรือภาพหน้าจอ
+จาก OA ให้เปิดใช้ Messaging API ใน LINE Official Account Manager. ระหว่างขั้นตอนนี้
+LINE จะให้เลือก Provider ที่มีอยู่หรือสร้าง Provider ใหม่สำหรับ Messaging API channel
+ของ OA; เลือก/สร้าง Provider ที่จะใช้กับ LINE Login ด้วย เพราะเมื่อ assign แล้วจะย้าย
+หรือยกเลิก Provider ของ channel ไม่ได้. จากนั้นออก channel access token สำหรับการ
+provision rich menu เท่านั้น เก็บ token ไว้ใน password manager หรือใช้เฉพาะ
+environment ของ terminal ในขั้นตอนที่ 9; อย่าใส่ token ใน Cloudflare variables,
+browser bundle, ไฟล์ `.env` ที่จะ commit หรือภาพหน้าจอ
 
-## 3. สร้าง LINE Provider เดียว
+## 3. ยืนยัน Provider และสร้าง LINE Login ใต้ Provider เดียวกัน
 
-ใน LINE Developers Console สร้าง LINE Provider หนึ่งตัว แล้วให้ทั้ง Messaging API
-channel จากข้อ 2 และ LINE Login channel จากข้อ 4 อยู่ใต้ Provider เดียวกัน
-Provider เดียวกันทำให้ OA และ LINE Login เป็นชุดเดียวกัน และรองรับการเชื่อม rich
-menu รายบุคคลหากเลือกใช้ในภายหลัง
+เข้า LINE Developers Console แล้วเปิด Provider ที่เลือกในข้อ 2 ตรวจว่า Messaging API
+channel ของ OA อยู่ใต้ Provider นี้ จากนั้นสร้าง LINE Login channel ใต้ Provider
+เดียวกัน. Channel ที่สร้างแล้วไม่สามารถย้ายไป Provider อื่นภายหลังได้; Provider
+เดียวกันจึงเป็นเงื่อนไขก่อนสร้าง LINE Login ไม่ใช่การย้าย channel ภายหลัง. โครงสร้างนี้
+ทำให้ OA และ LINE Login เป็นชุดเดียวกัน และรองรับการเชื่อม rich menu รายบุคคลหาก
+เลือกใช้ในภายหลัง
 
 ## 4. ตั้งค่า LINE Login เป็น Web App และขอเฉพาะ scope ที่จำเป็น
 
@@ -40,6 +47,13 @@ menu รายบุคคลหากเลือกใช้ในภายห
 เท่านั้น และอย่าสมัครหรือขอ email permission: บ้านเงินดีใช้ชื่อโปรไฟล์เพื่อเรียกชื่อ
 workspace ได้ แต่ไม่ต้องใช้ email ของ LINE. เก็บ Channel ID และ Channel secret
 ไว้สำหรับกรอกใน Supabase เท่านั้น
+
+LINE Login channel ใหม่เริ่มในสถานะ **Developing**: เฉพาะ LINE account ที่เชื่อมกับ
+developer ซึ่งมีบทบาท Admin หรือ Tester ของ channel เท่านั้นที่ sign in ได้. ก่อน
+ทดสอบสองบัญชีในข้อ 11 ให้เพิ่ม developer ของทั้งสองบัญชีเป็น Admin/Tester และเชื่อม
+Business ID กับ LINE account ให้เรียบร้อย หรือ publish LINE Login channel ก่อน
+production/การทดสอบด้วยบัญชีผู้ใช้ทั่วไป. เมื่อ publish แล้ว LINE ไม่ให้เปลี่ยนกลับ
+เป็น Developing.
 
 ## 5. คัดลอก Supabase Auth callback ไปตั้งใน LINE Login
 
@@ -62,7 +76,7 @@ Manual configuration (OAuth2) แล้วสร้างและ enable provid
 | Client ID / Client secret | LINE Login Channel ID / Channel secret จากข้อ 4 |
 | Authorization URL | `https://access.line.me/oauth2/v2.1/authorize` |
 | Token URL | `https://api.line.me/oauth2/v2.1/token` |
-| UserInfo URL | `https://api.line.me/v2/profile` |
+| UserInfo URL | `https://api.line.me/oauth2/v2.1/userinfo` |
 | Scopes | `openid profile` |
 | Email optional | เปิด (`true`) |
 
@@ -98,8 +112,12 @@ deploy migration (ถ้ามี), Worker และเว็บตาม
 
 ## 9. Provision rich menu จากเครื่องของเจ้าของโดยไม่พิมพ์ token
 
-หลัง deploy ให้ใช้ PowerShell ใน root ของ repository และรับ token ผ่าน prompt
-เท่านั้น อย่าส่งคำสั่งพร้อม token เป็น command-line argument. รันตามลำดับนี้:
+**Gate ก่อนเริ่ม:** `npm run provision:line-menu` สร้าง menu, upload ภาพ และตั้งเป็น
+default ทันที. หากเจ้าของเลือก pilot แบบ per-user ให้ **อย่ารันคำสั่งนี้ในตอนนี้**;
+ไปทำข้อ 10 และทดสอบให้ผ่านก่อน แล้วค่อยกลับมาที่ข้อ 9 เพื่อ rollout default. หากไม่
+เลือก pilot หรือ pilot ผ่านแล้ว ให้ใช้ PowerShell ใน root ของ repository และรับ token
+ผ่าน prompt เท่านั้น อย่าส่งคำสั่งพร้อม token เป็น command-line argument. รันตาม
+ลำดับนี้:
 
 ```powershell
 $env:LINE_CHANNEL_ACCESS_TOKEN = Read-Host -MaskInput
@@ -115,14 +133,24 @@ Remove-Item Env:LINE_CHANNEL_ACCESS_TOKEN
 
 ## 10. ทางเลือก: ทดสอบ rich menu เฉพาะเจ้าของก่อนตั้ง default
 
-หากเลือกใช้ LINE per-user linking flow ให้สร้างและ upload rich menu ที่ **ยังไม่**
-ตั้ง default แล้ว link rich menu นั้นกับ LINE user ID ของเจ้าของผ่าน API/เครื่องมือ
-LINE ที่ได้รับอนุญาต. การ link ทำได้เฉพาะผู้ที่เพิ่ม OA เป็นเพื่อน และ user ID ต้อง
-อยู่ใน channel เดียวกัน. สคริปต์ `npm run provision:line-menu` ออกแบบมาเพื่อ rollout
-default จึงไม่ใช่คำสั่งสำหรับทดสอบรายบุคคล; ใช้ขั้นตอน per-user ตาม
-[LINE rich-menu reference](https://developers.line.biz/en/reference/messaging-api/nojs/)
-เมื่อเจ้าของต้องการทดสอบแบบนี้ แล้วจึงตั้ง menu ที่ผ่านทดสอบเป็น default ในข้อ 9
-หรือ LINE Official Account Manager.
+หากเลือก pilot ให้ทำทั้งหมดนี้ **ก่อน** กลับไปรันข้อ 9:
+
+1. ให้บัญชี LINE ของเจ้าของเพิ่ม OA เป็นเพื่อน และยืนยันว่าอยู่ใน Messaging API
+   channel/Provider เดียวกับ LINE Login.
+2. รัน `npm run validate:line-menu`; จาก terminal ที่เก็บ channel access token ไว้
+   เฉพาะ environment ให้ใช้ LINE API ตาม [rich-menu reference](https://developers.line.biz/en/reference/messaging-api/nojs/)
+   เพื่อ create rich menu จาก `ops/line/rich-menu.json` และ upload
+   `apps/web/public/line/rich-menu.png` โดย **ห้าม** เรียก default-menu endpoint
+   `POST /v2/bot/user/all/richmenu/{richMenuId}`.
+3. เก็บเฉพาะ `richMenuId` ที่ LINE ตอบกลับ แล้ว link menu นั้นกับ LINE Messaging API
+   user ID ของเจ้าของด้วย `POST /v2/bot/user/{userId}/richmenu/{richMenuId}`. User ID
+   ต้องเป็นของผู้ที่เพิ่ม OA เป็นเพื่อนและอยู่ใน channel เดียวกัน; อย่าใช้ LINE ID
+   แบบที่ผู้ใช้ตั้งเอง.
+4. ทดสอบพื้นที่แตะบน LINE mobile ตามข้อ 12. เมื่อ pilot ผ่าน ให้ unlink/delete menu
+   ทดสอบตามความเหมาะสม แล้วกลับไปข้อ 9 เพื่อ provision และตั้ง default สำหรับทุกคน.
+
+สคริปต์ `npm run provision:line-menu` จึงใช้สำหรับ default rollout เท่านั้น ไม่ใช่
+คำสั่งทดสอบรายบุคคล.
 
 ## 11. ทดสอบด้วยบัญชี LINE สองบัญชี
 
@@ -162,8 +190,11 @@ rich menu ไม่แสดงบน LINE desktop จึงต้องทด�
 
 หาก rollout มีปัญหา ให้หยุด traffic ใหม่ด้วยลำดับนี้:
 
-1. ลบ default rich menu ใน LINE Official Account Manager หรือเรียก API ลบ default
-   rich menu ของ OA
+1. สำหรับ menu ที่ provision ด้วย API นี้ ให้ลบ default rich menu ด้วย
+   `DELETE https://api.line.me/v2/bot/user/all/richmenu`; อย่าใช้ LINE Official
+   Account Manager จัดการ menu ที่สร้างด้วย Messaging API. หากต้องลบ object ที่
+   provision เพิ่มด้วย ให้เรียก `DELETE https://api.line.me/v2/bot/richmenu/{richMenuId}`
+   หลังลบ default แล้ว
 2. ปิดหรือ disable `custom:line` ใน Supabase Dashboard → Authentication → Providers
 3. คง Email/Password provider, Site URL, redirect URLs เดิม และหน้า sign-in เดิมไว้
 4. หากปัญหาอยู่ที่เว็บ ให้ rollback Worker ไป deployment ก่อนหน้า; database ใช้
