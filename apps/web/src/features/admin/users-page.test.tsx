@@ -20,6 +20,7 @@ const signedInUserId =
 const protectedUserId =
   "22222222-2222-4222-8222-222222222222";
 const friendId = "33333333-3333-4333-8333-333333333333";
+const lineUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const mutationId = "44444444-4444-4444-8444-444444444444";
 
 function userRow(
@@ -160,7 +161,7 @@ describe("Super Admin users page", () => {
     await screen.findByText("friend@example.test");
     await event.type(
       screen.getByRole("searchbox", {
-        name: "ค้นหาชื่อหรืออีเมล"
+        name: "ค้นหาชื่อ อีเมล หรือรหัสผู้ใช้"
       }),
       "  FRIEND "
     );
@@ -265,7 +266,7 @@ describe("Super Admin users page", () => {
     await event.click(deleteButton);
 
     expect(api.delete).toHaveBeenCalledWith(friendId, {
-      email: "friend@example.test",
+      confirmation: "friend@example.test",
       clientMutationId: mutationId
     });
     await waitFor(() => {
@@ -273,6 +274,59 @@ describe("Super Admin users page", () => {
         search: "",
         limit: 25
       });
+    });
+  });
+
+  it("labels an email-less LINE identity, hides email actions, and requires its exact UUID to delete", async () => {
+    const lineUser = userRow({
+      userId: lineUserId,
+      email: undefined,
+      emailConfirmedAt: undefined,
+      displayName: "มิน LINE"
+    });
+    const api = createApi({
+      users: [lineUser],
+      nextCursor: null
+    });
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(mutationId);
+    const event = userEvent.setup();
+
+    renderPage(api);
+    const lineIdentity = await screen.findByText("บัญชี LINE");
+    const row = lineIdentity.closest("tr")!;
+    expect(row).toHaveTextContent(lineUserId);
+    expect(
+      row.querySelector('[aria-label="ยืนยันบัญชี"]')
+    ).toBeNull();
+    expect(
+      row.querySelector('[aria-label="ส่งรีเซ็ตรหัสผ่าน"]')
+    ).toBeNull();
+    expect(withinRow(row, "ระงับบัญชี")).toBeEnabled();
+
+    await event.click(withinRow(row, "ลบบัญชีถาวร"));
+    const dialog = screen.getByRole("dialog", {
+      name: `ลบบัญชี LINE ${lineUserId}`
+    });
+    const confirmation = screen.getByLabelText(
+      "พิมพ์รหัสผู้ใช้เพื่อยืนยัน"
+    );
+    const deleteButton = dialog.querySelector<HTMLButtonElement>(
+      ".danger-confirm-submit"
+    )!;
+
+    await event.type(confirmation, lineUserId.toUpperCase());
+    expect(deleteButton).toBeDisabled();
+    await event.clear(confirmation);
+    await event.type(confirmation, ` ${lineUserId} `);
+    expect(deleteButton).toBeDisabled();
+    await event.clear(confirmation);
+    await event.type(confirmation, lineUserId);
+    expect(deleteButton).toBeEnabled();
+    await event.click(deleteButton);
+
+    expect(api.delete).toHaveBeenCalledWith(lineUserId, {
+      confirmation: lineUserId,
+      clientMutationId: mutationId
     });
   });
 

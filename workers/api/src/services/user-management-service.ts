@@ -36,7 +36,7 @@ export interface UserManagementRepository {
     actorUserId: string;
     targetUserId: string;
     clientMutationId: string;
-    normalizedEmail: string;
+    confirmation: string;
   }): Promise<{ privateWorkspacesDeleted: number }>;
   completeDeletion(input: {
     actorUserId: string;
@@ -121,6 +121,17 @@ export function createUserManagementService(options: {
     }
   }
 
+  function requireEmail(target: AdminUser): string {
+    if (!target.email) {
+      throw new ApiError(
+        "USER_ADMIN_ACTION_FAILED",
+        409,
+        "บัญชี LINE นี้ไม่มีอีเมลสำหรับดำเนินการนี้"
+      );
+    }
+    return target.email;
+  }
+
   async function recordAction(
     actor: InvitationActor,
     targetUserId: string,
@@ -142,6 +153,7 @@ export function createUserManagementService(options: {
 
     async confirm(actor, userId) {
       requireSuperAdmin(actor);
+      requireEmail(await options.authAdmin.getUser(userId));
       const user = await options.authAdmin.confirmUser(userId);
       await recordAction(actor, userId, "confirmed");
       return { user };
@@ -177,12 +189,13 @@ export function createUserManagementService(options: {
     async sendPasswordReset(actor, userId) {
       requireSuperAdmin(actor);
       const target = await options.authAdmin.getUser(userId);
+      const email = requireEmail(target);
       await recordAction(
         actor,
         userId,
         "password_reset_requested"
       );
-      await options.authAdmin.sendPasswordReset(target.email);
+      await options.authAdmin.sendPasswordReset(email);
     },
 
     async delete(actor, userId, input) {
@@ -210,14 +223,19 @@ export function createUserManagementService(options: {
       }
 
       requireMutableTarget(actor, target);
-      if (
-        target.email.trim().toLowerCase() !==
-        input.email.trim().toLowerCase()
-      ) {
+      const expectedConfirmation = target.email ?? target.userId;
+      const confirmationMatches = target.email
+        ? input.confirmation.toLowerCase() === target.email
+        : input.confirmation === target.userId;
+      if (!confirmationMatches) {
         throw new ApiError(
-          "USER_EMAIL_MISMATCH",
+          target.email
+            ? "USER_EMAIL_MISMATCH"
+            : "USER_CONFIRMATION_MISMATCH",
           409,
-          "อีเมลยืนยันไม่ตรงกับบัญชี"
+          target.email
+            ? "อีเมลยืนยันไม่ตรงกับบัญชี"
+            : "รหัสผู้ใช้ยืนยันไม่ตรงกับบัญชี"
         );
       }
 
@@ -228,7 +246,7 @@ export function createUserManagementService(options: {
         actorUserId: actor.userId,
         targetUserId: userId,
         clientMutationId: input.clientMutationId,
-        normalizedEmail: input.email
+        confirmation: expectedConfirmation
       });
       await options.authAdmin.deleteUser(userId);
       await options.repository.completeDeletion({

@@ -39,7 +39,7 @@ export type AdminUserStatus = z.infer<
 export const adminUserSchema = z
   .object({
     userId: uuidSchema,
-    email: normalizedEmailSchema,
+    email: normalizedEmailSchema.optional(),
     displayName: z.string().min(1).max(80),
     status: adminUserStatusSchema,
     createdAt: timestampSchema,
@@ -89,7 +89,10 @@ export type AdminUserMutationResponse = z.infer<
 
 export const deleteAdminUserSchema = z
   .object({
-    email: normalizedEmailSchema,
+    confirmation: z.union([
+      normalizedEmailSchema,
+      uuidSchema
+    ]),
     clientMutationId: uuidSchema
   })
   .strict();

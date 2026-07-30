@@ -46,6 +46,52 @@ function createAuth(): CloudAuth {
 }
 
 describe("user management API", () => {
+  it("parses a listed email-less LINE user", async () => {
+    const lineUser = {
+      ...user,
+      email: undefined,
+      emailConfirmedAt: undefined,
+      displayName: "มิน LINE"
+    };
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        users: [
+          {
+            userId: lineUser.userId,
+            displayName: lineUser.displayName,
+            status: lineUser.status,
+            createdAt: lineUser.createdAt,
+            privateWorkspaceCount:
+              lineUser.privateWorkspaceCount,
+            deletionPending: lineUser.deletionPending
+          }
+        ],
+        nextCursor: null
+      })
+    );
+    const api = createUserManagementApi({
+      auth: createAuth(),
+      fetch: requestFetch,
+      onUnauthenticated: vi.fn()
+    });
+
+    await expect(
+      api.list({ search: "มิน", limit: 25 })
+    ).resolves.toEqual({
+      users: [
+        {
+          userId: lineUser.userId,
+          displayName: "มิน LINE",
+          status: "active",
+          createdAt: lineUser.createdAt,
+          privateWorkspaceCount: 1,
+          deletionPending: false
+        }
+      ],
+      nextCursor: null
+    });
+  });
+
   it("encodes list filters and parses the response contract", async () => {
     const requestFetch = vi
       .fn<typeof fetch>()
@@ -94,7 +140,7 @@ describe("user management API", () => {
     await api.resume(userId);
     await api.sendPasswordReset(userId);
     await api.delete(userId, {
-      email: "friend@example.test",
+      confirmation: userId,
       clientMutationId: mutationId
     });
 
@@ -117,7 +163,7 @@ describe("user management API", () => {
         `/v1/admin/users/${userId}`,
         "DELETE",
         JSON.stringify({
-          email: "friend@example.test",
+          confirmation: userId,
           clientMutationId: mutationId
         })
       ]

@@ -141,7 +141,7 @@ describe("user management Worker routes", () => {
         method: "DELETE",
         headers: adminHeaders,
         body: JSON.stringify({
-          email: " FRIEND@Example.test ",
+          confirmation: userId,
           clientMutationId: mutationId
         })
       }
@@ -152,7 +152,7 @@ describe("user management Worker routes", () => {
       expect.objectContaining({ userId: adminId }),
       userId,
       {
-        email: "friend@example.test",
+        confirmation: userId,
         clientMutationId: mutationId
       }
     );
@@ -167,7 +167,7 @@ describe("user management Worker routes", () => {
         method: "DELETE",
         headers: adminHeaders,
         body: JSON.stringify({
-          email: "friend@example.test",
+          confirmation: "friend@example.test",
           clientMutationId: mutationId,
           force: true
         })

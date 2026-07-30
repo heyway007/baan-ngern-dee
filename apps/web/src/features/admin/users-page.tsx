@@ -58,6 +58,19 @@ function managementError(error: unknown): string {
   return "ยังจัดการผู้ใช้ไม่ได้ กรุณาลองใหม่";
 }
 
+function deletionConfirmation(user: AdminUser): string {
+  return user.email ?? user.userId;
+}
+
+function deletionConfirmationMatches(
+  user: AdminUser,
+  value: string
+): boolean {
+  return user.email
+    ? value.trim().toLowerCase() === user.email
+    : value === user.userId;
+}
+
 export function UsersPage({
   api,
   signedInUserId,
@@ -86,7 +99,8 @@ export function UsersPage({
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] =
     useState<AdminUser | null>(null);
-  const [typedEmail, setTypedEmail] = useState("");
+  const [typedConfirmation, setTypedConfirmation] =
+    useState("");
 
   const loadUsers = useCallback(
     async (state: PageState) => {
@@ -143,7 +157,7 @@ export function UsersPage({
   }
 
   function openDelete(user: AdminUser) {
-    setTypedEmail("");
+    setTypedConfirmation("");
     setDeleteTarget(user);
     setError(null);
     setNotice(null);
@@ -152,7 +166,10 @@ export function UsersPage({
   async function permanentlyDelete() {
     if (
       !deleteTarget ||
-      typedEmail.trim().toLowerCase() !== deleteTarget.email
+      !deletionConfirmationMatches(
+        deleteTarget,
+        typedConfirmation
+      )
     ) {
       return;
     }
@@ -162,11 +179,11 @@ export function UsersPage({
     setNotice(null);
     try {
       await api.delete(target.userId, {
-        email: target.email,
+        confirmation: deletionConfirmation(target),
         clientMutationId: crypto.randomUUID()
       });
       setDeleteTarget(null);
-      setTypedEmail("");
+      setTypedConfirmation("");
       setCursorStack([]);
       const firstPage = { search: pageState.search };
       setPageState(firstPage);
@@ -226,7 +243,7 @@ export function UsersPage({
 
       <section className="content-card admin-users-toolbar">
         <label htmlFor="admin-user-search">
-          ค้นหาชื่อหรืออีเมล
+          ค้นหาชื่อ อีเมล หรือรหัสผู้ใช้
         </label>
         <div className="admin-users-search">
           <Search size={18} aria-hidden="true" />
@@ -291,7 +308,14 @@ export function UsersPage({
                     >
                       <td data-label="ผู้ใช้">
                         <strong>{user.displayName}</strong>
-                        <small>{user.email}</small>
+                        {user.email ? (
+                          <small>{user.email}</small>
+                        ) : (
+                          <>
+                            <small>บัญชี LINE</small>
+                            <small>{user.userId}</small>
+                          </>
+                        )}
                       </td>
                       <td data-label="สถานะ">
                         <span
@@ -308,7 +332,8 @@ export function UsersPage({
                       </td>
                       <td data-label="การจัดการ">
                         <div className="admin-users-actions">
-                          {user.status === "unconfirmed" ? (
+                          {user.email &&
+                          user.status === "unconfirmed" ? (
                             <button
                               type="button"
                               className="icon-button"
@@ -369,7 +394,8 @@ export function UsersPage({
                               <RotateCcw aria-hidden="true" />
                             </button>
                           ) : null}
-                          {!user.deletionPending ? (
+                          {user.email &&
+                          !user.deletionPending ? (
                             <button
                               type="button"
                               className="icon-button"
@@ -457,7 +483,11 @@ export function UsersPage({
           className="danger-confirm-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={`ลบบัญชี ${deleteTarget.email}`}
+          aria-label={
+            deleteTarget.email
+              ? `ลบบัญชี ${deleteTarget.email}`
+              : `ลบบัญชี LINE ${deleteTarget.userId}`
+          }
         >
           <section className="danger-confirm-card">
             <button
@@ -470,25 +500,36 @@ export function UsersPage({
               <X aria-hidden="true" />
             </button>
             <span className="eyebrow">ลบถาวร</span>
-            <h2>ลบบัญชี {deleteTarget.email}</h2>
+            <h2>
+              {deleteTarget.email
+                ? `ลบบัญชี ${deleteTarget.email}`
+                : `ลบบัญชี LINE ${deleteTarget.userId}`}
+            </h2>
             <p>
               ระบบจะลบพื้นที่ส่วนตัวและข้อมูลส่วนตัวของผู้ใช้นี้
               การดำเนินการย้อนกลับไม่ได้
             </p>
             <div className="danger-confirm-target">
               <strong>{deleteTarget.displayName}</strong>
-              <span>{deleteTarget.email}</span>
+              <span>
+                {deleteTarget.email ?? "บัญชี LINE"}
+              </span>
+              {!deleteTarget.email ? (
+                <span>{deleteTarget.userId}</span>
+              ) : null}
               <span>{statusLabels[deleteTarget.status]}</span>
             </div>
-            <label htmlFor="delete-user-email">
-              พิมพ์อีเมลเพื่อยืนยัน
+            <label htmlFor="delete-user-confirmation">
+              {deleteTarget.email
+                ? "พิมพ์อีเมลเพื่อยืนยัน"
+                : "พิมพ์รหัสผู้ใช้เพื่อยืนยัน"}
             </label>
             <input
-              id="delete-user-email"
-              type="email"
-              value={typedEmail}
+              id="delete-user-confirmation"
+              type={deleteTarget.email ? "email" : "text"}
+              value={typedConfirmation}
               onChange={(event) =>
-                setTypedEmail(event.target.value)
+                setTypedConfirmation(event.target.value)
               }
               autoComplete="off"
               disabled={controlsDisabled}
@@ -508,8 +549,10 @@ export function UsersPage({
                 aria-label="ยืนยันลบบัญชีถาวร"
                 disabled={
                   controlsDisabled ||
-                  typedEmail.trim().toLowerCase() !==
-                    deleteTarget.email
+                  !deletionConfirmationMatches(
+                    deleteTarget,
+                    typedConfirmation
+                  )
                 }
                 onClick={() => void permanentlyDelete()}
               >

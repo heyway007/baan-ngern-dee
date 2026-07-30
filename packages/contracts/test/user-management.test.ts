@@ -31,22 +31,36 @@ describe("user management contracts", () => {
     ).toBe(false);
   });
 
-  it("requires the exact normalized email and mutation UUID for deletion", () => {
+  it("accepts a normalized email or exact user UUID for deletion confirmation", () => {
     expect(
       deleteAdminUserSchema.parse({
-        email: " FRIEND@Example.com ",
+        confirmation: " FRIEND@Example.com ",
         clientMutationId:
           "00000000-0000-4000-8000-000000000002"
       })
     ).toEqual({
-      email: "friend@example.com",
+      confirmation: "friend@example.com",
+      clientMutationId:
+        "00000000-0000-4000-8000-000000000002"
+    });
+
+    expect(
+      deleteAdminUserSchema.parse({
+        confirmation:
+          "00000000-0000-4000-8000-000000000003",
+        clientMutationId:
+          "00000000-0000-4000-8000-000000000002"
+      })
+    ).toEqual({
+      confirmation:
+        "00000000-0000-4000-8000-000000000003",
       clientMutationId:
         "00000000-0000-4000-8000-000000000002"
     });
 
     expect(() =>
       deleteAdminUserSchema.parse({
-        email: "friend@example.com",
+        confirmation: "not-an-email-or-uuid",
         clientMutationId: "not-a-uuid",
         password: "must-not-be-accepted"
       })
@@ -81,6 +95,38 @@ describe("user management contracts", () => {
           createdAt: "2026-07-28T10:00:00.000Z",
           privateWorkspaceCount: 1,
           deletionPending: true
+        }
+      ],
+      nextCursor: null
+    });
+  });
+
+  it("parses an email-less LINE user without inventing an email", () => {
+    expect(
+      adminUserListResponseSchema.parse({
+        users: [
+          {
+            userId:
+              "00000000-0000-4000-8000-000000000004",
+            displayName: "มิน LINE",
+            status: "active",
+            createdAt: "2026-07-30T10:00:00.000Z",
+            privateWorkspaceCount: 1,
+            deletionPending: false
+          }
+        ],
+        nextCursor: null
+      })
+    ).toEqual({
+      users: [
+        {
+          userId:
+            "00000000-0000-4000-8000-000000000004",
+          displayName: "มิน LINE",
+          status: "active",
+          createdAt: "2026-07-30T10:00:00.000Z",
+          privateWorkspaceCount: 1,
+          deletionPending: false
         }
       ],
       nextCursor: null

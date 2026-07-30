@@ -17,7 +17,7 @@ type SupabaseErrorBody = Readonly<{
 const rawAdminUserSchema = z
   .object({
     user_id: z.string().uuid(),
-    email: z.string().email(),
+    email: z.string().email().nullable(),
     display_name: z.string().min(1).max(80),
     status: z.enum([
       "unconfirmed",
@@ -87,7 +87,7 @@ function normalizeUser(
 ): AdminUser {
   return adminUserSchema.parse({
     userId: raw.user_id,
-    email: raw.email,
+    ...(raw.email ? { email: raw.email } : {}),
     displayName: raw.display_name,
     status: raw.status,
     createdAt: raw.created_at,
@@ -223,7 +223,7 @@ export function createSupabaseUserManagementRepository(
           p_actor_user_id: input.actorUserId,
           p_target_user_id: input.targetUserId,
           p_client_mutation_id: input.clientMutationId,
-          p_normalized_email: input.normalizedEmail
+          p_normalized_email: input.confirmation
         },
         z.array(purgeResultSchema).length(1)
       );

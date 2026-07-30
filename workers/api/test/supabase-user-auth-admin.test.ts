@@ -22,6 +22,102 @@ const rawUser = {
 };
 
 describe("Supabase user Auth Admin adapter", () => {
+  it.each([
+    [
+      { display_name: `  ${"ก".repeat(90)}  ` },
+      "ก".repeat(80)
+    ],
+    [
+      { display_name: " ", name: "มิน LINE" },
+      "มิน LINE"
+    ],
+    [
+      { display_name: " ", name: "", full_name: "มินเต็ม" },
+      "มินเต็ม"
+    ],
+    [
+      {
+        display_name: " ",
+        name: "",
+        full_name: " ",
+        preferred_username: "min-line"
+      },
+      "min-line"
+    ],
+    [{}, "ผู้ใช้ LINE"]
+  ])(
+    "normalizes an email-less LINE display name using provider metadata",
+    async (userMetadata, expectedDisplayName) => {
+      const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          id: userId,
+          user_metadata: userMetadata,
+          app_metadata: { provider: "custom:line" },
+          created_at: "2026-07-30T10:00:00.000Z",
+          last_sign_in_at: null,
+          email_confirmed_at: null,
+          banned_until: null
+        })
+      );
+      const authAdmin = createSupabaseUserAuthAdmin({
+        ...config,
+        fetch: requestFetch
+      });
+
+      await expect(authAdmin.getUser(userId)).resolves.toEqual({
+        userId,
+        displayName: expectedDisplayName,
+        status: "active",
+        createdAt: "2026-07-30T10:00:00.000Z",
+        privateWorkspaceCount: 0,
+        deletionPending: false
+      });
+    }
+  );
+
+  it.each([
+    [
+      {
+        banned_until: "2126-07-30T10:00:00.000Z",
+        app_metadata: { provider: "custom:line" }
+      },
+      "suspended"
+    ],
+    [
+      {
+        banned_until: "2126-07-30T10:00:00.000Z",
+        app_metadata: {
+          provider: "custom:line",
+          baan_ngern_dee_deletion_pending: true
+        }
+      },
+      "deletion_pending"
+    ]
+  ] as const)(
+    "normalizes an email-less LINE %s state as %s",
+    async (overrides, expectedStatus) => {
+      const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          id: userId,
+          user_metadata: { name: "มิน LINE" },
+          created_at: "2026-07-30T10:00:00.000Z",
+          last_sign_in_at: null,
+          email_confirmed_at: null,
+          ...overrides
+        })
+      );
+      const authAdmin = createSupabaseUserAuthAdmin({
+        ...config,
+        fetch: requestFetch
+      });
+
+      await expect(authAdmin.getUser(userId)).resolves.toMatchObject({
+        userId,
+        status: expectedStatus
+      });
+    }
+  );
+
   it("accepts Admin Auth users that omit optional timestamp fields", async () => {
     const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({

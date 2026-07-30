@@ -11,7 +11,7 @@ import type { UserAuthAdmin } from "./user-management-service";
 const rawAuthUserSchema = z
   .object({
     id: z.string().uuid(),
-    email: z.string().email(),
+    email: z.string().email().nullable().optional(),
     user_metadata: z.record(z.unknown()).default({}),
     app_metadata: z.record(z.unknown()).default({}),
     created_at: z.string().datetime({ offset: true }),
@@ -67,21 +67,34 @@ function normalizeUser(
   const isBanned =
     typeof raw.banned_until === "string" &&
     Date.parse(raw.banned_until) > Date.now();
-  const metadataName = raw.user_metadata.display_name;
+  const email = raw.email?.trim().toLowerCase() || undefined;
+  let metadataName: string | undefined;
+  for (const key of [
+    "display_name",
+    "name",
+    "full_name",
+    "preferred_username"
+  ]) {
+    const value = raw.user_metadata[key];
+    if (typeof value === "string" && value.trim()) {
+      metadataName = value.trim().slice(0, 80);
+      break;
+    }
+  }
   const displayName =
-    typeof metadataName === "string" && metadataName.trim()
-      ? metadataName.trim().slice(0, 80)
-      : raw.email.split("@")[0]!.slice(0, 80);
+    metadataName ??
+    email?.split("@")[0]?.slice(0, 80) ??
+    "ผู้ใช้ LINE";
 
   return adminUserSchema.parse({
     userId: raw.id,
-    email: raw.email,
+    ...(email ? { email } : {}),
     displayName,
     status: deletionPending
       ? "deletion_pending"
       : isBanned
         ? "suspended"
-        : raw.email_confirmed_at
+        : !email || raw.email_confirmed_at
           ? "active"
           : "unconfirmed",
     createdAt: raw.created_at,

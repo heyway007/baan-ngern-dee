@@ -28,6 +28,45 @@ const rawUser = {
 };
 
 describe("Supabase user management repository", () => {
+  it("parses an email-less LINE user and forwards provider-neutral search", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json([
+        {
+          ...rawUser,
+          email: null,
+          display_name: "มิน LINE",
+          email_confirmed_at: null
+        }
+      ])
+    );
+    const repository = createSupabaseUserManagementRepository({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(
+      repository.list({
+        search: userId,
+        limit: 25
+      })
+    ).resolves.toEqual({
+      users: [
+        {
+          userId,
+          displayName: "มิน LINE",
+          status: "active",
+          createdAt: "2026-07-28T10:00:00.000Z",
+          privateWorkspaceCount: 1,
+          deletionPending: false
+        }
+      ],
+      nextCursor: null
+    });
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[0]![1]?.body))
+    ).toMatchObject({ p_search_text: userId });
+  });
+
   it("lists one page and derives the stable next cursor", async () => {
     const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json([
@@ -120,7 +159,7 @@ describe("Supabase user management repository", () => {
         actorUserId: adminId,
         targetUserId: userId,
         clientMutationId: mutationId,
-        normalizedEmail: "friend@example.test"
+        confirmation: "friend@example.test"
       })
     ).resolves.toEqual({ privateWorkspacesDeleted: 1 });
     await repository.completeDeletion({

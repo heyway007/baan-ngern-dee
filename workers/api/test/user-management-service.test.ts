@@ -13,6 +13,7 @@ import {
 
 const adminId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
+const lineUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const normalId = "33333333-3333-4333-8333-333333333333";
 const mutationId = "44444444-4444-4444-8444-444444444444";
 
@@ -23,6 +24,14 @@ const activeUser: AdminUser = {
   status: "active",
   createdAt: "2026-07-28T10:00:00.000Z",
   emailConfirmedAt: "2026-07-28T10:00:01.000Z",
+  privateWorkspaceCount: 1,
+  deletionPending: false
+};
+const activeLineUser: AdminUser = {
+  userId: lineUserId,
+  displayName: "มิน LINE",
+  status: "active",
+  createdAt: "2026-07-30T10:00:00.000Z",
   privateWorkspaceCount: 1,
   deletionPending: false
 };
@@ -148,6 +157,61 @@ describe("user management service", () => {
     );
   });
 
+  it("suspends and resumes an email-less LINE user", async () => {
+    const { authAdmin, repository, service } =
+      createDependencies();
+    vi.mocked(authAdmin.getUser)
+      .mockResolvedValueOnce(activeLineUser)
+      .mockResolvedValueOnce({
+        ...activeLineUser,
+        status: "suspended",
+        bannedUntil: "2126-07-30T10:00:00.000Z"
+      });
+    vi.mocked(authAdmin.suspendUser).mockResolvedValueOnce({
+      ...activeLineUser,
+      status: "suspended",
+      bannedUntil: "2126-07-30T10:00:00.000Z"
+    });
+    vi.mocked(authAdmin.resumeUser).mockResolvedValueOnce(
+      activeLineUser
+    );
+
+    await expect(
+      service.suspend({ userId: adminId }, lineUserId)
+    ).resolves.toMatchObject({
+      user: { userId: lineUserId, status: "suspended" }
+    });
+    await expect(
+      service.resume({ userId: adminId }, lineUserId)
+    ).resolves.toMatchObject({
+      user: { userId: lineUserId, status: "active" }
+    });
+    expect(repository.recordAction).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["confirm", "confirmUser"],
+    ["sendPasswordReset", "sendPasswordReset"]
+  ] as const)(
+    "rejects %s for an email-less LINE user before calling the email action",
+    async (method, authMethod) => {
+      const { authAdmin, repository, service } =
+        createDependencies();
+      vi.mocked(authAdmin.getUser).mockResolvedValue(
+        activeLineUser
+      );
+
+      await expect(
+        service[method]({ userId: adminId }, lineUserId)
+      ).rejects.toMatchObject({
+        code: "USER_ADMIN_ACTION_FAILED",
+        status: 409
+      });
+      expect(authAdmin[authMethod]).not.toHaveBeenCalled();
+      expect(repository.recordAction).not.toHaveBeenCalled();
+    }
+  );
+
   it("protects the Super Admin and current actor from access changes", async () => {
     const { authAdmin, service } = createDependencies();
     vi.mocked(authAdmin.getUser).mockResolvedValue({
@@ -193,7 +257,7 @@ describe("user management service", () => {
 
     await expect(
       service.delete({ userId: adminId }, userId, {
-        email: "wrong@example.test",
+        confirmation: "wrong@example.test",
         clientMutationId: mutationId
       })
     ).rejects.toMatchObject({
@@ -208,7 +272,7 @@ describe("user management service", () => {
     const { events, service } = createDependencies();
 
     await service.delete({ userId: adminId }, userId, {
-      email: "friend@example.test",
+      confirmation: "friend@example.test",
       clientMutationId: mutationId
     });
 
@@ -238,7 +302,7 @@ describe("user management service", () => {
 
     await expect(
       service.delete({ userId: adminId }, userId, {
-        email: "friend@example.test",
+        confirmation: "friend@example.test",
         clientMutationId: mutationId
       })
     ).rejects.toMatchObject({
@@ -269,7 +333,7 @@ describe("user management service", () => {
     });
 
     await service.delete({ userId: adminId }, userId, {
-      email: "friend@example.test",
+      confirmation: "friend@example.test",
       clientMutationId: mutationId
     });
 
@@ -289,11 +353,54 @@ describe("user management service", () => {
     });
 
     await service.delete({ userId: adminId }, userId, {
-      email: "friend@example.test",
+      confirmation: "friend@example.test",
       clientMutationId: mutationId
     });
 
     expect(authAdmin.getUser).not.toHaveBeenCalled();
     expect(repository.purgePrivateData).not.toHaveBeenCalled();
+  });
+
+  it("deletes an email-less LINE user only with the exact UUID confirmation", async () => {
+    const { authAdmin, events, repository, service } =
+      createDependencies();
+    vi.mocked(authAdmin.getUser).mockImplementation(async () => {
+      events.push("auth.getUser");
+      return activeLineUser;
+    });
+
+    await expect(
+      service.delete({ userId: adminId }, lineUserId, {
+        confirmation: lineUserId.toUpperCase(),
+        clientMutationId: mutationId
+      })
+    ).rejects.toMatchObject({
+      code: "USER_CONFIRMATION_MISMATCH",
+      status: 409
+    });
+    expect(authAdmin.markDeletionPending).not.toHaveBeenCalled();
+    expect(repository.purgePrivateData).not.toHaveBeenCalled();
+
+    await service.delete({ userId: adminId }, lineUserId, {
+      confirmation: lineUserId,
+      clientMutationId: mutationId
+    });
+
+    expect(repository.purgePrivateData).toHaveBeenCalledWith({
+      actorUserId: adminId,
+      targetUserId: lineUserId,
+      clientMutationId: mutationId,
+      confirmation: lineUserId
+    });
+    expect(events).toEqual([
+      "repository.getDeletionState",
+      "auth.getUser",
+      "repository.getDeletionState",
+      "auth.getUser",
+      "auth.markDeletionPending",
+      "repository.purgePrivateData",
+      "auth.deleteUser",
+      "repository.completeDeletion"
+    ]);
   });
 });

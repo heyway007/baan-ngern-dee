@@ -11,6 +11,9 @@ const adminId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
 const otherId = "33333333-3333-4333-8333-333333333333";
 const mutationId = "44444444-4444-4444-8444-444444444444";
+const lineUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const lineMutationId =
+  "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 async function createDatabase() {
   const database = new PGlite();
@@ -132,6 +135,21 @@ describe("local PostgreSQL user management migration", () => {
         [workspaceId, userId]
       );
       await database.exec("set role service_role");
+      await database.query(
+        `insert into public.user_admin_audit (
+          actor_user_id,
+          target_user_id,
+          action,
+          client_mutation_id,
+          details
+        ) values ($1, $2, 'deletion_requested', $3, $4::jsonb)`,
+        [
+          adminId,
+          userId,
+          mutationId,
+          JSON.stringify({ email: "friend@example.test" })
+        ]
+      );
 
       const first = await database.query<{
         private_workspaces_deleted: number;
@@ -177,6 +195,123 @@ describe("local PostgreSQL user management migration", () => {
       );
       expect(state.rows).toEqual([
         { purge_completed: true, completed: true }
+      ]);
+    } finally {
+      await database.close();
+    }
+  });
+
+  it("lists, searches, counts, and purges an email-less LINE user by UUID confirmation", async () => {
+    const database = await createDatabase();
+    try {
+      const workspaceId =
+        "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+      await database.query(
+        `insert into auth.users (
+          id,
+          email,
+          raw_user_meta_data,
+          email_confirmed_at,
+          created_at
+        ) values ($1, null, $2::jsonb, null, now())`,
+        [
+          lineUserId,
+          JSON.stringify({
+            display_name: " ",
+            name: "มิน LINE",
+            full_name: "ชื่อที่ไม่ควรถูกเลือก"
+          })
+        ]
+      );
+      await database.query(
+        `insert into public.workspaces (
+          id,
+          owner_user_id,
+          name,
+          kind,
+          base_currency,
+          timezone
+        ) values ($1, $2, 'บ้านเงินของ มิน LINE', 'private', 'THB', 'Asia/Bangkok')`,
+        [workspaceId, lineUserId]
+      );
+      await database.query(
+        `insert into public.workspace_members (
+          workspace_id,
+          user_id,
+          role
+        ) values ($1, $2, 'owner')`,
+        [workspaceId, lineUserId]
+      );
+      await database.exec("set role service_role");
+
+      const listed = await database.query<{
+        user_id: string;
+        email: string | null;
+        display_name: string;
+        status: string;
+        private_workspace_count: number;
+      }>(
+        `select
+          user_id,
+          email,
+          display_name,
+          status,
+          private_workspace_count
+        from public.list_admin_users($1, 25, null, null)`,
+        [lineUserId]
+      );
+      expect(listed.rows).toEqual([
+        {
+          user_id: lineUserId,
+          email: null,
+          display_name: "มิน LINE",
+          status: "active",
+          private_workspace_count: 1
+        }
+      ]);
+      const foundByName = await database.query<{
+        user_id: string;
+      }>(
+        "select user_id from public.list_admin_users($1, 25, null, null)",
+        ["มิน LINE"]
+      );
+      expect(foundByName.rows).toEqual([
+        { user_id: lineUserId }
+      ]);
+
+      const first = await database.query<{
+        private_workspaces_deleted: number;
+      }>(
+        "select * from public.purge_private_user_data($1, $2, $3, $4)",
+        [adminId, lineUserId, lineMutationId, lineUserId]
+      );
+      const repeated = await database.query<{
+        private_workspaces_deleted: number;
+      }>(
+        "select * from public.purge_private_user_data($1, $2, $3, $4)",
+        [adminId, lineUserId, lineMutationId, lineUserId]
+      );
+      expect(first.rows).toEqual([
+        { private_workspaces_deleted: 1 }
+      ]);
+      expect(repeated.rows).toEqual(first.rows);
+
+      const audit = await database.query<{
+        confirmation: string | null;
+        legacy_email: string | null;
+      }>(
+        `select
+          details ->> 'confirmation' as confirmation,
+          details ->> 'email' as legacy_email
+        from public.user_admin_audit
+        where client_mutation_id = $1`,
+        [lineMutationId]
+      );
+      expect(audit.rows).toEqual([
+        {
+          confirmation: lineUserId,
+          legacy_email: null
+        }
       ]);
     } finally {
       await database.close();

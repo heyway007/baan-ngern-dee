@@ -120,16 +120,53 @@ default ทันที. หากเจ้าของเลือก pilot แ
 ลำดับนี้:
 
 ```powershell
-$env:LINE_CHANNEL_ACCESS_TOKEN = Read-Host -MaskInput
-npm run validate:line-menu
-npm run provision:line-menu
-Remove-Item Env:LINE_CHANNEL_ACCESS_TOKEN
+$lineTokenPointer = [System.IntPtr]::Zero
+$lineChannelAccessToken = $null
+$secureLineToken = $null
+
+try {
+  $secureLineToken = Read-Host "LINE channel access token" -AsSecureString
+  $lineTokenPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR(
+    $secureLineToken
+  )
+  $lineChannelAccessToken = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+    $lineTokenPointer
+  )
+  $env:LINE_CHANNEL_ACCESS_TOKEN = $lineChannelAccessToken
+
+  npm run validate:line-menu
+  if ($LASTEXITCODE -ne 0) {
+    throw "LINE rich-menu validation failed"
+  }
+
+  npm run provision:line-menu
+  if ($LASTEXITCODE -ne 0) {
+    throw "LINE rich-menu provisioning failed"
+  }
+}
+finally {
+  Remove-Item Env:LINE_CHANNEL_ACCESS_TOKEN -ErrorAction SilentlyContinue
+  $lineChannelAccessToken = $null
+  Clear-Variable -Name lineChannelAccessToken -ErrorAction SilentlyContinue
+
+  if ($lineTokenPointer -ne [System.IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($lineTokenPointer)
+    $lineTokenPointer = [System.IntPtr]::Zero
+  }
+  if ($null -ne $secureLineToken) {
+    $secureLineToken.Dispose()
+  }
+  Clear-Variable -Name secureLineToken -ErrorAction SilentlyContinue
+  Clear-Variable -Name lineTokenPointer -ErrorAction SilentlyContinue
+}
 ```
 
 `validate:line-menu` ตรวจภาพ PNG, พื้นที่แตะ และ URL ก่อนเรียก LINE; ส่วน
 `provision:line-menu` จะ validate, สร้าง rich menu, upload PNG และตั้งเป็น default
-ตามลำดับ. หากคำสั่งล้มเหลว ให้ล้าง environment variable ตามบรรทัดสุดท้ายก่อนตรวจ
-ข้อความผิดพลาด; ห้ามนำ token ไปวางใน issue หรือ log.
+ตามลำดับ. ตัวอย่างนี้ใช้ได้กับ Windows PowerShell 5.1 โดยรับ token เป็น
+`SecureString`, แปลงเป็นข้อความธรรมดาไว้ในหน่วยความจำเฉพาะช่วงเรียกสคริปต์ และล้าง
+environment variable, ตัวแปรข้อความธรรมดา และหน่วยความจำ BSTR ใน `finally`
+แม้คำสั่งล้มเหลว; ห้ามนำ token ไปวางใน issue หรือ log.
 
 ## 10. ทางเลือก: ทดสอบ rich menu เฉพาะเจ้าของก่อนตั้ง default
 
