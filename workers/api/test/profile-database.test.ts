@@ -16,6 +16,8 @@ describe("editable profile database migration", () => {
     const database = new PGlite();
     const ownerId = "11111111-1111-4111-8111-111111111111";
     const strangerId = "22222222-2222-4222-8222-222222222222";
+    const longNameId = "33333333-3333-4333-8333-333333333333";
+    const blankNameId = "44444444-4444-4444-8444-444444444444";
 
     try {
       await database.exec(`
@@ -47,12 +49,39 @@ describe("editable profile database migration", () => {
         await loadMigration("202607260001_identity_workspaces.sql")
       );
       await database.query(
-        "insert into auth.users (id, email) values ($1, 'owner@example.test'), ($2, 'stranger@example.test')",
-        [ownerId, strangerId]
+        `insert into auth.users (id, email) values
+          ($1, 'owner@example.test'),
+          ($2, 'stranger@example.test'),
+          ($3, 'long-name@example.test'),
+          ($4, 'blank-name@example.test')`,
+        [ownerId, strangerId, longNameId, blankNameId]
       );
       await database.query(
         "update public.profiles set display_name = ' Owner ' where id = $1",
         [ownerId]
+      );
+      await database.query(
+        "update public.profiles set display_name = $1 where id = $2",
+        [` ${"a".repeat(81)} `, longNameId]
+      );
+      await database.query(
+        "update public.profiles set display_name = '   ' where id = $1",
+        [blankNameId]
+      );
+      await database.query(
+        `insert into storage.buckets (
+          id,
+          name,
+          public,
+          file_size_limit,
+          allowed_mime_types
+        ) values (
+          'profile-avatars',
+          'legacy-avatars',
+          true,
+          1,
+          array['image/gif']
+        )`
       );
       await database.exec(
         await loadMigration("202607300021_editable_profiles.sql")
@@ -85,6 +114,18 @@ describe("editable profile database migration", () => {
       );
       expect(normalized.rows).toEqual([{ display_name: "Owner" }]);
 
+      const truncated = await database.query<{ display_name: string }>(
+        "select display_name from public.profiles where id = $1",
+        [longNameId]
+      );
+      expect(truncated.rows).toEqual([{ display_name: "a".repeat(80) }]);
+
+      const blank = await database.query<{ display_name: string | null }>(
+        "select display_name from public.profiles where id = $1",
+        [blankNameId]
+      );
+      expect(blank.rows).toEqual([{ display_name: null }]);
+
       await database.exec(`
         grant usage on schema auth to authenticated;
         grant execute on function auth.uid() to authenticated;
@@ -98,6 +139,13 @@ describe("editable profile database migration", () => {
         database.query(
           "update public.profiles set display_name = $1 where id = $2",
           [" ", ownerId]
+        )
+      ).rejects.toThrow();
+
+      await expect(
+        database.query(
+          "update public.profiles set display_name = $1 where id = $2",
+          ["a".repeat(81), ownerId]
         )
       ).rejects.toThrow();
 

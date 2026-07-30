@@ -1,5 +1,5 @@
 update public.profiles
-set display_name = nullif(btrim(display_name), '')
+set display_name = nullif(left(btrim(display_name), 80), '')
 where display_name is not null;
 
 alter table public.profiles
