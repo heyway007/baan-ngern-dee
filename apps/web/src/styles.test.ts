@@ -155,6 +155,22 @@ describe("global typography", () => {
     ).toBe("flex-end");
   });
 
+  it("keeps every mobile page-heading action exactly 44 pixels square", () => {
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+
+    expect(css).toMatch(
+      /@media \(max-width: 620px\)[\s\S]*?\.page-heading \.primary-button,\s*\.page-heading \.secondary-button\s*\{[^}]*box-sizing:\s*border-box;[^}]*width:\s*44px;[^}]*min-width:\s*44px;[^}]*height:\s*44px;[^}]*min-height:\s*44px;[^}]*flex:\s*0 0 44px;/
+    );
+  });
+
   it("keeps every monthly transaction month control at the same exact height", () => {
     document.body.innerHTML = `
       <div class="monthly-transaction-month-controls">

@@ -3725,34 +3725,35 @@ select:focus {
     font-size: 0.84rem;
   }
 
-  .page-heading .primary-button {
-    flex: 0 0 auto;
-    width: 2.8rem;
-    overflow: hidden;
-    padding: 0;
-    color: transparent;
-    gap: 0;
-  }
-
   .page-actions {
     gap: 0.35rem;
   }
 
+  .page-heading .primary-button,
   .page-heading .secondary-button {
-    width: 2.8rem;
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
     overflow: hidden;
     padding: 0;
     color: transparent;
     gap: 0;
   }
 
+  .page-heading .primary-button svg,
   .page-heading .secondary-button svg {
-    position: absolute;
+    position: static;
+    flex: 0 0 auto;
+  }
+
+  .page-heading .secondary-button svg {
     color: var(--forest);
   }
 
   .page-heading .primary-button svg {
-    position: absolute;
     color: white;
   }
 
