@@ -203,7 +203,7 @@ describe("Supabase profile gateway", () => {
 
   it("signs the encoded private path and returns an absolute safe URL", async () => {
     const signedPath =
-      `/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=abc`;
+      `/storage/v1/object/sign/profile-avatars/${userId}/avatar%20%231.png?token=abc`;
     const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({ signedURL: signedPath })
     );
@@ -226,6 +226,94 @@ describe("Supabase profile gateway", () => {
     expectAdminHeaders(headers);
     expect(headers.get("content-type")).toBe("application/json");
   });
+
+  it.each([
+    [
+      "Storage-root-relative",
+      `/object/sign/profile-avatars/${userId}/avatar.png?token=storage-root-token`,
+      `https://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=storage-root-token`
+    ],
+    [
+      "Storage-path-relative",
+      `object/sign/profile-avatars/${userId}/avatar.png?token=storage-path-token`,
+      `https://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=storage-path-token`
+    ],
+    [
+      "path-relative",
+      `storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=path-token`,
+      `https://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=path-token`
+    ],
+    [
+      "same-origin absolute",
+      `https://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=absolute-token`,
+      `https://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=absolute-token`
+    ]
+  ])(
+    "preserves a legitimate %s Supabase signed URL",
+    async (_format, signedURL, expectedUrl) => {
+      const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({ signedURL })
+      );
+      const gateway = createSupabaseProfileGateway({
+        ...config,
+        fetch: requestFetch
+      });
+
+      await expect(
+        gateway.signAvatar(`${userId}/avatar.png`, 86_400)
+      ).resolves.toBe(expectedUrl);
+    }
+  );
+
+  it.each([
+    [
+      "cross-origin absolute URL",
+      `https://attacker.example/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=${serviceRoleKey}`
+    ],
+    [
+      "cross-origin network-path URL",
+      `//attacker.example/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=${serviceRoleKey}`
+    ],
+    [
+      "HTTPS-to-HTTP downgrade",
+      `http://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/avatar.png?token=${serviceRoleKey}`
+    ],
+    [
+      "wrong private object path",
+      `https://project.supabase.co/storage/v1/object/sign/profile-avatars/${userId}/other.png?token=${serviceRoleKey}`
+    ],
+    [
+      "wrong Storage route",
+      `https://project.supabase.co/storage/v1/object/public/profile-avatars/${userId}/avatar.png?token=${serviceRoleKey}`
+    ]
+  ])(
+    "rejects a signed response with a %s",
+    async (_case, signedURL) => {
+      const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({ signedURL })
+      );
+      const gateway = createSupabaseProfileGateway({
+        ...config,
+        fetch: requestFetch
+      });
+
+      const error = await gateway
+        .signAvatar(`${userId}/avatar.png`, 86_400)
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        code: "PROFILE_LOAD_FAILED",
+        status: 500
+      });
+      expect(String((error as Error).message)).not.toContain(
+        serviceRoleKey
+      );
+      expect(String((error as Error).message)).not.toContain(
+        "attacker.example"
+      );
+    }
+  );
 
   it("deletes an exact private Storage object prefix", async () => {
     const requestFetch = vi
@@ -285,7 +373,7 @@ describe("Supabase profile gateway", () => {
       invoke: (gateway: ReturnType<
         typeof createSupabaseProfileGateway
       >) => gateway.signAvatar(`${userId}/avatar.png`, 86_400),
-      code: "PROFILE_IMAGE_UPLOAD_FAILED"
+      code: "PROFILE_LOAD_FAILED"
     },
     {
       name: "a whitespace-only signed URL",
@@ -295,7 +383,7 @@ describe("Supabase profile gateway", () => {
       invoke: (gateway: ReturnType<
         typeof createSupabaseProfileGateway
       >) => gateway.signAvatar(`${userId}/avatar.png`, 86_400),
-      code: "PROFILE_IMAGE_UPLOAD_FAILED"
+      code: "PROFILE_LOAD_FAILED"
     }
   ])(
     "maps a malformed $name response to a secret-free ApiError",

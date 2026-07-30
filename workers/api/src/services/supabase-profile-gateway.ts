@@ -105,6 +105,7 @@ export function createSupabaseProfileGateway(
 ): ProfileGateway {
   const requestFetch = config.fetch ?? fetch;
   const baseUrl = config.url.replace(/\/+$/, "");
+  const supabaseOrigin = new URL(`${baseUrl}/`).origin;
 
   async function request(
     path: string,
@@ -157,6 +158,13 @@ export function createSupabaseProfileGateway(
   function storageObjectPath(path: string): string {
     return (
       "/storage/v1/object/profile-avatars/" +
+      encodeObjectPath(path)
+    );
+  }
+
+  function signedObjectPath(path: string): string {
+    return (
+      "/storage/v1/object/sign/profile-avatars/" +
       encodeObjectPath(path)
     );
   }
@@ -241,8 +249,9 @@ export function createSupabaseProfileGateway(
     },
 
     async signAvatar(path, expiresIn) {
+      const expectedSignedPath = signedObjectPath(path);
       const response = await request(
-        `/storage/v1/object/sign/profile-avatars/${encodeObjectPath(path)}`,
+        expectedSignedPath,
         {
           method: "POST",
           headers: {
@@ -250,12 +259,12 @@ export function createSupabaseProfileGateway(
           },
           body: JSON.stringify({ expiresIn })
         },
-        "storage"
+        "profile"
       );
       const result = await parseJson(
         response,
         signedUrlSchema,
-        "storage"
+        "profile"
       );
 
       try {
@@ -263,19 +272,27 @@ export function createSupabaseProfileGateway(
         if (!normalizedSignedUrl) {
           throw new TypeError("Signed URL is empty");
         }
+        const projectRelativeSignedUrl =
+          normalizedSignedUrl.startsWith("/object/")
+            ? `/storage/v1${normalizedSignedUrl}`
+            : normalizedSignedUrl.startsWith("object/")
+              ? `/storage/v1/${normalizedSignedUrl}`
+              : normalizedSignedUrl;
         const signedUrl = new URL(
-          normalizedSignedUrl,
+          projectRelativeSignedUrl,
           `${baseUrl}/`
         );
         if (
-          signedUrl.protocol !== "https:" &&
-          signedUrl.protocol !== "http:"
+          signedUrl.origin !== supabaseOrigin ||
+          signedUrl.pathname !== expectedSignedPath ||
+          signedUrl.username ||
+          signedUrl.password
         ) {
-          throw new TypeError("Unsupported signed URL protocol");
+          throw new TypeError("Unexpected signed URL target");
         }
         return signedUrl.toString();
       } catch {
-        throw controlledFailure("storage");
+        throw controlledFailure("profile");
       }
     },
 
