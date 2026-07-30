@@ -48,14 +48,14 @@ export function LineWorkspacePage({
     }
     started.current = true;
 
-    void api
-      .createPrivateWorkspace({
-        name: lineWorkspaceName(session.displayName),
-        baseCurrency: "THB",
-        timeZone: "Asia/Bangkok"
-      })
-      .then(onWorkspaceChanged)
-      .catch(async () => {
+    void (async () => {
+      try {
+        await api.createPrivateWorkspace({
+          name: lineWorkspaceName(session.displayName),
+          baseCurrency: "THB",
+          timeZone: "Asia/Bangkok"
+        });
+      } catch {
         try {
           await onWorkspaceChanged();
         } catch {
@@ -64,7 +64,15 @@ export function LineWorkspacePage({
         if (!hasWorkspaceRef.current) {
           setFailed(true);
         }
-      });
+        return;
+      }
+
+      try {
+        await onWorkspaceChanged();
+      } catch {
+        // Workspace creation succeeded; wait for a later authoritative refresh.
+      }
+    })();
   }, [
     api,
     attempt,

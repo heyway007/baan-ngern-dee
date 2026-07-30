@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -166,6 +166,22 @@ describe("LineWorkspacePage", () => {
       expect(api.createPrivateWorkspace).toHaveBeenCalledTimes(2);
       expect(onWorkspaceChanged).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("does not retry a failed refresh after successful workspace creation", async () => {
+    const onWorkspaceChanged = vi.fn().mockRejectedValue(new Error("refresh failed"));
+    renderBootstrap({
+      api: { createPrivateWorkspace: vi.fn().mockResolvedValue(undefined) },
+      onWorkspaceChanged
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onWorkspaceChanged).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("กำลังสร้างพื้นที่ส่วนตัว")).toBeInTheDocument();
   });
 
   it("lets a refreshed workspace win over a creation error", async () => {
