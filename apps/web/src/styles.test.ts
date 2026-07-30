@@ -171,6 +171,25 @@ describe("global typography", () => {
     );
   });
 
+  it("centers mobile page-heading icons independently of hidden labels", () => {
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+
+    expect(css).toMatch(
+      /@media \(max-width: 620px\)[\s\S]*?\.page-heading \.primary-button,\s*\.page-heading \.secondary-button\s*\{[^}]*position:\s*relative;/
+    );
+    expect(css).toMatch(
+      /\.page-heading \.primary-button svg,\s*\.page-heading \.secondary-button svg\s*\{[^}]*position:\s*absolute;[^}]*left:\s*50%;[^}]*top:\s*50%;[^}]*transform:\s*translate\(-50%,\s*-50%\);/
+    );
+  });
+
   it("gives the mobile recurring month selector its own flexible action row", () => {
     const css = [...document.styleSheets]
       .flatMap((sheet) => {

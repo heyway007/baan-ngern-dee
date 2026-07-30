@@ -3741,6 +3741,7 @@ select:focus {
 
   .page-heading .primary-button,
   .page-heading .secondary-button {
+    position: relative;
     box-sizing: border-box;
     width: 44px;
     min-width: 44px;
@@ -3755,8 +3756,12 @@ select:focus {
 
   .page-heading .primary-button svg,
   .page-heading .secondary-button svg {
-    position: static;
+    position: absolute;
+    left: 50%;
+    top: 50%;
     flex: 0 0 auto;
+    margin: 0;
+    transform: translate(-50%, -50%);
   }
 
   .page-heading .secondary-button svg {
