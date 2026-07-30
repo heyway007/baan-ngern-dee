@@ -171,6 +171,28 @@ describe("global typography", () => {
     );
   });
 
+  it("gives the mobile recurring month selector its own flexible action row", () => {
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+
+    expect(css).toMatch(
+      /@media \(max-width: 620px\)[\s\S]*?\.page-heading\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/
+    );
+    expect(css).toMatch(
+      /\.recurring-page \.page-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 44px;[^}]*align-items:\s*end;/
+    );
+    expect(css).toMatch(
+      /\.recurring-page \.month-selector\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0(?:px)?;/
+    );
+  });
+
   it("keeps every monthly transaction month control at the same exact height", () => {
     document.body.innerHTML = `
       <div class="monthly-transaction-month-controls">

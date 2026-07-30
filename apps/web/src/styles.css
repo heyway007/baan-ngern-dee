@@ -3714,7 +3714,10 @@ select:focus {
   }
 
   .page-heading {
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 1rem;
   }
 
   .page-heading h1 {
@@ -3726,7 +3729,14 @@ select:focus {
   }
 
   .page-actions {
+    width: 100%;
+    justify-content: flex-end;
     gap: 0.35rem;
+  }
+
+  .page-heading > .primary-button,
+  .page-heading > .secondary-button {
+    justify-self: end;
   }
 
   .page-heading .primary-button,
@@ -3851,8 +3861,15 @@ select:focus {
     width: 100%;
   }
 
-  .month-selector {
-    width: 8.4rem;
+  .recurring-page .page-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: end;
+  }
+
+  .recurring-page .month-selector {
+    width: 100%;
+    min-width: 0;
   }
 
   .transaction-type-switch {
