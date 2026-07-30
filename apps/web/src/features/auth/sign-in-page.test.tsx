@@ -1,5 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import {
+  MemoryRouter,
+  Route,
+  Routes
+} from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -42,10 +48,46 @@ function authActions() {
   >;
 }
 
+function renderWithRouter(ui: ReactNode) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
+
 describe("SignInPage", () => {
+  it("opens LINE login with client-side routing", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <SignInPage
+              auth={authActions()}
+              turnstileSiteKey="turnstile-site-key"
+              onAuthenticated={vi.fn()}
+            />
+          }
+        />
+        <Route
+          path="/line"
+          element={<p>LINE route opened</p>}
+        />
+      </Routes>
+    );
+
+    await user.click(
+      screen.getByRole("link", {
+        name: "เข้าสู่ระบบด้วย LINE"
+      })
+    );
+
+    expect(
+      screen.getByText("LINE route opened")
+    ).toBeInTheDocument();
+  });
+
   it("links LINE login from account modes and hides it during reset", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithRouter(
       <SignInPage
         auth={authActions()}
         turnstileSiteKey="turnstile-site-key"
@@ -93,7 +135,7 @@ describe("SignInPage", () => {
         })
     );
     const onAuthenticated = vi.fn();
-    render(
+    renderWithRouter(
       <SignInPage
         auth={auth}
         turnstileSiteKey="turnstile-site-key"
@@ -134,7 +176,7 @@ describe("SignInPage", () => {
     const auth = authActions();
     auth.signUp.mockResolvedValue(session);
     const onAuthenticated = vi.fn();
-    render(
+    renderWithRouter(
       <SignInPage
         auth={auth}
         turnstileSiteKey="turnstile-site-key"
@@ -179,7 +221,7 @@ describe("SignInPage", () => {
 
   it("orders sign-up fields for visual and keyboard navigation", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithRouter(
       <SignInPage
         auth={authActions()}
         turnstileSiteKey="turnstile-site-key"
@@ -218,7 +260,7 @@ describe("SignInPage", () => {
   it("rejects mismatched password confirmation before signup", async () => {
     const user = userEvent.setup();
     const auth = authActions();
-    render(
+    renderWithRouter(
       <SignInPage
         auth={auth}
         turnstileSiteKey="turnstile-site-key"
@@ -255,7 +297,7 @@ describe("SignInPage", () => {
   it("requires a Turnstile token before signup", async () => {
     const user = userEvent.setup();
     const auth = authActions();
-    render(
+    renderWithRouter(
       <SignInPage
         auth={auth}
         turnstileSiteKey="turnstile-site-key"
@@ -293,7 +335,7 @@ describe("SignInPage", () => {
     const user = userEvent.setup();
     const auth = authActions();
     auth.requestPasswordReset.mockResolvedValue(undefined);
-    render(
+    renderWithRouter(
       <SignInPage
         auth={auth}
         turnstileSiteKey="turnstile-site-key"
@@ -327,7 +369,7 @@ describe("SignInPage", () => {
     auth.signIn.mockRejectedValue(
       new CloudAuthFailure("AUTH_INVALID_CREDENTIALS")
     );
-    render(
+    renderWithRouter(
       <SignInPage
         auth={auth}
         turnstileSiteKey="turnstile-site-key"

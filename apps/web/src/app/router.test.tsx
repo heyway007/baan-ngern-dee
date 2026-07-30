@@ -210,10 +210,11 @@ function createDependencies(options: {
   } satisfies UserManagementApi;
   const destinationStorage =
     options.destinationStorage ?? new MemoryStorage();
+  const loadConfig = vi.fn().mockResolvedValue(config);
   const dependencies: CloudRouterDependencies = {
     storage: options.storage ?? new MemoryStorage(),
     destinationStorage,
-    loadConfig: vi.fn().mockResolvedValue(config),
+    loadConfig,
     createAuth: vi.fn(() => auth),
     createApi: vi.fn(() => api),
     createAdminApi: vi.fn(() => adminApi),
@@ -234,6 +235,7 @@ function createDependencies(options: {
     destinationStorage,
     createPrivateWorkspace,
     getSnapshot,
+    loadConfig,
     materializeRecurringPeriod,
     emitSession(nextSession: CloudSession | null) {
       listener?.(nextSession);
@@ -242,6 +244,42 @@ function createDependencies(options: {
 }
 
 describe("cloud application flow", () => {
+  it("keeps the loaded configuration when opening LINE login from sign in", async () => {
+    const user = userEvent.setup();
+    const {
+      auth,
+      dependencies,
+      loadConfig
+    } = createDependencies({ session: null });
+    loadConfig
+      .mockResolvedValueOnce(config)
+      .mockRejectedValue(
+        new Error("local config endpoint unavailable")
+      );
+
+    render(
+      <MemoryRouter initialEntries={["/sign-in"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await user.click(
+      await screen.findByRole("link", {
+        name: "เข้าสู่ระบบด้วย LINE"
+      })
+    );
+
+    await waitFor(() => {
+      expect(auth.startLineSignIn).toHaveBeenCalledOnce();
+    });
+    expect(loadConfig).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("heading", {
+        name: "ยังเชื่อมต่อข้อมูลไม่ได้"
+      })
+    ).not.toBeInTheDocument();
+  });
+
   it("does not reload finance data for the same authenticated session event", async () => {
     const {
       dependencies,

@@ -8,6 +8,7 @@ import {
   useState,
   type FormEvent
 } from "react";
+import { Link } from "react-router-dom";
 
 import {
   CloudAuthFailure,
@@ -239,9 +240,9 @@ export function SignInPage({
 
         {mode !== "reset" ? (
           <div className="line-login-options">
-            <a
+            <Link
               className="line-login-button"
-              href="/line?next=/overview"
+              to="/line?next=/overview"
             >
               <span
                 className="line-login-mark"
@@ -250,7 +251,7 @@ export function SignInPage({
                 LINE
               </span>
               <span>เข้าสู่ระบบด้วย LINE</span>
-            </a>
+            </Link>
             <div className="auth-divider" aria-hidden="true">
               <span>หรือเข้าสู่ระบบด้วยอีเมล</span>
             </div>
