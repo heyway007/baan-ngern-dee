@@ -822,7 +822,9 @@ describe("cloud application flow", () => {
       })
     ).toBeInTheDocument();
     expect(adminApi.capabilities).toHaveBeenCalledOnce();
-    expect(userManagementApi.list).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(userManagementApi.list).toHaveBeenCalled();
+    });
     expect(
       screen.getByRole("link", { name: "จัดการผู้ใช้" })
     ).toHaveAttribute("href", "/admin/users");
