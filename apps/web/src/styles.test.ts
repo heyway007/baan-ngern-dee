@@ -505,6 +505,12 @@ describe("global typography", () => {
 
   it("provides a visible keyboard-focus proxy for the profile avatar picker", () => {
     document.body.innerHTML = `
+      <style>
+        .profile-page input {
+          width: 100%;
+          max-width: none;
+        }
+      </style>
       <div style="position: relative; width: 390px; overflow-x: auto">
         <main class="profile-page">
           <div class="profile-avatar-actions">
@@ -529,6 +535,7 @@ describe("global typography", () => {
     );
     expect(inputStyle.position).toBe("absolute");
     expect(inputStyle.width).toBe("1px");
+    expect(inputStyle.inlineSize).toBe("1px");
     expect(inputStyle.minWidth).toBe("1px");
     expect(inputStyle.maxWidth).toBe("1px");
     expect(inputStyle.height).toBe("1px");

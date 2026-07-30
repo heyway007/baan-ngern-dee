@@ -4744,6 +4744,15 @@ select:focus {
   }
 }
 
+.profile-avatar-actions > input.profile-avatar-file {
+  width: 1px;
+  min-width: 1px;
+  max-width: 1px;
+  inline-size: 1px;
+  min-inline-size: 1px;
+  max-inline-size: 1px;
+}
+
 /* Financial planning */
 .planning-page {
   display: grid;
