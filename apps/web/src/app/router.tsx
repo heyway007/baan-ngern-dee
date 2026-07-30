@@ -313,7 +313,10 @@ export function FinanceRoutes({
         userManagementApiRef.current = userManagementApi;
         publicInvitationApiRef.current = publicInvitationApi;
 
-        const handleSession = (session: CloudSession | null) => {
+        const handleSession = (
+          session: CloudSession | null,
+          showLoadingState = false
+        ) => {
           if (!activeRef.current) return;
           if (!session) {
             setCanManageInvitations(null);
@@ -344,15 +347,20 @@ export function FinanceRoutes({
                 setCanManageUsers(false);
               }
             });
-          void loadSnapshot(session, api);
+          void loadSnapshot(session, api, showLoadingState);
         };
 
         let session = await auth.getSession();
         if (shouldRefreshLineSession && session) {
           session = await auth.refreshSession();
         }
-        handleSession(session);
-        unsubscribe = auth.subscribe(handleSession);
+        handleSession(session, true);
+        unsubscribe = auth.subscribe((nextSession) => {
+          // Supabase emits TOKEN_REFRESHED when a background tab becomes
+          // visible again. Refresh data silently so the whole app does not
+          // flash back to the loading screen on every tab switch.
+          handleSession(nextSession);
+        });
       } catch {
         if (activeRef.current) {
           dispatch({
