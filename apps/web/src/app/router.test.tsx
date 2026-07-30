@@ -385,6 +385,54 @@ describe("cloud application flow", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps one failed LINE workspace bootstrap stable while an empty snapshot is delayed", async () => {
+    let resolveDelayedSnapshot:
+      | ((snapshot: FinanceSnapshot) => void)
+      | undefined;
+    const delayedSnapshot = new Promise<FinanceSnapshot>(
+      (resolve) => {
+        resolveDelayedSnapshot = resolve;
+      }
+    );
+    const createPrivateWorkspace = vi
+      .fn()
+      .mockRejectedValue(new Error("failed"));
+    const {
+      dependencies,
+      getSnapshot
+    } = createDependencies({
+      session: { ...session, email: undefined },
+      snapshot: emptySnapshot,
+      createPrivateWorkspace
+    });
+    getSnapshot
+      .mockReset()
+      .mockResolvedValueOnce(emptySnapshot)
+      .mockReturnValueOnce(delayedSnapshot)
+      .mockResolvedValue(emptySnapshot);
+
+    render(
+      <MemoryRouter initialEntries={["/line/callback"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(createPrivateWorkspace).toHaveBeenCalledOnce();
+      expect(getSnapshot).toHaveBeenCalledTimes(2);
+    });
+    resolveDelayedSnapshot?.(emptySnapshot);
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent("ยังสร้างพื้นที่ส่วนตัวไม่สำเร็จ");
+    expect(
+      screen.getByRole("button", { name: "ลองอีกครั้ง" })
+    ).toBeInTheDocument();
+    expect(createPrivateWorkspace).toHaveBeenCalledOnce();
+    expect(getSnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it("shows a controlled LINE callback failure while signed out without redirecting again", async () => {
     const { auth, dependencies } = createDependencies({
       session: null

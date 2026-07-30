@@ -225,8 +225,14 @@ export function FinanceRoutes({
   const activeRef = useRef(true);
 
   const loadSnapshot = useCallback(
-    async (session: CloudSession, api: RemoteFinanceApi) => {
-      dispatch({ type: "SESSION_FOUND", session });
+    async (
+      session: CloudSession,
+      api: RemoteFinanceApi,
+      showLoadingState = true
+    ) => {
+      if (showLoadingState) {
+        dispatch({ type: "SESSION_FOUND", session });
+      }
       try {
         const initial = await api.getSnapshot();
         let snapshot = initial;
@@ -392,6 +398,21 @@ export function FinanceRoutes({
       apiRef.current
     ) {
       return loadSnapshot(state.session, apiRef.current);
+    }
+    return Promise.resolve();
+  }
+
+  function refreshLineWorkspace() {
+    if (
+      state.status === "ready" &&
+      state.session &&
+      apiRef.current
+    ) {
+      return loadSnapshot(
+        state.session,
+        apiRef.current,
+        false
+      );
     }
     return Promise.resolve();
   }
@@ -581,7 +602,7 @@ export function FinanceRoutes({
             destinationStorage={
               dependencies.destinationStorage
             }
-            onWorkspaceChanged={refreshSnapshot}
+            onWorkspaceChanged={refreshLineWorkspace}
           />
         }
       />
@@ -596,7 +617,7 @@ export function FinanceRoutes({
             destinationStorage={
               dependencies.destinationStorage
             }
-            onWorkspaceChanged={refreshSnapshot}
+            onWorkspaceChanged={refreshLineWorkspace}
           />
         }
       />
