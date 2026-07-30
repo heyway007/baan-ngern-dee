@@ -74,16 +74,9 @@ describe("LINE entry helpers", () => {
   });
 
   it("builds bounded Thai workspace names", () => {
-    expect(
-      lineWorkspaceName(" \u00e0\u00b8\u00a1\u00e0\u00b8\u00b4\u00e0\u00b8\u2122 ")
-    ).toBe(
-      "\u00e0\u00b8\u0161\u00e0\u00b9\u2030\u00e0\u00b8\u00b2\u00e0\u00b8\u2122\u00e0\u00b9\u20ac\u00e0\u00b8\u2021\u00e0\u00b8\u00b4\u00e0\u00b8\u2122\u00e0\u00b8\u201a\u00e0\u00b8\u00ad\u00e0\u00b8\u2021 \u00e0\u00b8\u00a1\u00e0\u00b8\u00b4\u00e0\u00b8\u2122"
-    );
-    expect(lineWorkspaceName("")).toBe(
-      "\u00e0\u00b8\u0081\u00e0\u00b8\u00b2\u00e0\u00b8\u00a3\u00e0\u00b9\u20ac\u00e0\u00b8\u2021\u00e0\u00b8\u00b4\u00e0\u00b8\u2122\u00e0\u00b8\u201a\u00e0\u00b8\u00ad\u00e0\u00b8\u2021\u00e0\u00b8\u2030\u00e0\u00b8\u00b1\u00e0\u00b8\u2122"
-    );
-    expect(
-      lineWorkspaceName("\u00e0\u00b8\u0081".repeat(100))
-    ).toHaveLength(80);
+    expect(lineWorkspaceName(" มิน ")).toBe("บ้านเงินของ มิน");
+    expect(lineWorkspaceName("")).toBe("การเงินของฉัน");
+    expect(lineWorkspaceName("ผู้ใช้ LINE")).toBe("การเงินของฉัน");
+    expect(lineWorkspaceName("ก".repeat(100))).toHaveLength(80);
   });
 });

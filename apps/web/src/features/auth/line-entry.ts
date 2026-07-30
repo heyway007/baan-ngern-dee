@@ -44,16 +44,11 @@ export function clearLineDestination(
 
 export function lineWorkspaceName(displayName: string): string {
   const name = displayName.trim();
-  if (
-    !name ||
-    name === "\u00e0\u00b8\u0153\u00e0\u00b8\u00b9\u00e0\u00b9\u2030\u00e0\u00b9\u0192\u00e0\u00b8\u0160\u00e0\u00b9\u2030 LINE"
-  ) {
-    return "\u00e0\u00b8\u0081\u00e0\u00b8\u00b2\u00e0\u00b8\u00a3\u00e0\u00b9\u20ac\u00e0\u00b8\u2021\u00e0\u00b8\u00b4\u00e0\u00b8\u2122\u00e0\u00b8\u201a\u00e0\u00b8\u00ad\u00e0\u00b8\u2021\u00e0\u00b8\u2030\u00e0\u00b8\u00b1\u00e0\u00b8\u2122";
+  if (!name || name === "ผู้ใช้ LINE") {
+    return "การเงินของฉัน";
   }
 
-  return Array.from(
-    `\u00e0\u00b8\u0161\u00e0\u00b9\u2030\u00e0\u00b8\u00b2\u00e0\u00b8\u2122\u00e0\u00b9\u20ac\u00e0\u00b8\u2021\u00e0\u00b8\u00b4\u00e0\u00b8\u2122\u00e0\u00b8\u201a\u00e0\u00b8\u00ad\u00e0\u00b8\u2021 ${name}`
-  )
+  return Array.from(`บ้านเงินของ ${name}`)
     .slice(0, 80)
     .join("");
 }
