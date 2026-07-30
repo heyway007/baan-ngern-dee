@@ -11,6 +11,17 @@ export {
 } from "./accounts";
 export type { ApiErrorCode, ApiErrorResponse } from "./errors";
 export { apiErrorCodes } from "./errors";
+export type {
+  ProfileAccountChannel,
+  ProfileAvatar,
+  UpdateProfileInput,
+  UserProfile
+} from "./profile";
+export {
+  PROFILE_AVATAR_MAX_BYTES,
+  updateProfileSchema,
+  userProfileSchema
+} from "./profile";
 export type { PublicAppConfig } from "./cloud";
 export { publicAppConfigSchema } from "./cloud";
 export type {
