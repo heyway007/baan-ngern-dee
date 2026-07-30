@@ -268,4 +268,25 @@ describe("global typography", () => {
       ).toBe("24px");
     }
   });
+
+  it("centers responsive LINE entry cards with accessible actions", () => {
+    document.body.innerHTML = `
+      <main class="line-entry-shell">
+        <section class="line-entry-card">
+          <div class="line-entry-actions"><button>ลองอีกครั้ง</button></div>
+        </section>
+      </main>
+    `;
+
+    expect(
+      getComputedStyle(document.querySelector(".line-entry-shell")!).display
+    ).toBe("grid");
+    expect(
+      getComputedStyle(document.querySelector(".line-entry-card")!).maxWidth
+    ).toBe("30rem");
+    expect(
+      getComputedStyle(document.querySelector(".line-entry-actions > button")!)
+        .minHeight
+    ).toBe("44px");
+  });
 });

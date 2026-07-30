@@ -20,6 +20,37 @@
   --shadow: 0 18px 50px rgba(32, 52, 43, 0.09);
 }
 
+.line-entry-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(138, 174, 120, 0.2), transparent 28rem),
+    var(--cream);
+}
+
+.line-entry-card {
+  width: min(100%, 30rem);
+  max-width: 30rem;
+  padding: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.line-entry-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.line-entry-actions a,
+.line-entry-actions button {
+  min-height: 44px;
+}
+
 * {
   box-sizing: border-box;
 }
