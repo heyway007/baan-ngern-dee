@@ -6,6 +6,7 @@ import { Camera, RefreshCw, Save, Trash2 } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -25,6 +26,12 @@ type ProfilePageProps = Readonly<{
   loadError?: string;
   onRetry(): void;
   onProfileChanged(profile: UserProfile): void;
+}>;
+
+type MutationToken = Readonly<{
+  userId: string;
+  generation: number;
+  marker: symbol;
 }>;
 
 const acceptedAvatarTypes = new Set([
@@ -52,6 +59,11 @@ export function ProfilePage({
   const [removingAvatar, setRemovingAvatar] = useState(false);
   const [mutationAlert, setMutationAlert] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const userGenerationRef = useRef({
+    userId: profile.userId,
+    generation: 0
+  });
+  const activeMutationRef = useRef<MutationToken | null>(null);
 
   const clearPreview = useCallback(() => {
     const currentUrl = previewUrlRef.current;
@@ -62,11 +74,68 @@ export function ProfilePage({
     setPreviewUrl(null);
   }, []);
 
+  useLayoutEffect(() => {
+    if (userGenerationRef.current.userId === profile.userId) return;
+    userGenerationRef.current = {
+      userId: profile.userId,
+      generation: userGenerationRef.current.generation + 1
+    };
+    activeMutationRef.current = null;
+  }, [profile.userId]);
+
   useEffect(() => {
     setDisplayName(profile.displayName);
   }, [profile.displayName, profile.userId]);
 
-  useEffect(() => clearPreview, [clearPreview]);
+  useEffect(() => {
+    setSavingName(false);
+    setUploadingAvatar(false);
+    setRemovingAvatar(false);
+    setMutationAlert(null);
+    clearPreview();
+  }, [clearPreview, profile.userId]);
+
+  useEffect(
+    () => () => {
+      activeMutationRef.current = null;
+      const currentUrl = previewUrlRef.current;
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+        previewUrlRef.current = null;
+      }
+    },
+    []
+  );
+
+  function beginMutation(): MutationToken | null {
+    if (activeMutationRef.current) return null;
+    const generation = userGenerationRef.current;
+    const token = {
+      userId: generation.userId,
+      generation: generation.generation,
+      marker: Symbol("profile-mutation")
+    };
+    activeMutationRef.current = token;
+    return token;
+  }
+
+  function isCurrentMutation(token: MutationToken): boolean {
+    const generation = userGenerationRef.current;
+    return (
+      activeMutationRef.current === token &&
+      generation.userId === token.userId &&
+      generation.generation === token.generation
+    );
+  }
+
+  function finishMutation(
+    token: MutationToken,
+    setPending: (pending: boolean) => void
+  ) {
+    if (!isCurrentMutation(token)) return;
+    activeMutationRef.current = null;
+    setPending(false);
+  }
 
   async function saveName(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,10 +143,12 @@ export function ProfilePage({
     if (
       !trimmedName ||
       trimmedName === profile.displayName ||
-      savingName
+      activeMutationRef.current
     ) {
       return;
     }
+    const token = beginMutation();
+    if (!token) return;
 
     setSavingName(true);
     setMutationAlert(null);
@@ -85,9 +156,11 @@ export function ProfilePage({
       const nextProfile = await api.update({
         displayName: trimmedName
       });
+      if (!isCurrentMutation(token)) return;
       setDisplayName(nextProfile.displayName);
       onProfileChanged(nextProfile);
     } catch (error) {
+      if (!isCurrentMutation(token)) return;
       setMutationAlert(
         mutationError(
           error,
@@ -95,14 +168,14 @@ export function ProfilePage({
         )
       );
     } finally {
-      setSavingName(false);
+      finishMutation(token, setSavingName);
     }
   }
 
   async function selectAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
-    if (!file || uploadingAvatar || removingAvatar) return;
+    if (!file || activeMutationRef.current) return;
 
     setMutationAlert(null);
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
@@ -113,6 +186,8 @@ export function ProfilePage({
       setMutationAlert("รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP");
       return;
     }
+    const token = beginMutation();
+    if (!token) return;
 
     clearPreview();
     const localUrl = URL.createObjectURL(file);
@@ -122,9 +197,11 @@ export function ProfilePage({
 
     try {
       const nextProfile = await api.replaceAvatar(file);
+      if (!isCurrentMutation(token)) return;
       onProfileChanged(nextProfile);
       clearPreview();
     } catch (error) {
+      if (!isCurrentMutation(token)) return;
       clearPreview();
       setMutationAlert(
         mutationError(
@@ -133,29 +210,33 @@ export function ProfilePage({
         )
       );
     } finally {
-      setUploadingAvatar(false);
+      finishMutation(token, setUploadingAvatar);
     }
   }
 
   async function removeAvatar() {
-    if (removingAvatar || uploadingAvatar) return;
+    const token = beginMutation();
+    if (!token) return;
 
     setRemovingAvatar(true);
     setMutationAlert(null);
     try {
       const nextProfile = await api.removeAvatar();
+      if (!isCurrentMutation(token)) return;
       onProfileChanged(nextProfile);
     } catch (error) {
+      if (!isCurrentMutation(token)) return;
       setMutationAlert(
         mutationError(error, "ไม่สามารถลบรูปโปรไฟล์ได้ กรุณาลองใหม่")
       );
     } finally {
-      setRemovingAvatar(false);
+      finishMutation(token, setRemovingAvatar);
     }
   }
 
   const trimmedName = displayName.trim();
-  const avatarMutationPending = uploadingAvatar || removingAvatar;
+  const mutationPending =
+    savingName || uploadingAvatar || removingAvatar;
 
   return (
     <main className="page-content profile-page">
@@ -206,24 +287,24 @@ export function ProfilePage({
             <h2>รูปโปรไฟล์</h2>
             <p>รองรับ JPG, PNG และ WebP ขนาดไม่เกิน 2 MB</p>
             <div className="profile-avatar-actions">
-              <label
-                className={`secondary-button profile-avatar-picker${
-                  avatarMutationPending ? " disabled" : ""
-                }`}
-                htmlFor="profile-avatar-file"
-              >
-                <Camera size={18} aria-hidden="true" />
-                {uploadingAvatar ? "กำลังอัปโหลด" : "เลือกรูป"}
-              </label>
               <input
                 id="profile-avatar-file"
                 className="profile-avatar-file"
                 type="file"
                 aria-label="เลือกรูปโปรไฟล์"
                 accept=".jpg,.jpeg,.png,.webp"
-                disabled={avatarMutationPending}
+                disabled={mutationPending}
                 onChange={(event) => void selectAvatar(event)}
               />
+              <label
+                className={`secondary-button profile-avatar-picker${
+                  mutationPending ? " disabled" : ""
+                }`}
+                htmlFor="profile-avatar-file"
+              >
+                <Camera size={18} aria-hidden="true" />
+                {uploadingAvatar ? "กำลังอัปโหลด" : "เลือกรูป"}
+              </label>
               {profile.avatar.source === "custom" ? (
                 <button
                   type="button"
@@ -231,7 +312,7 @@ export function ProfilePage({
                   aria-label={
                     removingAvatar ? "กำลังลบรูป" : "ลบรูป"
                   }
-                  disabled={avatarMutationPending}
+                  disabled={mutationPending}
                   onClick={() => void removeAvatar()}
                 >
                   <Trash2 size={18} aria-hidden="true" />
@@ -249,7 +330,7 @@ export function ProfilePage({
             value={displayName}
             maxLength={80}
             autoComplete="name"
-            disabled={savingName}
+            disabled={mutationPending}
             onChange={(event) => setDisplayName(event.target.value)}
           />
           <div className="profile-form-actions">
@@ -260,7 +341,7 @@ export function ProfilePage({
                 savingName ? "กำลังบันทึกชื่อ" : "บันทึกชื่อ"
               }
               disabled={
-                savingName ||
+                mutationPending ||
                 !trimmedName ||
                 trimmedName === profile.displayName
               }

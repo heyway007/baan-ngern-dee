@@ -469,4 +469,65 @@ describe("global typography", () => {
       /@media \(max-width: 640px\)[\s\S]*?\.profile-avatar-actions,\s*\.profile-form-actions\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/
     );
   });
+
+  it("provides a visible keyboard-focus proxy for the profile avatar picker", () => {
+    document.body.innerHTML = `
+      <main class="profile-page">
+        <input
+          id="profile-avatar-file"
+          class="profile-avatar-file"
+          type="file"
+        />
+        <label
+          class="secondary-button profile-avatar-picker"
+          for="profile-avatar-file"
+        >
+          เลือกรูป
+        </label>
+      </main>
+    `;
+
+    const inputStyle = getComputedStyle(
+      document.querySelector(".profile-avatar-file")!
+    );
+    expect(inputStyle.position).toBe("absolute");
+    expect(["hidden", "clip"]).toContain(inputStyle.overflow);
+    expect(inputStyle.pointerEvents).not.toBe("none");
+
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+    expect(css).toMatch(
+      /\.profile-avatar-file:focus-visible \+ \.profile-avatar-picker\s*\{[^}]*outline:\s*3px solid/
+    );
+  });
+
+  it("wraps long dynamic profile load and mutation errors", () => {
+    document.body.innerHTML = `
+      <main class="profile-page">
+        <div class="profile-load-error">
+          <span>unbroken-load-error-value</span>
+        </div>
+        <p class="profile-mutation-alert">
+          unbroken-mutation-error-value
+        </p>
+      </main>
+    `;
+
+    for (const selector of [
+      ".profile-load-error",
+      ".profile-load-error > span",
+      ".profile-mutation-alert"
+    ]) {
+      const style = getComputedStyle(document.querySelector(selector)!);
+      expect(style.minWidth, selector).toBe("0px");
+      expect(style.overflowWrap, selector).toBe("anywhere");
+    }
+  });
 });

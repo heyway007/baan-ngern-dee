@@ -1,5 +1,5 @@
 import { PROFILE_AVATAR_MAX_BYTES, type UserProfile } from "@systems-credit/contracts";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -130,6 +130,90 @@ describe("ProfilePage", () => {
     expect(input).toHaveValue("มินใหม่");
   });
 
+  it("cross-disables mutation controls while preserving the read-only account channel", async () => {
+    const user = userEvent.setup();
+    const namePending = deferred<UserProfile>();
+    const avatarPending = deferred<UserProfile>();
+    renderPage({
+      profile: customProfile,
+      api: profileApi({
+        update: vi.fn().mockReturnValue(namePending.promise),
+        replaceAvatar: vi.fn().mockReturnValue(avatarPending.promise)
+      })
+    });
+
+    const nameInput = screen.getByLabelText("ชื่อที่แสดง");
+    const fileInput = screen.getByLabelText("เลือกรูปโปรไฟล์");
+    const removeButton = screen.getByRole("button", { name: "ลบรูป" });
+    await user.clear(nameInput);
+    await user.type(nameInput, "มินใหม่");
+    await user.click(screen.getByRole("button", { name: "บันทึกชื่อ" }));
+
+    expect(fileInput).toBeDisabled();
+    expect(removeButton).toBeDisabled();
+    expect(
+      screen.getByRole("group", { name: "ช่องทางเข้าสู่ระบบ" })
+    ).toHaveTextContent(customProfile.accountChannel.label);
+
+    namePending.resolve({
+      ...customProfile,
+      displayName: "มินใหม่"
+    });
+    await waitFor(() => expect(fileInput).toBeEnabled());
+
+    await user.upload(
+      fileInput,
+      new File(["image"], "avatar.webp", { type: "image/webp" })
+    );
+
+    expect(nameInput).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "บันทึกชื่อ" })
+    ).toBeDisabled();
+    expect(removeButton).toBeDisabled();
+
+    avatarPending.resolve(customProfile);
+    await waitFor(() => expect(nameInput).toBeEnabled());
+  });
+
+  it("ignores a mutation completion from a prior profile user", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<UserProfile>();
+    const onProfileChanged = vi.fn();
+    const { rerender, props } = renderPage({
+      api: profileApi({
+        update: vi.fn().mockReturnValue(pending.promise)
+      }),
+      onProfileChanged
+    });
+    const oldServerProfile: UserProfile = {
+      ...emailProfile,
+      displayName: "ชื่อจากคำขอเก่า"
+    };
+    const nextUserProfile: UserProfile = {
+      ...lineProfile,
+      userId: "22222222-2222-4222-8222-222222222222",
+      displayName: "พลอย"
+    };
+
+    const input = screen.getByLabelText("ชื่อที่แสดง");
+    await user.clear(input);
+    await user.type(input, "ชื่อจากคำขอเก่า");
+    await user.click(screen.getByRole("button", { name: "บันทึกชื่อ" }));
+
+    rerender(<ProfilePage {...props} profile={nextUserProfile} />);
+    await waitFor(() => expect(input).toHaveValue("พลอย"));
+
+    await act(async () => {
+      pending.resolve(oldServerProfile);
+      await pending.promise;
+    });
+
+    expect(onProfileChanged).not.toHaveBeenCalled();
+    expect(input).toHaveValue("พลอย");
+    expect(input).toBeEnabled();
+  });
+
   it("keeps the confirmed profile unchanged and shows a Thai alert after a failed save", async () => {
     const user = userEvent.setup();
     const onProfileChanged = vi.fn();
@@ -161,6 +245,23 @@ describe("ProfilePage", () => {
       "accept",
       ".jpg,.jpeg,.png,.webp"
     );
+  });
+
+  it("keeps the native file input keyboard reachable behind its visible label", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const fileInput = screen.getByLabelText("เลือกรูปโปรไฟล์");
+    expect(fileInput).not.toHaveAttribute("tabindex", "-1");
+    expect(
+      document.querySelector(
+        'label[for="profile-avatar-file"]'
+      )
+    ).toHaveTextContent("เลือกรูป");
+
+    await user.tab();
+
+    expect(fileInput).toHaveFocus();
   });
 
   it("rejects an image over 2 MB before contacting the API", async () => {
