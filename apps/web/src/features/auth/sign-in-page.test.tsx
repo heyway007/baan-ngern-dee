@@ -43,6 +43,43 @@ function authActions() {
 }
 
 describe("SignInPage", () => {
+  it("links LINE login from account modes and hides it during reset", async () => {
+    const user = userEvent.setup();
+    render(
+      <SignInPage
+        auth={authActions()}
+        turnstileSiteKey="turnstile-site-key"
+        onAuthenticated={vi.fn()}
+      />
+    );
+
+    const lineLogin = screen.getByRole("link", {
+      name: "เข้าสู่ระบบด้วย LINE"
+    });
+    expect(lineLogin).toHaveAttribute(
+      "href",
+      "/line?next=/overview"
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "สมัครสมาชิก" })
+    );
+    expect(
+      screen.getByRole("link", {
+        name: "เข้าสู่ระบบด้วย LINE"
+      })
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "ลืมรหัสผ่าน" })
+    );
+    expect(
+      screen.queryByRole("link", {
+        name: "เข้าสู่ระบบด้วย LINE"
+      })
+    ).not.toBeInTheDocument();
+  });
+
   it("signs in with email/password and disables the pending action", async () => {
     const user = userEvent.setup();
     let resolveSignIn:

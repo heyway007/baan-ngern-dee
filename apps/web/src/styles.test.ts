@@ -379,6 +379,34 @@ describe("global typography", () => {
     ).toBe("44px");
   });
 
+  it("renders the LINE login action as a full-width accessible control", () => {
+    document.body.innerHTML = `
+      <section class="sign-in-panel">
+        <div class="line-login-options">
+          <a class="line-login-button">
+            <span class="line-login-mark">LINE</span>
+            <span>เข้าสู่ระบบด้วย LINE</span>
+          </a>
+          <div class="auth-divider">
+            <span>หรือเข้าสู่ระบบด้วยอีเมล</span>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const action = getComputedStyle(
+      document.querySelector(".line-login-button")!
+    );
+    expect(action.display).toBe("flex");
+    expect(action.minHeight).toBe("48px");
+    expect(action.backgroundColor).toBe("rgb(6, 199, 85)");
+    expect(
+      getComputedStyle(
+        document.querySelector(".auth-divider")!
+      ).display
+    ).toBe("flex");
+  });
+
   it("keeps the admin user search inside its card padding", () => {
     document.body.innerHTML = `
       <section class="content-card admin-users-toolbar">

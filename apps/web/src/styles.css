@@ -429,6 +429,59 @@ select:focus {
   margin-bottom: 0.9rem;
 }
 
+.line-login-options {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.line-login-button {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  background: #06c755;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.line-login-button:hover {
+  filter: brightness(0.94);
+  transform: translateY(-1px);
+}
+
+.line-login-button:focus-visible {
+  outline: 3px solid rgba(6, 199, 85, 0.28);
+  outline-offset: 3px;
+}
+
+.line-login-mark {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  flex: 1;
+  background: rgba(33, 76, 60, 0.14);
+  content: "";
+}
+
 .auth-mode-switch {
   display: grid;
   margin-bottom: 1.4rem;

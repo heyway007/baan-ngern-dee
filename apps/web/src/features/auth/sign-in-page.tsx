@@ -237,6 +237,26 @@ export function SignInPage({
               : "เราจะส่งลิงก์ตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณ"}
         </p>
 
+        {mode !== "reset" ? (
+          <div className="line-login-options">
+            <a
+              className="line-login-button"
+              href="/line?next=/overview"
+            >
+              <span
+                className="line-login-mark"
+                aria-hidden="true"
+              >
+                LINE
+              </span>
+              <span>เข้าสู่ระบบด้วย LINE</span>
+            </a>
+            <div className="auth-divider" aria-hidden="true">
+              <span>หรือเข้าสู่ระบบด้วยอีเมล</span>
+            </div>
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} noValidate>
           {mode === "sign-up" ? (
             <>
