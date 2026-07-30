@@ -171,6 +171,22 @@ describe("global typography", () => {
     );
   });
 
+  it("locks recurring mobile month input to the 44px action height", () => {
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+
+    expect(css).toMatch(
+      /@media \(max-width: 620px\)[\s\S]*?\.recurring-page \.month-selector input\s*\{[^}]*box-sizing:\s*border-box;[^}]*height:\s*44px;[^}]*min-height:\s*44px;/
+    );
+  });
+
   it("keeps every mobile page-heading action exactly 44 pixels square", () => {
     const css = [...document.styleSheets]
       .flatMap((sheet) => {

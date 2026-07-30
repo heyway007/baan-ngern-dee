@@ -2717,6 +2717,11 @@ select:focus {
 }
 
 @media (min-width: 621px) {
+  .recurring-page .month-selector {
+    display: grid;
+    grid-template-rows: auto 3rem;
+  }
+
   .recurring-page .page-actions .month-selector input,
   .recurring-page .page-actions > .primary-button {
     box-sizing: border-box;
@@ -3882,8 +3887,16 @@ select:focus {
   }
 
   .recurring-page .month-selector {
+    display: grid;
+    grid-template-rows: auto 44px;
     width: 100%;
     min-width: 0;
+  }
+
+  .recurring-page .month-selector input {
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
   }
 
   .transaction-type-switch {
