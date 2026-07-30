@@ -84,7 +84,8 @@ const accountSchema = z
       "asset"
     ]),
     currency: currencySchema,
-    institution: z.string().optional(),
+    // Supabase returns nullable columns as `null`; keep the client model optional.
+    institution: z.string().nullable().optional(),
     version: z.number().int().positive()
   })
   .strict();
@@ -96,19 +97,18 @@ const workspaceCreationSchema: z.ZodType<WorkspaceCreationResult> = z
   })
   .strict();
 
-const accountCreationSchema: z.ZodType<AccountCreationResult> = z
-  .object({
-    account: accountSchema,
-    openingTransaction: z
-      .object({
-        transactionId: uuidSchema,
-        state: z.literal("posted"),
-        version: z.literal(1)
-      })
-      .strict()
-      .optional(),
-    accountBalance: accountBalanceSchema
-  })
+const accountCreationSchema = z.object({
+  account: accountSchema,
+  openingTransaction: z
+    .object({
+      transactionId: uuidSchema,
+      state: z.literal("posted"),
+      version: z.literal(1)
+    })
+    .strict()
+    .optional(),
+  accountBalance: accountBalanceSchema
+})
   .strict();
 
 const scheduleRowSchema = z
@@ -441,8 +441,20 @@ export function createRemoteFinanceApi(options: {
       );
     },
 
-    createAccount(input) {
-      return post("/v1/accounts", input, accountCreationSchema);
+    async createAccount(input) {
+      const result = await post(
+        "/v1/accounts",
+        input,
+        accountCreationSchema
+      );
+      const { institution, ...account } = result.account;
+      return {
+        ...result,
+        account: {
+          ...account,
+          ...(institution == null ? {} : { institution })
+        }
+      };
     },
 
     async createCategory(input) {

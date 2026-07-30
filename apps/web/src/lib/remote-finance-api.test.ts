@@ -158,6 +158,7 @@ describe("createRemoteFinanceApi", () => {
         name: "Cash",
         type: "cash",
         currency: "THB",
+        institution: null,
         version: 1
       },
       accountBalance: {
@@ -200,13 +201,13 @@ describe("createRemoteFinanceApi", () => {
       baseCurrency: "THB",
       timeZone: "Asia/Bangkok"
     });
-    await api.createAccount({
+    await expect(api.createAccount({
       workspaceId,
       name: "Cash",
       type: "cash",
       currency: "THB",
       openingBalance: "0.00"
-    });
+    })).resolves.toMatchObject({ account: { id: accountId } });
     await expect(
       api.createCategory({
         workspaceId,
