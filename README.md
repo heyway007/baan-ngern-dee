@@ -34,3 +34,11 @@ npm run build
 
 คู่มือเชื่อม Supabase, ตั้ง Auth URL, secrets และ deploy Cloudflare อยู่ที่
 [`docs/runbooks/deploy-cloudflare-supabase.md`](docs/runbooks/deploy-cloudflare-supabase.md)
+
+## LINE OA
+
+LINE Login เป็นทางเลือกและจะใช้งานได้เมื่อเจ้าของตั้งค่า Supabase custom OAuth
+provider `custom:line` แล้วเท่านั้น; การเข้าสู่ระบบด้วย email/password เดิมยังคงใช้
+ได้ตามปกติ. ไฟล์ rich menu อยู่ที่ `ops/line` และ `apps/web/public/line`; เจ้าของ
+ดูขั้นตอนตั้งค่า, ทดสอบ rollout และ rollback ได้ที่
+[`docs/runbooks/line-oa-setup.md`](docs/runbooks/line-oa-setup.md).

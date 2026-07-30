@@ -1,6 +1,7 @@
 # นำ Baan Ngern Dee ขึ้น Supabase และ Cloudflare Workers
 
-ระบบนี้เป็น Cloud-only: Browser ใช้ Supabase เฉพาะ Email/Password Auth
+ระบบนี้เป็น Cloud-only: Browser ใช้ Supabase Auth ด้วย email/password และ optional
+LINE custom OAuth
 แล้วส่ง access token ไปยัง Worker origin เดียวกัน Worker จึงอ่านและเขียน
 PostgreSQL ผ่าน PostgREST/RPC ภายใต้ RLS ของผู้ใช้คนนั้น
 
@@ -74,10 +75,13 @@ https://baan-ngern-dee.newforico-9ea.workers.dev
 Redirect URLs:
 https://baan-ngern-dee.newforico-9ea.workers.dev/
 https://baan-ngern-dee.newforico-9ea.workers.dev/reset-password
+https://baan-ngern-dee.newforico-9ea.workers.dev/line/callback
 http://127.0.0.1:8787/
 http://127.0.0.1:8787/reset-password
+http://127.0.0.1:8787/line/callback
 http://127.0.0.1:5173/
 http://127.0.0.1:5173/reset-password
+http://127.0.0.1:5173/line/callback
 ```
 
 เปิด Confirm Email ไว้ ระบบ Supabase mailer เริ่มต้นเหมาะกับการทดสอบและจำกัด
@@ -87,6 +91,11 @@ http://127.0.0.1:5173/reset-password
 
 - Project URL รูปแบบ `https://YOUR_PROJECT_REF.supabase.co`
 - Browser-safe publishable key ที่ขึ้นต้นด้วย `sb_publishable_`
+
+สำหรับการเปิดใช้ LINE Login ผ่าน Supabase custom OAuth provider `custom:line`,
+ให้ทำตาม [`line-oa-setup.md`](line-oa-setup.md). คู่มือนั้นแยก callback URL ที่
+Supabase แสดงให้ตั้งใน LINE Login ออกจาก redirect URLs ของเว็บในรายการข้างต้น และ
+ยืนยันว่า email/password sign-in เดิมยังคงเปิดใช้ได้.
 
 ## 3. ทดสอบ Cloud runtime ในเครื่อง
 
