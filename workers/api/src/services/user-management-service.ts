@@ -6,7 +6,10 @@ import type {
   ListAdminUsersQuery
 } from "@systems-credit/contracts";
 
-import { ApiError } from "../api-error";
+import {
+  ApiError,
+  type ApiErrorLogContext
+} from "../api-error";
 import type { InvitationActor } from "./invitation-service";
 
 export type UserAdminAction =
@@ -90,6 +93,10 @@ function userNotFound(error: unknown): boolean {
   );
 }
 
+type UserAdminStage = NonNullable<
+  ApiErrorLogContext["userAdminStage"]
+>;
+
 export function createUserManagementService(options: {
   superAdminUserId: string;
   repository: UserManagementRepository;
@@ -143,6 +150,28 @@ export function createUserManagementService(options: {
       action,
       details: {}
     });
+  }
+
+  async function atDeletionStage<T>(
+    stage: UserAdminStage,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new ApiError(
+          error.code,
+          error.status,
+          error.message,
+          {
+            ...error.logContext,
+            userAdminStage: stage
+          }
+        );
+      }
+      throw error;
+    }
   }
 
   return {
@@ -201,22 +230,28 @@ export function createUserManagementService(options: {
     async delete(actor, userId, input) {
       requireSuperAdmin(actor);
       const state =
-        await options.repository.getDeletionState({
-          targetUserId: userId,
-          clientMutationId: input.clientMutationId
-        });
+        await atDeletionStage("deletion_state", () =>
+          options.repository.getDeletionState({
+            targetUserId: userId,
+            clientMutationId: input.clientMutationId
+          })
+        );
       if (state?.completed) return;
 
       let target: AdminUser;
       try {
-        target = await options.authAdmin.getUser(userId);
+        target = await atDeletionStage("auth_get_user", () =>
+          options.authAdmin.getUser(userId)
+        );
       } catch (error) {
         if (userNotFound(error) && state?.purgeCompleted) {
-          await options.repository.completeDeletion({
-            actorUserId: actor.userId,
-            targetUserId: userId,
-            clientMutationId: input.clientMutationId
-          });
+          await atDeletionStage("complete_deletion", () =>
+            options.repository.completeDeletion({
+              actorUserId: actor.userId,
+              targetUserId: userId,
+              clientMutationId: input.clientMutationId
+            })
+          );
           return;
         }
         throw error;
@@ -242,20 +277,28 @@ export function createUserManagementService(options: {
       // Email-less LINE identities cannot use the email-oriented pending
       // marker reliably; purge their private data before Auth deletion.
       if (!target.deletionPending && target.email) {
-        await options.authAdmin.markDeletionPending(userId);
+        await atDeletionStage("mark_pending", () =>
+          options.authAdmin.markDeletionPending(userId)
+        );
       }
-      await options.repository.purgePrivateData({
-        actorUserId: actor.userId,
-        targetUserId: userId,
-        clientMutationId: input.clientMutationId,
-        confirmation: expectedConfirmation
-      });
-      await options.authAdmin.deleteUser(userId);
-      await options.repository.completeDeletion({
-        actorUserId: actor.userId,
-        targetUserId: userId,
-        clientMutationId: input.clientMutationId
-      });
+      await atDeletionStage("purge_private_data", () =>
+        options.repository.purgePrivateData({
+          actorUserId: actor.userId,
+          targetUserId: userId,
+          clientMutationId: input.clientMutationId,
+          confirmation: expectedConfirmation
+        })
+      );
+      await atDeletionStage("auth_delete", () =>
+        options.authAdmin.deleteUser(userId)
+      );
+      await atDeletionStage("complete_deletion", () =>
+        options.repository.completeDeletion({
+          actorUserId: actor.userId,
+          targetUserId: userId,
+          clientMutationId: input.clientMutationId
+        })
+      );
     }
   };
 }

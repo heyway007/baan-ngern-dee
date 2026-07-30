@@ -313,17 +313,20 @@ export function FinanceRoutes({
         userManagementApiRef.current = userManagementApi;
         publicInvitationApiRef.current = publicInvitationApi;
 
+        let sessionUserId: string | null = null;
         const handleSession = (
           session: CloudSession | null,
           showLoadingState = false
         ) => {
           if (!activeRef.current) return;
           if (!session) {
+            sessionUserId = null;
             setCanManageInvitations(null);
             setCanManageUsers(null);
             dispatch({ type: "SIGNED_OUT" });
             return;
           }
+          sessionUserId = session.userId;
           for (const key of LEGACY_STORAGE_KEYS) {
             dependencies.storage.removeItem(key);
           }
@@ -356,10 +359,8 @@ export function FinanceRoutes({
         }
         handleSession(session, true);
         unsubscribe = auth.subscribe((nextSession) => {
-          // Supabase emits TOKEN_REFRESHED when a background tab becomes
-          // visible again. Refresh data silently so the whole app does not
-          // flash back to the loading screen on every tab switch.
-          handleSession(nextSession);
+          if (nextSession?.userId === sessionUserId) return;
+          handleSession(nextSession, true);
         });
       } catch {
         if (activeRef.current) {

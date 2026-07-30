@@ -3,7 +3,12 @@ import type {
   PublicAppConfig
 } from "@systems-credit/contracts";
 import { toFinancialDate } from "@systems-credit/domain";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -229,11 +234,42 @@ function createDependencies(options: {
     destinationStorage,
     createPrivateWorkspace,
     getSnapshot,
-    materializeRecurringPeriod
+    materializeRecurringPeriod,
+    emitSession(nextSession: CloudSession | null) {
+      listener?.(nextSession);
+    }
   };
 }
 
 describe("cloud application flow", () => {
+  it("does not reload finance data for the same authenticated session event", async () => {
+    const {
+      dependencies,
+      emitSession,
+      getSnapshot
+    } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/accounts"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "บัญชีทั้งหมด"
+      })
+    ).toBeInTheDocument();
+    expect(getSnapshot).toHaveBeenCalledOnce();
+
+    act(() => emitSession(session));
+
+    expect(getSnapshot).toHaveBeenCalledOnce();
+  });
+
   it("starts LINE OAuth from an allowlisted rich-menu destination", async () => {
     const {
       auth,

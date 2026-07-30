@@ -11,7 +11,10 @@ import type { UserAuthAdmin } from "./user-management-service";
 const rawAuthUserSchema = z
   .object({
     id: z.string().uuid(),
-    email: z.string().email().nullable().optional(),
+    email: z
+      .union([z.string().email(), z.literal("")])
+      .nullable()
+      .optional(),
     user_metadata: z.record(z.unknown()).default({}),
     app_metadata: z.record(z.unknown()).default({}),
     created_at: z.string().datetime({ offset: true }),
@@ -33,11 +36,29 @@ const rawAuthUserSchema = z
   })
   .passthrough();
 
-function controlledFailure(): ApiError {
+const wrappedAuthUserSchema = z
+  .object({
+    user: rawAuthUserSchema
+  })
+  .passthrough();
+
+function parseRawAuthUser(
+  value: unknown
+): z.infer<typeof rawAuthUserSchema> {
+  const wrapped = wrappedAuthUserSchema.safeParse(value);
+  return wrapped.success
+    ? wrapped.data.user
+    : rawAuthUserSchema.parse(value);
+}
+
+function controlledFailure(
+  cause?: "request" | "parse"
+): ApiError {
   return new ApiError(
     "USER_ADMIN_ACTION_FAILED",
     500,
-    "ไม่สามารถจัดการบัญชีผู้ใช้ได้ กรุณาลองใหม่"
+    "ไม่สามารถจัดการบัญชีผู้ใช้ได้ กรุณาลองใหม่",
+    cause ? { userAdminAuthCause: cause } : undefined
   );
 }
 
@@ -56,7 +77,7 @@ function authError(status: number): ApiError {
       "ดำเนินการถี่เกินไป กรุณารอสักครู่แล้วลองใหม่"
     );
   }
-  return controlledFailure();
+  return controlledFailure("request");
 }
 
 function normalizeUser(
@@ -140,7 +161,7 @@ export function createSupabaseUserAuthAdmin(
       return response;
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      throw controlledFailure();
+      throw controlledFailure("request");
     }
   }
 
@@ -149,10 +170,10 @@ export function createSupabaseUserAuthAdmin(
   ): Promise<AdminUser> {
     try {
       return normalizeUser(
-        rawAuthUserSchema.parse(await response.json())
+        parseRawAuthUser(await response.json())
       );
     } catch {
-      throw controlledFailure();
+      throw controlledFailure("parse");
     }
   }
 
@@ -203,11 +224,9 @@ export function createSupabaseUserAuthAdmin(
       });
       let current: z.infer<typeof rawAuthUserSchema>;
       try {
-        current = rawAuthUserSchema.parse(
-          await currentResponse.json()
-        );
+        current = parseRawAuthUser(await currentResponse.json());
       } catch {
-        throw controlledFailure();
+        throw controlledFailure("parse");
       }
       return updateUser(userId, {
         ban_duration: "876000h",

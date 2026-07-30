@@ -22,6 +22,61 @@ const rawUser = {
 };
 
 describe("Supabase user Auth Admin adapter", () => {
+  it("accepts a wrapped Admin Auth user response", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({ user: rawUser })
+    );
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(authAdmin.getUser(userId)).resolves.toMatchObject({
+      userId,
+      email: "friend@example.test",
+      displayName: "Friend"
+    });
+  });
+
+  it("accepts an empty email from an email-less LINE identity", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        id: userId,
+        email: "",
+        user_metadata: { name: "Min LINE" },
+        app_metadata: { provider: "custom:line" },
+        created_at: "2026-07-30T10:00:00.000Z"
+      })
+    );
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(authAdmin.getUser(userId)).resolves.toMatchObject({
+      userId,
+      displayName: "Min LINE",
+      status: "active"
+    });
+  });
+
+  it("labels a malformed Admin Auth user response as a parse failure", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({ user: { id: userId } })
+    );
+    const authAdmin = createSupabaseUserAuthAdmin({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(authAdmin.getUser(userId)).rejects.toMatchObject({
+      code: "USER_ADMIN_ACTION_FAILED",
+      logContext: {
+        userAdminAuthCause: "parse"
+      }
+    });
+  });
+
   it.each([
     [
       { display_name: `  ${"ก".repeat(90)}  ` },
@@ -288,7 +343,17 @@ describe("Supabase user Auth Admin adapter", () => {
     const error = await authAdmin
       .getUser(userId)
       .catch((caught) => caught);
-    expect(error).toMatchObject({ code, status });
+    expect(error).toMatchObject({
+      code,
+      status,
+      ...(upstreamStatus === 500
+        ? {
+            logContext: {
+              userAdminAuthCause: "request"
+            }
+          }
+        : {})
+    });
     expect(String(error.message)).not.toContain(
       "service-role-secret"
     );

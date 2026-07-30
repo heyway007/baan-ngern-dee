@@ -6,6 +6,14 @@ export type ApiErrorLogContext = Readonly<{
     | "empty_answer"
     | "invalid_json"
     | "invalid_shape";
+  userAdminStage?:
+    | "deletion_state"
+    | "auth_get_user"
+    | "mark_pending"
+    | "purge_private_data"
+    | "auth_delete"
+    | "complete_deletion";
+  userAdminAuthCause?: "request" | "parse";
 }>;
 
 export class ApiError extends Error {

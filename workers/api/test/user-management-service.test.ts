@@ -306,7 +306,10 @@ describe("user management service", () => {
         clientMutationId: mutationId
       })
     ).rejects.toMatchObject({
-      code: "USER_ADMIN_ACTION_FAILED"
+      code: "USER_ADMIN_ACTION_FAILED",
+      logContext: {
+        userAdminStage: "auth_delete"
+      }
     });
     expect(repository.completeDeletion).not.toHaveBeenCalled();
     expect(authAdmin.markDeletionPending).toHaveBeenCalledWith(
