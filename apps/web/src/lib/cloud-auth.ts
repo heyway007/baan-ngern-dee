@@ -83,6 +83,13 @@ function throwAuthError(error: AuthError | null): void {
   }
 }
 
+function isStaleSessionError(error: AuthError | null): boolean {
+  return (
+    error?.code === "refresh_token_not_found" ||
+    error?.code === "refresh_token_already_used"
+  );
+}
+
 async function authRequest<T>(
   operation: () => Promise<T>
 ): Promise<T> {
@@ -143,6 +150,10 @@ export function createSupabaseCloudAuth(
       const { data, error } = await authRequest(() =>
         supabase.auth.getSession()
       );
+      if (isStaleSessionError(error)) {
+        await supabase.auth.signOut({ scope: "local" });
+        return null;
+      }
       throwAuthError(error);
       return mapSession(data.session);
     },
@@ -151,6 +162,10 @@ export function createSupabaseCloudAuth(
       const { data, error } = await authRequest(() =>
         supabase.auth.refreshSession()
       );
+      if (isStaleSessionError(error)) {
+        await supabase.auth.signOut({ scope: "local" });
+        return null;
+      }
       throwAuthError(error);
       return mapSession(data.session);
     },

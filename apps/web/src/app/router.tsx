@@ -189,6 +189,8 @@ export function FinanceRoutes({
       : readLineDestination(dependencies.destinationStorage);
   const lineCallbackUrl =
     `${window.location.origin}/line/callback`;
+  const shouldRefreshLineSession =
+    location.pathname === "/line";
   const [invitationToken] = useState(() => {
     if (location.pathname !== "/accept-invite") return "";
     const token =
@@ -345,8 +347,12 @@ export function FinanceRoutes({
           void loadSnapshot(session, api);
         };
 
+        let session = await auth.getSession();
+        if (shouldRefreshLineSession && session) {
+          session = await auth.refreshSession();
+        }
+        handleSession(session);
         unsubscribe = auth.subscribe(handleSession);
-        handleSession(await auth.getSession());
       } catch {
         if (activeRef.current) {
           dispatch({
@@ -363,7 +369,12 @@ export function FinanceRoutes({
       activeRef.current = false;
       unsubscribe();
     };
-  }, [bootAttempt, dependencies, loadSnapshot]);
+  }, [
+    bootAttempt,
+    dependencies,
+    loadSnapshot,
+    shouldRefreshLineSession
+  ]);
 
   async function signOut() {
     try {

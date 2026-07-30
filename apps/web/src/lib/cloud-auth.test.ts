@@ -100,6 +100,46 @@ describe("createSupabaseCloudAuth", () => {
     expect(sdk.onAuthStateChange).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    "refresh_token_not_found",
+    "refresh_token_already_used"
+  ])("treats stale session error %s as signed out", async (code) => {
+    const { sdk } = createAuthSdk();
+    sdk.getSession.mockResolvedValueOnce({
+      data: { session: null },
+      error: {
+        name: "AuthApiError",
+        message: "stale session",
+        status: 400,
+        code
+      }
+    });
+    const auth = createSupabaseCloudAuth(config);
+
+    await expect(auth.getSession()).resolves.toBeNull();
+    expect(sdk.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it.each([
+    "refresh_token_not_found",
+    "refresh_token_already_used"
+  ])("clears stale session error %s during refresh", async (code) => {
+    const { sdk } = createAuthSdk();
+    sdk.refreshSession.mockResolvedValueOnce({
+      data: { session: null },
+      error: {
+        name: "AuthApiError",
+        message: "stale session",
+        status: 400,
+        code
+      }
+    });
+    const auth = createSupabaseCloudAuth(config);
+
+    await expect(auth.refreshSession()).resolves.toBeNull();
+    expect(sdk.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
   it("signs in and signs up with the exact email account options", async () => {
     const { sdk } = createAuthSdk();
     const auth = createSupabaseCloudAuth(config);

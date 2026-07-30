@@ -94,6 +94,7 @@ class MemoryStorage implements Storage {
 
 function createDependencies(options: {
   session: CloudSession | null;
+  refreshedSession?: CloudSession | null;
   snapshot?: FinanceSnapshot;
   snapshots?: FinanceSnapshot[];
   materialized?: Readonly<{
@@ -109,7 +110,13 @@ function createDependencies(options: {
   let listener: ((next: CloudSession | null) => void) | undefined;
   const auth: CloudAuth = {
     getSession: vi.fn().mockResolvedValue(options.session),
-    refreshSession: vi.fn(),
+    refreshSession: vi
+      .fn()
+      .mockResolvedValue(
+        options.refreshedSession === undefined
+          ? options.session
+          : options.refreshedSession
+      ),
     subscribe: vi.fn((nextListener) => {
       listener = nextListener;
       return vi.fn();
@@ -295,6 +302,25 @@ describe("cloud application flow", () => {
       await screen.findByRole("heading", { name: "บัญชีทั้งหมด" })
     ).toBeInTheDocument();
     expect(auth.startLineSignIn).not.toHaveBeenCalled();
+  });
+
+  it("starts LINE OAuth when a persisted rich-menu session fails refresh", async () => {
+    const { auth, dependencies, getSnapshot } = createDependencies({
+      session,
+      refreshedSession: null
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/line?next=%2Faccounts"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(auth.startLineSignIn).toHaveBeenCalledOnce();
+    });
+    expect(auth.refreshSession).toHaveBeenCalledOnce();
+    expect(getSnapshot).not.toHaveBeenCalled();
   });
 
   it("continues a LINE callback to its stored destination", async () => {
