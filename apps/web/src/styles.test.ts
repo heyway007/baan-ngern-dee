@@ -155,6 +155,22 @@ describe("global typography", () => {
     ).toBe("flex-end");
   });
 
+  it("keeps recurring desktop month input and action at one exact height", () => {
+    const css = [...document.styleSheets]
+      .flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+
+    expect(css).toMatch(
+      /@media \(min-width: 621px\)[\s\S]*?\.recurring-page \.page-actions \.month-selector input,\s*\.recurring-page \.page-actions > \.primary-button\s*\{[^}]*box-sizing:\s*border-box;[^}]*height:\s*3rem;[^}]*min-height:\s*3rem;/
+    );
+  });
+
   it("keeps every mobile page-heading action exactly 44 pixels square", () => {
     const css = [...document.styleSheets]
       .flatMap((sheet) => {

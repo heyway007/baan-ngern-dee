@@ -2716,6 +2716,15 @@ select:focus {
   min-height: 2.7rem;
 }
 
+@media (min-width: 621px) {
+  .recurring-page .page-actions .month-selector input,
+  .recurring-page .page-actions > .primary-button {
+    box-sizing: border-box;
+    height: 3rem;
+    min-height: 3rem;
+  }
+}
+
 .recurring-summary-grid {
   display: grid;
   margin-bottom: 1.2rem;
