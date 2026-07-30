@@ -318,9 +318,6 @@ describe("Super Admin users page", () => {
     expect(deleteButton).toBeDisabled();
     await event.clear(confirmation);
     await event.type(confirmation, ` ${lineUserId} `);
-    expect(deleteButton).toBeDisabled();
-    await event.clear(confirmation);
-    await event.type(confirmation, lineUserId);
     expect(deleteButton).toBeEnabled();
     await event.click(deleteButton);
 
