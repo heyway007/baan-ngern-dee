@@ -378,4 +378,19 @@ describe("global typography", () => {
         .minHeight
     ).toBe("44px");
   });
+
+  it("keeps the admin user search inside its card padding", () => {
+    document.body.innerHTML = `
+      <section class="content-card admin-users-toolbar">
+        <label>ค้นหาชื่อ อีเมล หรือรหัสผู้ใช้</label>
+        <div class="admin-users-search"><input /></div>
+      </section>
+    `;
+
+    const toolbar = document.querySelector(
+      ".admin-users-toolbar"
+    )!;
+    expect(getComputedStyle(toolbar).paddingLeft).toBe("1.2rem");
+    expect(getComputedStyle(toolbar).paddingRight).toBe("1.2rem");
+  });
 });
