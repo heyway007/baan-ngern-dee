@@ -19,6 +19,11 @@ const session = {
   access_token: "access-token",
   user
 };
+const config = {
+  supabaseUrl: "https://project.supabase.co",
+  supabasePublishableKey: "sb_publishable_public",
+  turnstileSiteKey: "turnstile-site-key"
+};
 
 function createAuthSdk() {
   const unsubscribe = vi.fn();
@@ -48,6 +53,7 @@ function createAuthSdk() {
       data: { session },
       error: null
     }),
+    signInWithOAuth: vi.fn().mockResolvedValue({ error: null }),
     signUp: vi.fn().mockResolvedValue({
       data: { session },
       error: null
@@ -73,11 +79,7 @@ describe("createSupabaseCloudAuth", () => {
 
   it("restores, refreshes, and subscribes to mapped cloud sessions", async () => {
     const { sdk, unsubscribe } = createAuthSdk();
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await expect(auth.getSession()).resolves.toEqual({
       userId: user.id,
@@ -100,11 +102,7 @@ describe("createSupabaseCloudAuth", () => {
 
   it("signs in and signs up with the exact email account options", async () => {
     const { sdk } = createAuthSdk();
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await expect(
       auth.signIn({
@@ -141,11 +139,7 @@ describe("createSupabaseCloudAuth", () => {
       data: { session: null },
       error: null
     });
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await expect(
       auth.signUp({
@@ -178,11 +172,7 @@ describe("createSupabaseCloudAuth", () => {
         code: upstream
       }
     });
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await expect(
       auth.signIn({
@@ -197,11 +187,7 @@ describe("createSupabaseCloudAuth", () => {
     sdk.signInWithPassword.mockRejectedValueOnce(
       new TypeError("Failed to fetch")
     );
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await expect(
       auth.signIn({
@@ -215,11 +201,7 @@ describe("createSupabaseCloudAuth", () => {
 
   it("requests reset, updates password, and signs out", async () => {
     const { sdk } = createAuthSdk();
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await auth.requestPasswordReset(
       "min@example.test",
@@ -251,14 +233,48 @@ describe("createSupabaseCloudAuth", () => {
       },
       error: null
     });
-    const auth = createSupabaseCloudAuth({
-      supabaseUrl: "https://project.supabase.co",
-      supabasePublishableKey: "sb_publishable_public",
-      turnstileSiteKey: "turnstile-site-key"
-    });
+    const auth = createSupabaseCloudAuth(config);
 
     await expect(auth.getSession()).resolves.toMatchObject({
       displayName: "min"
+    });
+  });
+
+  it("maps an email-less LINE session from provider metadata", async () => {
+    const { sdk } = createAuthSdk();
+    sdk.getSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          ...session,
+          user: {
+            ...user,
+            email: undefined,
+            user_metadata: { name: "มิน LINE" }
+          }
+        }
+      },
+      error: null
+    });
+    const auth = createSupabaseCloudAuth(config);
+
+    await expect(auth.getSession()).resolves.toEqual({
+      userId: user.id,
+      displayName: "มิน LINE",
+      accessToken: "access-token"
+    });
+  });
+
+  it("starts the custom LINE provider with the exact callback", async () => {
+    const { sdk } = createAuthSdk();
+    const auth = createSupabaseCloudAuth(config);
+
+    await auth.startLineSignIn("https://app.example.test/line/callback");
+
+    expect(sdk.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "custom:line",
+      options: {
+        redirectTo: "https://app.example.test/line/callback"
+      }
     });
   });
 });

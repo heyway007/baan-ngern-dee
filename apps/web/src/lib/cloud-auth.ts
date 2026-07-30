@@ -7,7 +7,7 @@ import {
 
 export type CloudSession = Readonly<{
   userId: string;
-  email: string;
+  email?: string;
   displayName: string;
   accessToken: string;
 }>;
@@ -49,6 +49,7 @@ export interface CloudAuth {
     email: string,
     redirectTo: string
   ): Promise<void>;
+  startLineSignIn(redirectTo: string): Promise<void>;
   updatePassword(password: string): Promise<void>;
   signOut(): Promise<void>;
 }
@@ -95,22 +96,35 @@ async function authRequest<T>(
   }
 }
 
+function metadataDisplayName(
+  metadata: Record<string, unknown>
+): string | undefined {
+  for (const key of [
+    "display_name",
+    "name",
+    "full_name",
+    "preferred_username"
+  ]) {
+    const value = metadata[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim().slice(0, 80);
+    }
+  }
+  return undefined;
+}
+
 function mapSession(session: Session | null): CloudSession | null {
   if (!session) {
     return null;
   }
-  const email = session.user.email;
-  if (!email) {
-    throw new Error("AUTH_EMAIL_REQUIRED");
-  }
-  const metadataName = session.user.user_metadata.display_name;
+  const email = session.user.email?.trim().toLowerCase();
   const displayName =
-    typeof metadataName === "string" && metadataName.trim()
-      ? metadataName.trim()
-      : email.split("@")[0]!;
+    metadataDisplayName(session.user.user_metadata) ??
+    email?.split("@")[0]?.slice(0, 80) ??
+    "ผู้ใช้ LINE";
   return {
     userId: session.user.id,
-    email,
+    ...(email ? { email } : {}),
     displayName,
     accessToken: session.access_token
   };
@@ -184,6 +198,16 @@ export function createSupabaseCloudAuth(
     async requestPasswordReset(email, redirectTo) {
       const { error } = await authRequest(() =>
         supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      );
+      throwAuthError(error);
+    },
+
+    async startLineSignIn(redirectTo) {
+      const { error } = await authRequest(() =>
+        supabase.auth.signInWithOAuth({
+          provider: "custom:line",
+          options: { redirectTo }
+        })
       );
       throwAuthError(error);
     },

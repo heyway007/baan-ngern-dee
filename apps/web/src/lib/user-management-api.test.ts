@@ -39,6 +39,7 @@ function createAuth(): CloudAuth {
     signIn: vi.fn(),
     signUp: vi.fn(),
     requestPasswordReset: vi.fn(),
+    startLineSignIn: vi.fn(),
     updatePassword: vi.fn(),
     signOut: vi.fn()
   };
