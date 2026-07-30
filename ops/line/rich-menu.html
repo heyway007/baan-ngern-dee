@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=2500, initial-scale=1" />
+    <title>บ้านเงินดี</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&display=swap");
+
+      :root {
+        --forest: #214c3c;
+        --deep-forest: #15382d;
+        --leaf: #8aae78;
+        --cream: #f4f2eb;
+        --ink: #102d24;
+        font-family: "Kanit", "Leelawadee UI", Tahoma, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 2500px;
+        height: 1686px;
+        margin: 0;
+        overflow: hidden;
+        background: var(--cream);
+      }
+
+      .rich-menu {
+        position: relative;
+        display: grid;
+        grid-template-columns: 834px 833px 833px;
+        grid-template-rows: 843px 843px;
+        width: 2500px;
+        height: 1686px;
+      }
+
+      .brand {
+        position: absolute;
+        z-index: 2;
+        top: 44px;
+        left: 58px;
+        color: var(--deep-forest);
+        font-size: 44px;
+        font-weight: 500;
+        letter-spacing: 1px;
+      }
+
+      .tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 44px;
+        border-right: 5px solid var(--deep-forest);
+        border-bottom: 5px solid var(--deep-forest);
+        color: var(--ink);
+      }
+
+      .tile:nth-of-type(3n) {
+        border-right: 0;
+      }
+
+      .tile:nth-of-type(n + 4) {
+        border-bottom: 0;
+      }
+
+      .cream {
+        background: var(--cream);
+      }
+
+      .leaf {
+        background: var(--leaf);
+      }
+
+      .forest {
+        background: var(--forest);
+        color: var(--cream);
+      }
+
+      .deep-forest {
+        background: var(--deep-forest);
+        color: var(--cream);
+      }
+
+      .icon {
+        width: 246px;
+        height: 246px;
+        stroke: currentColor;
+        stroke-width: 13;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+
+      .label {
+        font-size: 88px;
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: 0.2px;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .chat .icon-disc {
+        fill: var(--leaf);
+        stroke: none;
+      }
+
+      .chat .icon-lines {
+        stroke: var(--deep-forest);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="rich-menu" aria-label="เมนู">
+      <div class="brand">บ้านเงินดี</div>
+
+      <section class="tile cream">
+        <svg class="icon" viewBox="0 0 240 240" aria-hidden="true">
+          <path d="M34 124 120 48l86 76" />
+          <path d="M55 110v86h130v-86" />
+          <path d="M87 196v-53h66v53" />
+          <path d="M87 93h66" />
+        </svg>
+        <div class="label">ภาพรวม</div>
+      </section>
+
+      <section class="tile leaf">
+        <svg class="icon" viewBox="0 0 240 240" aria-hidden="true">
+          <circle cx="120" cy="120" r="82" />
+          <path d="M120 164V76" />
+          <path d="m83 113 37-37 37 37" />
+          <path d="M73 181h94" />
+        </svg>
+        <div class="label">เพิ่มรายรับ</div>
+      </section>
+
+      <section class="tile forest">
+        <svg class="icon" viewBox="0 0 240 240" aria-hidden="true">
+          <circle cx="120" cy="120" r="82" />
+          <path d="M120 76v88" />
+          <path d="m83 127 37 37 37-37" />
+          <path d="M73 59h94" />
+        </svg>
+        <div class="label">เพิ่มรายจ่าย</div>
+      </section>
+
+      <section class="tile leaf">
+        <svg class="icon" viewBox="0 0 240 240" aria-hidden="true">
+          <path d="M37 72c0-17 14-30 31-30h113v36H68c-17 0-31-13-31-30" />
+          <path d="M37 72v112c0 14 11 25 25 25h141V72H37Z" />
+          <path d="M154 112h49v54h-49c-15 0-27-12-27-27s12-27 27-27Z" />
+          <circle cx="157" cy="139" r="5" fill="currentColor" stroke="none" />
+        </svg>
+        <div class="label">บัญชี</div>
+      </section>
+
+      <section class="tile cream">
+        <svg class="icon" viewBox="0 0 240 240" aria-hidden="true">
+          <rect x="42" y="46" width="156" height="150" rx="20" />
+          <path d="M74 83h92" />
+          <path d="M74 122h35" />
+          <path d="M74 158h35" />
+          <path d="M143 121v46" />
+          <path d="m123 147 20 20 30-34" />
+        </svg>
+        <div class="label">ผ่อนและหนี้</div>
+      </section>
+
+      <section class="tile deep-forest chat">
+        <svg class="icon" viewBox="0 0 240 240" aria-hidden="true">
+          <circle class="icon-disc" cx="120" cy="112" r="89" />
+          <path
+            class="icon-lines"
+            d="M70 79h100c13 0 23 10 23 23v42c0 13-10 23-23 23h-47l-35 25 8-25H70c-13 0-23-10-23-23v-42c0-13 10-23 23-23Z"
+          />
+          <path class="icon-lines" d="M80 119h80" />
+          <path class="icon-lines" d="M80 143h54" />
+        </svg>
+        <div class="label">สอบถามเรา</div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "size": { "width": 2500, "height": 1686 },
+  "selected": true,
+  "name": "baan-ngern-dee-default-v1",
+  "chatBarText": "เมนูบ้านเงินดี",
+  "areas": [
+    {
+      "bounds": { "x": 0, "y": 0, "width": 834, "height": 843 },
+      "action": {
+        "type": "uri",
+        "label": "ภาพรวม",
+        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Foverview"
+      }
+    },
+    {
+      "bounds": { "x": 834, "y": 0, "width": 833, "height": 843 },
+      "action": {
+        "type": "uri",
+        "label": "เพิ่มรายรับ",
+        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Ftransactions%2Fnew%3Ftype%3Dincome"
+      }
+    },
+    {
+      "bounds": { "x": 1667, "y": 0, "width": 833, "height": 843 },
+      "action": {
+        "type": "uri",
+        "label": "เพิ่มรายจ่าย",
+        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Ftransactions%2Fnew%3Ftype%3Dexpense"
+      }
+    },
+    {
+      "bounds": { "x": 0, "y": 843, "width": 834, "height": 843 },
+      "action": {
+        "type": "uri",
+        "label": "บัญชี",
+        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Faccounts"
+      }
+    },
+    {
+      "bounds": { "x": 834, "y": 843, "width": 833, "height": 843 },
+      "action": {
+        "type": "uri",
+        "label": "ผ่อนและหนี้",
+        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Finstallments"
+      }
+    },
+    {
+      "bounds": { "x": 1667, "y": 843, "width": 833, "height": 843 },
+      "action": {
+        "type": "message",
+        "label": "สอบถามเรา",
+        "text": "สอบถามเรา"
+      }
+    }
+  ]
+}
