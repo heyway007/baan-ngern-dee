@@ -220,8 +220,11 @@ export function createSupabaseUserAuthAdmin(
 
     async deleteUser(userId) {
       await request(
-        `${userPath(userId)}?should_soft_delete=false`,
-        { method: "DELETE" }
+        userPath(userId),
+        {
+          method: "DELETE",
+          body: JSON.stringify({ should_soft_delete: false })
+        }
       );
     }
   };

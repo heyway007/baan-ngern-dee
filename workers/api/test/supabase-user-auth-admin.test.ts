@@ -202,9 +202,12 @@ describe("Supabase user Auth Admin adapter", () => {
       JSON.parse(String(requestFetch.mock.calls[1]![1]?.body))
     ).toEqual({ ban_duration: "none" });
     expect(requestFetch.mock.calls[2]![0]).toBe(
-      `https://project.supabase.co/auth/v1/admin/users/${userId}?should_soft_delete=false`
+      `https://project.supabase.co/auth/v1/admin/users/${userId}`
     );
     expect(requestFetch.mock.calls[2]![1]?.method).toBe("DELETE");
+    expect(
+      JSON.parse(String(requestFetch.mock.calls[2]![1]?.body))
+    ).toEqual({ should_soft_delete: false });
   });
 
   it("preserves app metadata while marking deletion pending", async () => {
