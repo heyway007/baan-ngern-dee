@@ -2,21 +2,27 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CloudSession } from "../lib/cloud-auth";
+import type { UserProfile } from "@systems-credit/contracts";
 import { AppLayout } from "./layout";
 
-const session: CloudSession = {
+const profile: UserProfile = {
   userId: "11111111-1111-4111-8111-111111111111",
-  email: "admin@example.test",
   displayName: "Admin",
-  accessToken: "access-token"
+  accountChannel: {
+    kind: "email",
+    label: "admin@example.test"
+  },
+  avatar: {
+    source: "custom",
+    url: "https://example.test/admin-avatar.webp"
+  }
 };
 
 describe("AppLayout invitation navigation", () => {
   it("hides financial planning while the feature is disabled", () => {
     render(
       <MemoryRouter>
-        <AppLayout session={session} onSignOut={vi.fn()} />
+        <AppLayout profile={profile} onSignOut={vi.fn()} />
       </MemoryRouter>
     );
 
@@ -29,7 +35,7 @@ describe("AppLayout invitation navigation", () => {
     render(
       <MemoryRouter>
         <AppLayout
-          session={session}
+          profile={profile}
           canManageInvitations={false}
           onSignOut={vi.fn()}
         />
@@ -47,7 +53,7 @@ describe("AppLayout invitation navigation", () => {
     render(
       <MemoryRouter>
         <AppLayout
-          session={session}
+          profile={profile}
           canManageUsers={false}
           onSignOut={vi.fn()}
         />
@@ -63,7 +69,7 @@ describe("AppLayout invitation navigation", () => {
     render(
       <MemoryRouter>
         <AppLayout
-          session={session}
+          profile={profile}
           canManageUsers
           onSignOut={vi.fn()}
         />
@@ -79,7 +85,7 @@ describe("AppLayout invitation navigation", () => {
     render(
       <MemoryRouter>
         <AppLayout
-          session={session}
+          profile={profile}
           canManageInvitations
           onSignOut={vi.fn()}
         />
@@ -91,5 +97,38 @@ describe("AppLayout invitation navigation", () => {
         name: "คำเชิญผู้ใช้"
       })
     ).toHaveAttribute("href", "/admin/invitations");
+  });
+
+  it("links desktop and mobile profile controls to the profile route", () => {
+    render(
+      <MemoryRouter>
+        <AppLayout profile={profile} onSignOut={vi.fn()} />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+    ).toHaveAttribute("href", "/profile");
+    expect(
+      screen.getByRole("link", { name: "ตั้งค่า" })
+    ).toHaveAttribute("href", "/profile");
+  });
+
+  it("renders the effective profile name and avatar", () => {
+    render(
+      <MemoryRouter>
+        <AppLayout profile={profile} onSignOut={vi.fn()} />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+    ).toHaveTextContent("Admin");
+    expect(
+      screen.getByRole("img", { name: "รูปโปรไฟล์ของ Admin" })
+    ).toHaveAttribute(
+      "src",
+      "https://example.test/admin-avatar.webp"
+    );
   });
 });

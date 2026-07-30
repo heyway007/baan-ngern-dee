@@ -1,3 +1,4 @@
+import type { UserProfile } from "@systems-credit/contracts";
 import {
   CircleDollarSign,
   CreditCard,
@@ -17,11 +18,11 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
-import type { CloudSession } from "../lib/cloud-auth";
+import { ProfileAvatar } from "../features/profile/profile-avatar";
 import { featureFlags } from "./feature-flags";
 
 type AppLayoutProps = Readonly<{
-  session: CloudSession;
+  profile: UserProfile;
   canManageInvitations?: boolean;
   canManageUsers?: boolean;
   onSignOut(): void;
@@ -69,7 +70,7 @@ const navigation = [
 ] as const;
 
 export function AppLayout({
-  session,
+  profile,
   canManageInvitations = false,
   canManageUsers = false,
   onSignOut
@@ -139,15 +140,21 @@ export function AppLayout({
         </nav>
 
         <div className="sidebar-footer">
-          <div className="profile-row">
-            <span className="avatar" aria-hidden="true">
-              {session.displayName.slice(0, 1)}
-            </span>
+          <NavLink
+            to="/profile"
+            className="profile-row"
+            aria-label="เปิดโปรไฟล์"
+            onClick={() => setMenuOpen(false)}
+          >
+            <ProfileAvatar
+              displayName={profile.displayName}
+              url={profile.avatar.url}
+            />
             <span>
-              <strong>{session.displayName}</strong>
+              <strong>{profile.displayName}</strong>
               <small>เจ้าของพื้นที่</small>
             </span>
-          </div>
+          </NavLink>
           <button type="button" className="ghost-button" onClick={onSignOut}>
             <LogOut size={18} aria-hidden="true" />
             ออกจากระบบ
@@ -178,9 +185,13 @@ export function AppLayout({
             <span className="brand-mark" aria-hidden="true">฿</span>
             <span>บ้านเงินดี</span>
           </div>
-          <button type="button" className="icon-button" aria-label="ตั้งค่า">
+          <NavLink
+            to="/profile"
+            className="icon-button"
+            aria-label="ตั้งค่า"
+          >
             <Settings aria-hidden="true" />
-          </button>
+          </NavLink>
         </header>
 
         <Outlet />

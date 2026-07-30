@@ -1,5 +1,6 @@
 import type {
-  PublicAppConfig
+  PublicAppConfig,
+  UserProfile
 } from "@systems-credit/contracts";
 import { toFinancialDate } from "@systems-credit/domain";
 import {
@@ -40,6 +41,7 @@ import { InstallmentsPage } from "../features/installments/installments-page";
 import { OnboardingPage } from "../features/onboarding/onboarding-page";
 import { RecurringPage } from "../features/recurring/recurring-page";
 import { PlanningPage } from "../features/planning/planning-page";
+import { ProfilePage } from "../features/profile/profile-page";
 import { TransactionsPage } from "../features/transactions/transactions-page";
 import {
   createSupabaseCloudAuth,
@@ -53,6 +55,10 @@ import {
   type AdminInvitationApi,
   type PublicInvitationApi
 } from "../lib/invitation-api";
+import {
+  createProfileApi,
+  type ProfileApi
+} from "../lib/profile-api";
 import {
   createRemoteFinanceApi,
   type RemoteFinanceApi
@@ -93,6 +99,10 @@ export type CloudRouterDependencies = Readonly<{
     auth: CloudAuth,
     onUnauthenticated: () => void
   ): UserManagementApi;
+  createProfileApi(
+    auth: CloudAuth,
+    onUnauthenticated: () => void
+  ): ProfileApi;
   createPublicInvitationApi(): PublicInvitationApi;
 }>;
 
@@ -107,6 +117,8 @@ const defaultDependencies: CloudRouterDependencies = {
     createAdminInvitationApi({ auth, onUnauthenticated }),
   createUserManagementApi: (auth, onUnauthenticated) =>
     createUserManagementApi({ auth, onUnauthenticated }),
+  createProfileApi: (auth, onUnauthenticated) =>
+    createProfileApi({ auth, onUnauthenticated }),
   createPublicInvitationApi: () =>
     createPublicInvitationApi()
 };
@@ -114,6 +126,28 @@ const defaultDependencies: CloudRouterDependencies = {
 type FinanceRoutesProps = Readonly<{
   dependencies?: CloudRouterDependencies;
 }>;
+
+type ProfileViewState = Readonly<{
+  profile: UserProfile;
+  loading: boolean;
+  error?: string;
+}>;
+
+const profileLoadFailedMessage =
+  "ไม่สามารถโหลดข้อมูลโปรไฟล์ได้ กรุณาลองใหม่";
+
+function sessionProfile(session: CloudSession): UserProfile {
+  return {
+    userId: session.userId,
+    displayName: session.displayName,
+    accountChannel: session.email
+      ? { kind: "email", label: session.email }
+      : { kind: "line", label: "LINE" },
+    avatar: session.avatarUrl
+      ? { source: "line", url: session.avatarUrl }
+      : { source: "initial", url: null }
+  };
+}
 
 function CloudStatusCard({
   label,
@@ -218,14 +252,81 @@ export function FinanceRoutes({
     useState<boolean | null>(null);
   const [canManageUsers, setCanManageUsers] =
     useState<boolean | null>(null);
+  const [profileState, setProfileState] =
+    useState<ProfileViewState | null>(null);
   const authRef = useRef<CloudAuth | null>(null);
   const apiRef = useRef<RemoteFinanceApi | null>(null);
   const adminApiRef = useRef<AdminInvitationApi | null>(null);
   const userManagementApiRef =
     useRef<UserManagementApi | null>(null);
+  const profileApiRef = useRef<ProfileApi | null>(null);
   const publicInvitationApiRef =
     useRef<PublicInvitationApi | null>(null);
+  const sessionUserIdRef = useRef<string | null>(null);
+  const profileLoadGenerationRef = useRef(0);
   const activeRef = useRef(true);
+
+  const clearProfile = useCallback(() => {
+    sessionUserIdRef.current = null;
+    profileLoadGenerationRef.current += 1;
+    setProfileState(null);
+  }, []);
+
+  const loadProfile = useCallback(async (userId: string) => {
+    const profileApi = profileApiRef.current;
+    if (!profileApi) return;
+    const generation = profileLoadGenerationRef.current + 1;
+    profileLoadGenerationRef.current = generation;
+    setProfileState((current) =>
+      current?.profile.userId === userId
+        ? {
+            profile: current.profile,
+            loading: true
+          }
+        : current
+    );
+    try {
+      const profile = await profileApi.get();
+      if (
+        activeRef.current &&
+        sessionUserIdRef.current === userId &&
+        profileLoadGenerationRef.current === generation
+      ) {
+        if (profile.userId !== userId) {
+          setProfileState((current) =>
+            current?.profile.userId === userId
+              ? {
+                  profile: current.profile,
+                  loading: false,
+                  error: profileLoadFailedMessage
+                }
+              : current
+          );
+          return;
+        }
+        setProfileState({
+          profile,
+          loading: false
+        });
+      }
+    } catch {
+      if (
+        activeRef.current &&
+        sessionUserIdRef.current === userId &&
+        profileLoadGenerationRef.current === generation
+      ) {
+        setProfileState((current) =>
+          current?.profile.userId === userId
+            ? {
+                profile: current.profile,
+                loading: false,
+                error: profileLoadFailedMessage
+              }
+            : current
+        );
+      }
+    }
+  }, []);
 
   const loadSnapshot = useCallback(
     async (
@@ -290,6 +391,7 @@ export function FinanceRoutes({
           dependencies.createPublicInvitationApi();
         const onUnauthenticated = () => {
           if (activeRef.current) {
+            clearProfile();
             setCanManageInvitations(null);
             setCanManageUsers(null);
             dispatch({ type: "SIGNED_OUT" });
@@ -308,10 +410,15 @@ export function FinanceRoutes({
             auth,
             onUnauthenticated
           );
+        const profileApi = dependencies.createProfileApi(
+          auth,
+          onUnauthenticated
+        );
         authRef.current = auth;
         apiRef.current = api;
         adminApiRef.current = adminApi;
         userManagementApiRef.current = userManagementApi;
+        profileApiRef.current = profileApi;
         publicInvitationApiRef.current = publicInvitationApi;
 
         let sessionUserId: string | null = null;
@@ -322,12 +429,19 @@ export function FinanceRoutes({
           if (!activeRef.current) return;
           if (!session) {
             sessionUserId = null;
+            clearProfile();
             setCanManageInvitations(null);
             setCanManageUsers(null);
             dispatch({ type: "SIGNED_OUT" });
             return;
           }
           sessionUserId = session.userId;
+          sessionUserIdRef.current = session.userId;
+          setProfileState({
+            profile: sessionProfile(session),
+            loading: true
+          });
+          void loadProfile(session.userId);
           for (const key of LEGACY_STORAGE_KEYS) {
             dependencies.storage.removeItem(key);
           }
@@ -382,6 +496,8 @@ export function FinanceRoutes({
   }, [
     bootAttempt,
     dependencies,
+    clearProfile,
+    loadProfile,
     loadSnapshot,
     shouldRefreshLineSessionOnBoot
   ]);
@@ -390,6 +506,7 @@ export function FinanceRoutes({
     try {
       await authRef.current?.signOut();
     } finally {
+      clearProfile();
       setCanManageInvitations(null);
       setCanManageUsers(null);
       dispatch({ type: "SIGNED_OUT" });
@@ -403,6 +520,7 @@ export function FinanceRoutes({
     try {
       await authRef.current?.signOut();
     } finally {
+      clearProfile();
       setCanManageInvitations(null);
       setCanManageUsers(null);
       dispatch({ type: "SIGNED_OUT" });
@@ -439,6 +557,12 @@ export function FinanceRoutes({
   }
 
   function acceptAuthenticatedSession(session: CloudSession) {
+    sessionUserIdRef.current = session.userId;
+    setProfileState({
+      profile: sessionProfile(session),
+      loading: true
+    });
+    void loadProfile(session.userId);
     for (const key of LEGACY_STORAGE_KEYS) {
       dependencies.storage.removeItem(key);
     }
@@ -561,9 +685,17 @@ export function FinanceRoutes({
   const api = apiRef.current;
   const adminApi = adminApiRef.current;
   const userManagementApi = userManagementApiRef.current;
-  if (!api || !adminApi || !userManagementApi) {
+  const profileApi = profileApiRef.current;
+  if (!api || !adminApi || !userManagementApi || !profileApi) {
     return null;
   }
+  const effectiveProfileState =
+    profileState?.profile.userId === session.userId
+      ? profileState
+      : {
+          profile: sessionProfile(session),
+          loading: true
+        };
 
   return (
     <Routes>
@@ -654,7 +786,7 @@ export function FinanceRoutes({
         <Route
           element={
             <AppLayout
-              session={session}
+              profile={effectiveProfileState.profile}
               canManageInvitations={
                 canManageInvitations === true
               }
@@ -667,6 +799,25 @@ export function FinanceRoutes({
             path="/overview"
             element={
               <OverviewPage session={session} snapshot={snapshot} />
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProfilePage
+                profile={effectiveProfileState.profile}
+                api={profileApi}
+                loading={effectiveProfileState.loading}
+                loadError={effectiveProfileState.error}
+                onRetry={() => void loadProfile(session.userId)}
+                onProfileChanged={(profile) => {
+                  if (profile.userId !== session.userId) return;
+                  setProfileState({
+                    profile,
+                    loading: false
+                  });
+                }}
+              />
             }
           />
           <Route

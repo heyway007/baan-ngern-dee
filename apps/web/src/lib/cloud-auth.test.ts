@@ -304,6 +304,73 @@ describe("createSupabaseCloudAuth", () => {
     });
   });
 
+  it.each([
+    [
+      {
+        name: "มิน LINE",
+        avatar_url: "https://profile.line-scdn.net/avatar.webp"
+      },
+      "https://profile.line-scdn.net/avatar.webp"
+    ],
+    [
+      {
+        name: "มิน LINE",
+        avatar_url: "not a url",
+        picture: "https://profile.line-scdn.net/picture.jpg"
+      },
+      "https://profile.line-scdn.net/picture.jpg"
+    ]
+  ])(
+    "maps the first valid LINE avatar URL from provider metadata",
+    async (userMetadata, avatarUrl) => {
+      const { sdk } = createAuthSdk();
+      sdk.getSession.mockResolvedValueOnce({
+        data: {
+          session: {
+            ...session,
+            user: {
+              ...user,
+              email: undefined,
+              user_metadata: userMetadata
+            }
+          }
+        },
+        error: null
+      });
+      const auth = createSupabaseCloudAuth(config);
+
+      await expect(auth.getSession()).resolves.toMatchObject({
+        avatarUrl
+      });
+    }
+  );
+
+  it("ignores non-string and non-URL avatar metadata", async () => {
+    const { sdk } = createAuthSdk();
+    sdk.getSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          ...session,
+          user: {
+            ...user,
+            email: undefined,
+            user_metadata: {
+              name: "มิน LINE",
+              avatar_url: { url: "https://example.test/unsafe.jpg" },
+              picture: "/relative-avatar.jpg"
+            }
+          }
+        }
+      },
+      error: null
+    });
+    const auth = createSupabaseCloudAuth(config);
+
+    await expect(auth.getSession()).resolves.not.toHaveProperty(
+      "avatarUrl"
+    );
+  });
+
   it("starts the custom LINE provider with the exact callback", async () => {
     const { sdk } = createAuthSdk();
     const auth = createSupabaseCloudAuth(config);

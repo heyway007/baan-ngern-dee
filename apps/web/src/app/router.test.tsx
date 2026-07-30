@@ -1,6 +1,7 @@
 import type {
   FinanceSnapshot,
-  PublicAppConfig
+  PublicAppConfig,
+  UserProfile
 } from "@systems-credit/contracts";
 import { toFinancialDate } from "@systems-credit/domain";
 import {
@@ -22,6 +23,7 @@ import type {
   AdminInvitationApi,
   PublicInvitationApi
 } from "../lib/invitation-api";
+import type { ProfileApi } from "../lib/profile-api";
 import type {
   RemoteFinanceApi
 } from "../lib/remote-finance-api";
@@ -42,6 +44,25 @@ const session: CloudSession = {
   email: "min@example.test",
   displayName: "มิน",
   accessToken: "access-token"
+};
+
+const sessionProfile: UserProfile = {
+  userId: session.userId,
+  displayName: session.displayName,
+  accountChannel: {
+    kind: "email",
+    label: session.email!
+  },
+  avatar: { source: "initial", url: null }
+};
+
+const confirmedProfile: UserProfile = {
+  ...sessionProfile,
+  displayName: "มินยืนยันแล้ว",
+  avatar: {
+    source: "custom",
+    url: "https://example.test/confirmed-profile.webp"
+  }
 };
 
 const emptySnapshot: FinanceSnapshot = {
@@ -97,6 +118,28 @@ class MemoryStorage implements Storage {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function profileApi(
+  overrides: Partial<ProfileApi> = {}
+): ProfileApi {
+  return {
+    get: vi.fn().mockResolvedValue(sessionProfile),
+    update: vi.fn().mockResolvedValue(sessionProfile),
+    replaceAvatar: vi.fn().mockResolvedValue(sessionProfile),
+    removeAvatar: vi.fn().mockResolvedValue(sessionProfile),
+    ...overrides
+  };
+}
+
 function createDependencies(options: {
   session: CloudSession | null;
   refreshedSession?: CloudSession | null;
@@ -111,6 +154,7 @@ function createDependencies(options: {
   createPrivateWorkspace?: ReturnType<typeof vi.fn>;
   canManageInvitations?: boolean;
   canManageUsers?: boolean;
+  profileApi?: ProfileApi;
 }) {
   let listener: ((next: CloudSession | null) => void) | undefined;
   const auth: CloudAuth = {
@@ -208,6 +252,7 @@ function createDependencies(options: {
     sendPasswordReset: vi.fn(),
     delete: vi.fn()
   } satisfies UserManagementApi;
+  const effectiveProfileApi = options.profileApi ?? profileApi();
   const destinationStorage =
     options.destinationStorage ?? new MemoryStorage();
   const loadConfig = vi.fn().mockResolvedValue(config);
@@ -221,6 +266,7 @@ function createDependencies(options: {
     createUserManagementApi: vi.fn(
       () => userManagementApi
     ),
+    createProfileApi: vi.fn(() => effectiveProfileApi),
     createPublicInvitationApi: vi.fn(
       () => publicInvitationApi
     )
@@ -231,6 +277,7 @@ function createDependencies(options: {
     adminApi,
     publicInvitationApi,
     userManagementApi,
+    profileApi: effectiveProfileApi,
     dependencies,
     destinationStorage,
     createPrivateWorkspace,
@@ -626,6 +673,270 @@ describe("cloud application flow", () => {
     expect(storage.getItem("systems-credit:session:v1")).toBeNull();
     expect(storage.getItem("systems-credit:finance:v1")).toBeNull();
     expect(storage.getItem("keep-me")).toBe("preserved");
+  });
+
+  it("loads the authenticated profile route independently of finance", async () => {
+    const get = vi.fn().mockResolvedValue(confirmedProfile);
+    const { dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({ get })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/profile"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "โปรไฟล์ของฉัน"
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "ชื่อที่แสดง" })
+    ).toHaveValue("มินยืนยันแล้ว");
+    expect(get).toHaveBeenCalledOnce();
+  });
+
+  it("keeps finance usable when profile loading fails without reloading its snapshot", async () => {
+    const get = vi
+      .fn()
+      .mockRejectedValue(new Error("profile service unavailable"));
+    const { dependencies, getSnapshot } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({ get })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /สวัสดี มิน/ })
+    ).toBeInTheDocument();
+    await waitFor(() => expect(get).toHaveBeenCalledOnce());
+    expect(getSnapshot).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("heading", {
+        name: "ยังเชื่อมต่อข้อมูลไม่ได้"
+      })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "บัญชี" })
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ href: expect.stringMatching(/\/accounts$/) })
+      ])
+    );
+  });
+
+  it("shows profile load errors and retries only the profile request", async () => {
+    const user = userEvent.setup();
+    const get = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary profile failure"))
+      .mockResolvedValueOnce(confirmedProfile);
+    const { dependencies, getSnapshot } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({ get })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/profile"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent("ไม่สามารถโหลดข้อมูลโปรไฟล์ได้");
+    await user.click(
+      screen.getByRole("button", { name: "ลองอีกครั้ง" })
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "ชื่อที่แสดง" })
+      ).toHaveValue("มินยืนยันแล้ว")
+    );
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(getSnapshot).toHaveBeenCalledOnce();
+  });
+
+  it("updates the layout immediately from a server-confirmed profile change", async () => {
+    const user = userEvent.setup();
+    const update = vi.fn().mockResolvedValue(confirmedProfile);
+    const { dependencies } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({ update })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/profile"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    const displayName = await screen.findByRole("textbox", {
+      name: "ชื่อที่แสดง"
+    });
+    await user.clear(displayName);
+    await user.type(displayName, "มินยืนยันแล้ว");
+    await user.click(
+      screen.getByRole("button", { name: "บันทึกชื่อ" })
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+      ).toHaveTextContent("มินยืนยันแล้ว")
+    );
+    expect(
+      screen.getAllByRole("img", {
+        name: "รูปโปรไฟล์ของ มินยืนยันแล้ว"
+      })
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          src: "https://example.test/confirmed-profile.webp"
+        })
+      ])
+    );
+  });
+
+  it("clears the confirmed profile when signing out before another user arrives", async () => {
+    const user = userEvent.setup();
+    const nextProfileLoad = deferred<UserProfile>();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(confirmedProfile)
+      .mockReturnValueOnce(nextProfileLoad.promise);
+    const nextSession: CloudSession = {
+      userId: "73f39a88-fe32-4528-aa64-4cc0a757db51",
+      displayName: "ผู้ใช้ LINE ใหม่",
+      avatarUrl: "https://profile.line-scdn.net/new-user.webp",
+      accessToken: "next-access-token"
+    };
+    const { auth, dependencies, emitSession } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({ get })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+      ).toHaveTextContent("มินยืนยันแล้ว")
+    );
+    await user.click(
+      screen.getByRole("button", { name: "ออกจากระบบ" })
+    );
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledOnce());
+
+    act(() => emitSession(nextSession));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+      ).toHaveTextContent("ผู้ใช้ LINE ใหม่")
+    );
+    expect(
+      screen.queryByRole("img", {
+        name: "รูปโปรไฟล์ของ มินยืนยันแล้ว"
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores an old user's delayed profile response after the session changes", async () => {
+    const oldLoad = deferred<UserProfile>();
+    const nextSession: CloudSession = {
+      userId: "73f39a88-fe32-4528-aa64-4cc0a757db51",
+      displayName: "ผู้ใช้ใหม่",
+      accessToken: "next-access-token"
+    };
+    const nextProfile: UserProfile = {
+      userId: nextSession.userId,
+      displayName: nextSession.displayName,
+      accountChannel: { kind: "line", label: "LINE" },
+      avatar: { source: "initial", url: null }
+    };
+    const get = vi
+      .fn()
+      .mockReturnValueOnce(oldLoad.promise)
+      .mockResolvedValueOnce(nextProfile);
+    const { dependencies, emitSession } = createDependencies({
+      session,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({ get })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+    expect(
+      await screen.findByRole("link", { name: "เปิดโปรไฟล์" })
+    ).toHaveTextContent("มิน");
+
+    act(() => emitSession(nextSession));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+      ).toHaveTextContent("ผู้ใช้ใหม่")
+    );
+
+    act(() => oldLoad.resolve(confirmedProfile));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "เปิดโปรไฟล์" })
+      ).toHaveTextContent("ผู้ใช้ใหม่")
+    );
+  });
+
+  it("uses the mapped LINE avatar while the profile request is pending", async () => {
+    const pending = deferred<UserProfile>();
+    const lineSession: CloudSession = {
+      userId: session.userId,
+      displayName: "มิน LINE",
+      avatarUrl: "https://profile.line-scdn.net/session-avatar.webp",
+      accessToken: "line-access-token"
+    };
+    const { dependencies } = createDependencies({
+      session: lineSession,
+      snapshot: workspaceSnapshot,
+      profileApi: profileApi({
+        get: vi.fn().mockReturnValue(pending.promise)
+      })
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/overview"]}>
+        <FinanceRoutes dependencies={dependencies} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("img", {
+        name: "รูปโปรไฟล์ของ มิน LINE"
+      })
+    ).toHaveAttribute(
+      "src",
+      "https://profile.line-scdn.net/session-avatar.webp"
+    );
   });
 
   it("materializes the current workspace period and reloads a changed snapshot", async () => {

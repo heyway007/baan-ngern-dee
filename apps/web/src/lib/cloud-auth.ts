@@ -9,6 +9,7 @@ export type CloudSession = Readonly<{
   userId: string;
   email?: string;
   displayName: string;
+  avatarUrl?: string;
   accessToken: string;
 }>;
 
@@ -120,6 +121,24 @@ function metadataDisplayName(
   return undefined;
 }
 
+function metadataAvatarUrl(
+  metadata: Record<string, unknown>
+): string | undefined {
+  for (const key of ["avatar_url", "picture"]) {
+    const value = metadata[key];
+    if (typeof value !== "string") continue;
+    try {
+      const url = new URL(value.trim());
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        return url.href;
+      }
+    } catch {
+      // Ignore malformed or relative provider metadata.
+    }
+  }
+  return undefined;
+}
+
 function mapSession(session: Session | null): CloudSession | null {
   if (!session) {
     return null;
@@ -129,10 +148,14 @@ function mapSession(session: Session | null): CloudSession | null {
     metadataDisplayName(session.user.user_metadata) ??
     email?.split("@")[0]?.slice(0, 80) ??
     "ผู้ใช้ LINE";
+  const avatarUrl = metadataAvatarUrl(
+    session.user.user_metadata
+  );
   return {
     userId: session.user.id,
     ...(email ? { email } : {}),
     displayName,
+    ...(avatarUrl ? { avatarUrl } : {}),
     accessToken: session.access_token
   };
 }
