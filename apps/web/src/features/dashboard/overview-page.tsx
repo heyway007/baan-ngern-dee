@@ -12,18 +12,17 @@ import { toFinancialDate } from "@systems-credit/domain";
 
 import type { FinanceSnapshot } from "@systems-credit/contracts";
 
-import type { CloudSession } from "../../lib/cloud-auth";
 import { addExactMoney, formatMoney } from "../../lib/money-display";
 import { MonthlyTransactionTable } from "./monthly-transaction-table";
 import { RecurringOverviewCard } from "./recurring-overview-card";
 import { SummaryCards } from "./summary-cards";
 
 type OverviewPageProps = Readonly<{
-  session: CloudSession;
+  displayName: string;
   snapshot: FinanceSnapshot;
 }>;
 
-export function OverviewPage({ session, snapshot }: OverviewPageProps) {
+export function OverviewPage({ displayName, snapshot }: OverviewPageProps) {
   const liquidBalances = snapshot.accounts
     .filter(
       (account) =>
@@ -44,10 +43,8 @@ export function OverviewPage({ session, snapshot }: OverviewPageProps) {
       <div className="page-heading overview-heading">
         <div>
           <span className="eyebrow">ภาพรวมวันนี้</span>
-          <h1>สวัสดี {session.displayName}</h1>
-          <p>
-            {snapshot.workspace?.name}
-          </p>
+          <h1>สวัสดี {displayName}</h1>
+          <p>บ้านเงินของ {displayName}</p>
         </div>
         <Link className="primary-button compact" to="/accounts">
           <Plus size={18} aria-hidden="true" />

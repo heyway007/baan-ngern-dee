@@ -3,19 +3,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { CloudSession } from "../../lib/cloud-auth";
 import { OverviewPage } from "./overview-page";
 
 const workspaceId = "10000000-0000-4000-8000-000000000001";
 const accountId = "20000000-0000-4000-8000-000000000002";
 const categoryId = "30000000-0000-4000-8000-000000000003";
-
-const session: CloudSession = {
-  userId: "40000000-0000-4000-8000-000000000004",
-  email: "min@example.test",
-  displayName: "มิน",
-  accessToken: "access-token"
-};
 
 const snapshot: FinanceSnapshot = {
   version: 1,
@@ -125,9 +117,14 @@ describe("OverviewPage", () => {
 
     render(
       <MemoryRouter>
-        <OverviewPage session={session} snapshot={snapshot} />
+        <OverviewPage displayName="มินใหม่" snapshot={snapshot} />
       </MemoryRouter>
     );
+
+    expect(
+      screen.getByRole("heading", { name: "สวัสดี มินใหม่" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("บ้านเงินของ มินใหม่")).toBeInTheDocument();
 
     const monthInput = screen.getByLabelText("เลือกเดือน");
     expect(monthInput).toHaveValue("2026-07");

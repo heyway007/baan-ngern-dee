@@ -669,7 +669,7 @@ describe("cloud application flow", () => {
     expect(
       await screen.findByRole("heading", { name: /สวัสดี มิน/ })
     ).toBeInTheDocument();
-    expect(screen.getByText("บ้านของมิน")).toBeInTheDocument();
+    expect(screen.getByText("บ้านเงินของ มิน")).toBeInTheDocument();
     expect(storage.getItem("systems-credit:session:v1")).toBeNull();
     expect(storage.getItem("systems-credit:finance:v1")).toBeNull();
     expect(storage.getItem("keep-me")).toBe("preserved");
@@ -772,7 +772,7 @@ describe("cloud application flow", () => {
   it("updates the layout immediately from a server-confirmed profile change", async () => {
     const user = userEvent.setup();
     const update = vi.fn().mockResolvedValue(confirmedProfile);
-    const { dependencies } = createDependencies({
+    const { dependencies, getSnapshot } = createDependencies({
       session,
       snapshot: workspaceSnapshot,
       profileApi: profileApi({ update })
@@ -809,6 +809,19 @@ describe("cloud application flow", () => {
         })
       ])
     );
+
+    await user.click(
+      screen.getAllByRole("link", { name: "ภาพรวม" })[0]
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "สวัสดี มินยืนยันแล้ว"
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("บ้านเงินของ มินยืนยันแล้ว")
+    ).toBeInTheDocument();
+    expect(getSnapshot).toHaveBeenCalledOnce();
   });
 
   it("does not let a delayed profile load overwrite a newer confirmed mutation", async () => {

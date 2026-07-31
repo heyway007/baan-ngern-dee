@@ -798,7 +798,10 @@ export function FinanceRoutes({
           <Route
             path="/overview"
             element={
-              <OverviewPage session={session} snapshot={snapshot} />
+              <OverviewPage
+                displayName={effectiveProfileState.profile.displayName}
+                snapshot={snapshot}
+              />
             }
           />
           <Route
