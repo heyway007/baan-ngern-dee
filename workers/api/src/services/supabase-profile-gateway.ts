@@ -22,7 +22,10 @@ const storedProfileRowSchema = z
 
 const authUserSchema = z
   .object({
-    email: z.string().email().nullable().optional(),
+    email: z
+      .union([z.string().email(), z.literal("")])
+      .nullable()
+      .optional(),
     user_metadata: z.record(z.unknown()).default({})
   })
   .passthrough();

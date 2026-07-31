@@ -137,6 +137,30 @@ describe("Supabase profile gateway", () => {
     });
   });
 
+  it("accepts the empty email returned for a LINE identity", async () => {
+    const requestFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        email: "",
+        user_metadata: {
+          email_verified: false,
+          name: "New'Waranchai",
+          phone_verified: false,
+          picture: "https://line.example.test/avatar",
+          sub: "line-user-id"
+        }
+      })
+    );
+    const gateway = createSupabaseProfileGateway({
+      ...config,
+      fetch: requestFetch
+    });
+
+    await expect(gateway.readIdentity(userId)).resolves.toEqual({
+      fallbackDisplayName: "New'Waranchai",
+      lineAvatarUrl: "https://line.example.test/avatar"
+    });
+  });
+
   it("patches only the requested profile field with a minimal response", async () => {
     const requestFetch = vi
       .fn<typeof fetch>()
