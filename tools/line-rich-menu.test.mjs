@@ -4,7 +4,7 @@ import test from "node:test";
 import { provisionRichMenu } from "./provision-line-rich-menu.mjs";
 import { validateRichMenu } from "./validate-line-rich-menu.mjs";
 
-const ORIGIN = "https://baan-ngern-dee.newforico-9ea.workers.dev";
+const ORIGIN = "https://baan-ngern-dee.workplatform.workers.dev";
 const ACCESS_TOKEN = "line-secret-token-for-tests";
 
 const validDefinition = {

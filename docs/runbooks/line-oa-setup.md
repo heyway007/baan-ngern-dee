@@ -93,7 +93,7 @@ production origin แล้วเพิ่ม redirect URLs ต่อไปน�
 reset password และ email/password flow ไว้ทั้งหมด):
 
 ```text
-https://baan-ngern-dee.newforico-9ea.workers.dev/line/callback
+https://baan-ngern-dee.workplatform.workers.dev/line/callback
 http://127.0.0.1:8787/line/callback
 http://127.0.0.1:5173/line/callback
 ```
@@ -108,7 +108,7 @@ deploy migration (ถ้ามี), Worker และเว็บตาม
 [`deploy-cloudflare-supabase.md`](deploy-cloudflare-supabase.md) ก่อนเปิด rich menu
 ให้ผู้ใช้จริง ตรวจว่าหน้า `/line` และ `/line/callback` ถูกเสิร์ฟเป็น SPA route และ
 หน้า sign-in email/password เดิมยังเข้าถึงได้. Origin ที่ rich menu ใช้คือ
-`https://baan-ngern-dee.newforico-9ea.workers.dev`.
+`https://baan-ngern-dee.workplatform.workers.dev`.
 
 ## 9. Provision rich menu จากเครื่องของเจ้าของโดยไม่พิมพ์ token
 

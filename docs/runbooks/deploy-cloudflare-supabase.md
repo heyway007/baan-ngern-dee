@@ -70,12 +70,12 @@ npx supabase test db
 
 ```text
 Site URL:
-https://baan-ngern-dee.newforico-9ea.workers.dev
+https://baan-ngern-dee.workplatform.workers.dev
 
 Redirect URLs:
-https://baan-ngern-dee.newforico-9ea.workers.dev/
-https://baan-ngern-dee.newforico-9ea.workers.dev/reset-password
-https://baan-ngern-dee.newforico-9ea.workers.dev/line/callback
+https://baan-ngern-dee.workplatform.workers.dev/
+https://baan-ngern-dee.workplatform.workers.dev/reset-password
+https://baan-ngern-dee.workplatform.workers.dev/line/callback
 http://127.0.0.1:8787/
 http://127.0.0.1:8787/reset-password
 http://127.0.0.1:8787/line/callback
@@ -194,9 +194,9 @@ npm run deploy:worker
 ตรวจ endpoint:
 
 ```powershell
-curl.exe -i https://baan-ngern-dee.newforico-9ea.workers.dev/config
-curl.exe -i https://baan-ngern-dee.newforico-9ea.workers.dev/health
-curl.exe -i https://baan-ngern-dee.newforico-9ea.workers.dev/v1/snapshot
+curl.exe -i https://baan-ngern-dee.workplatform.workers.dev/config
+curl.exe -i https://baan-ngern-dee.workplatform.workers.dev/health
+curl.exe -i https://baan-ngern-dee.workplatform.workers.dev/v1/snapshot
 ```
 
 ผลที่คาด: `/config` และ `/health` ตอบ 200, ส่วน `/v1/snapshot` ที่ไม่มี

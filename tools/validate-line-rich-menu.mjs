@@ -7,7 +7,7 @@ const MAX_PNG_BYTES = 1_048_576;
 const EXPECTED_NAME = "baan-ngern-dee-default-v1";
 const EXPECTED_CHAT_BAR_TEXT = "เมนูบ้านเงินดี";
 const PRODUCTION_ORIGIN =
-  "https://baan-ngern-dee.newforico-9ea.workers.dev";
+  "https://baan-ngern-dee.workplatform.workers.dev";
 const EXPECTED_DESTINATIONS = [
   "/overview",
   "/transactions/new?type=income",

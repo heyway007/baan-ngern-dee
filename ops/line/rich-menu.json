@@ -9,7 +9,7 @@
       "action": {
         "type": "uri",
         "label": "ภาพรวม",
-        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Foverview"
+        "uri": "https://baan-ngern-dee.workplatform.workers.dev/line?next=%2Foverview"
       }
     },
     {
@@ -17,7 +17,7 @@
       "action": {
         "type": "uri",
         "label": "เพิ่มรายรับ",
-        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Ftransactions%2Fnew%3Ftype%3Dincome"
+        "uri": "https://baan-ngern-dee.workplatform.workers.dev/line?next=%2Ftransactions%2Fnew%3Ftype%3Dincome"
       }
     },
     {
@@ -25,7 +25,7 @@
       "action": {
         "type": "uri",
         "label": "เพิ่มรายจ่าย",
-        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Ftransactions%2Fnew%3Ftype%3Dexpense"
+        "uri": "https://baan-ngern-dee.workplatform.workers.dev/line?next=%2Ftransactions%2Fnew%3Ftype%3Dexpense"
       }
     },
     {
@@ -33,7 +33,7 @@
       "action": {
         "type": "uri",
         "label": "บัญชี",
-        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Faccounts"
+        "uri": "https://baan-ngern-dee.workplatform.workers.dev/line?next=%2Faccounts"
       }
     },
     {
@@ -41,7 +41,7 @@
       "action": {
         "type": "uri",
         "label": "ผ่อนและหนี้",
-        "uri": "https://baan-ngern-dee.newforico-9ea.workers.dev/line?next=%2Finstallments"
+        "uri": "https://baan-ngern-dee.workplatform.workers.dev/line?next=%2Finstallments"
       }
     },
     {

@@ -14,14 +14,17 @@ major_version = 17
 
 [auth]
 enabled = true
-site_url = "https://baan-ngern-dee.newforico-9ea.workers.dev"
+site_url = "https://baan-ngern-dee.workplatform.workers.dev"
 additional_redirect_urls = [
-  "https://baan-ngern-dee.newforico-9ea.workers.dev/",
-  "https://baan-ngern-dee.newforico-9ea.workers.dev/reset-password",
+  "https://baan-ngern-dee.workplatform.workers.dev/",
+  "https://baan-ngern-dee.workplatform.workers.dev/reset-password",
+  "https://baan-ngern-dee.workplatform.workers.dev/line/callback",
   "http://127.0.0.1:8787/",
   "http://127.0.0.1:8787/reset-password",
+  "http://127.0.0.1:8787/line/callback",
   "http://127.0.0.1:5173/",
-  "http://127.0.0.1:5173/reset-password"
+  "http://127.0.0.1:5173/reset-password",
+  "http://127.0.0.1:5173/line/callback"
 ]
 jwt_expiry = 3600
 enable_signup = true
